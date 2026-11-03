@@ -87,7 +87,7 @@ Implemented a comprehensive American football defensive alignment and gap engine
   - Roster preview table displaying Pos, Technique, Assignment, and pre-aligned $(X, Y)$ coordinates.
   - Offensive gap distribution grid showing all 8 gap coordinates.
   - Shift controls for Left, Right, Over, Under, Pinch, Fan, and Re-Align.
-- **Firebase Firestore Live Seeding (`scripts/seed-defensive-fronts.mjs`)**:
+- **Firebase Firestore Live Seeding (`scripts/seed-defensive-fronts.mjs` & `scripts/seed-offensive-formations.mjs`)**:
   - Successfully connected to Firebase project `football-playbook-c6936` and uploaded all 7 basic defensive fronts into the `formations` collection:
     1. `front-4-3-over` (4-3 Over Front - 11 players)
     2. `front-4-3-under` (4-3 Under Front - 11 players)
@@ -96,6 +96,15 @@ Implemented a comprehensive American football defensive alignment and gap engine
     5. `front-4-2-5-nickel` (4-2-5 Nickel Over - 11 players)
     6. `front-3-4-mint` (Mint / Tite Front - 11 players)
     7. `front-bear-46` (Bear / 46 Front - 11 players)
+  - Successfully uploaded all 8 basic offensive formations into the `formations` collection:
+    1. `formation-spread-2x2` (Spread 2x2 Open / Doubles - 11 players)
+    2. `formation-spread-trips-3x1` (Spread 3x1 Trips Open - 11 players)
+    3. `formation-pro-i-21` (Pro-I Formation - 11 players)
+    4. `formation-single-back-ace` (Single-Back Ace 12 Personnel - 11 players)
+    5. `formation-shotgun-bunch-11` (Shotgun Bunch Right - 11 players)
+    6. `formation-pistol-diamond-20` (Pistol Diamond 20 Personnel - 11 players)
+    7. `formation-empty-3x2` (Empty 3x2 Quads Spread - 11 players)
+    8. `formation-wishbone-21` (Shotgun Wishbone 21 Personnel - 11 players)
 
 ---
 
