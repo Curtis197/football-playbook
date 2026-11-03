@@ -1,12 +1,12 @@
 import { initializeApp, getApps, getApp, type FirebaseApp } from 'firebase/app';
 import { getFirestore, type Firestore } from 'firebase/firestore';
 
-const apiKey = import.meta.env.VITE_FIREBASE_API_KEY;
-const authDomain = import.meta.env.VITE_FIREBASE_AUTH_DOMAIN;
-const projectId = import.meta.env.VITE_FIREBASE_PROJECT_ID;
-const storageBucket = import.meta.env.VITE_FIREBASE_STORAGE_BUCKET;
-const messagingSenderId = import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID;
-const appId = import.meta.env.VITE_FIREBASE_APP_ID;
+const apiKey = import.meta.env.VITE_FIREBASE_API_KEY || 'AIzaSyCUhaolKLREYDSoTmGQ125rVAsWDr1axIs';
+const authDomain = import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || 'football-playbook-c6936.firebaseapp.com';
+const projectId = import.meta.env.VITE_FIREBASE_PROJECT_ID || 'football-playbook-c6936';
+const storageBucket = import.meta.env.VITE_FIREBASE_STORAGE_BUCKET || 'football-playbook-c6936.firebasestorage.app';
+const messagingSenderId = import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID || '1070455562140';
+const appId = import.meta.env.VITE_FIREBASE_APP_ID || '1:1070455562140:web:884fd61e3650903527f259';
 
 export const isFirebaseConfigured = Boolean(
   apiKey &&
@@ -22,12 +22,12 @@ if (!isFirebaseConfigured) {
 }
 
 const firebaseConfig = {
-  apiKey: apiKey || 'demo-api-key',
-  authDomain: authDomain || 'antigravity-football-playbook.firebaseapp.com',
-  projectId: projectId || 'antigravity-football-playbook',
-  storageBucket: storageBucket || 'antigravity-football-playbook.appspot.com',
-  messagingSenderId: messagingSenderId || '1234567890',
-  appId: appId || '1:1234567890:web:abcdef1234567890'
+  apiKey,
+  authDomain,
+  projectId,
+  storageBucket,
+  messagingSenderId,
+  appId
 };
 
 const app: FirebaseApp = getApps().length ? getApp() : initializeApp(firebaseConfig);
