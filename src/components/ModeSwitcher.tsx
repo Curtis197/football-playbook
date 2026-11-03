@@ -10,7 +10,9 @@ import {
   Trash2,
   Info,
   Eye,
-  Wrench
+  Wrench,
+  Undo2,
+  Redo2
 } from 'lucide-react';
 
 interface ModeSwitcherProps {
@@ -22,6 +24,10 @@ interface ModeSwitcherProps {
   selectedPlayerId: string | null;
   selectedActionId: string | null;
   onDeleteSelected: () => void;
+  canUndo?: boolean;
+  canRedo?: boolean;
+  onUndo?: () => void;
+  onRedo?: () => void;
 }
 
 export const ModeSwitcher: React.FC<ModeSwitcherProps> = ({
@@ -32,9 +38,21 @@ export const ModeSwitcher: React.FC<ModeSwitcherProps> = ({
   theme = 'dark',
   selectedPlayerId,
   selectedActionId,
-  onDeleteSelected
+  onDeleteSelected,
+  canUndo = false,
+  canRedo = false,
+  onUndo,
+  onRedo
 }) => {
   const isLight = theme === 'light';
+  const historyButtonClass = (enabled: boolean) =>
+    `flex-1 py-1.5 px-2 rounded-lg border text-[11px] font-bold flex items-center justify-center gap-1.5 transition-all ${
+      enabled ? 'cursor-pointer' : 'opacity-40 cursor-not-allowed'
+    } ${
+      isLight
+        ? 'bg-slate-100 hover:bg-slate-200 text-slate-700 border-slate-500'
+        : 'bg-slate-800 hover:bg-slate-700 text-slate-200 border-slate-500'
+    }`;
   const modes: { id: CanvasMode; label: string; icon: React.ReactNode; desc: string; shortcut?: string }[] = [
     {
       id: 'select',
@@ -118,6 +136,33 @@ export const ModeSwitcher: React.FC<ModeSwitcherProps> = ({
             >
               <Eye className="w-3.5 h-3.5" />
               <span className="hidden md:inline">View</span>
+            </button>
+          </div>
+        )}
+
+        {onUndo && onRedo && (
+          <div className="flex flex-col md:flex-row gap-1 mb-2">
+            <button
+              type="button"
+              onClick={onUndo}
+              disabled={!canUndo}
+              aria-label="Undo"
+              className={historyButtonClass(canUndo)}
+              title="Undo (Ctrl+Z)"
+            >
+              <Undo2 className="w-3.5 h-3.5 shrink-0" />
+              <span className="hidden md:inline">Undo</span>
+            </button>
+            <button
+              type="button"
+              onClick={onRedo}
+              disabled={!canRedo}
+              aria-label="Redo"
+              className={historyButtonClass(canRedo)}
+              title="Redo (Ctrl+Shift+Z)"
+            >
+              <Redo2 className="w-3.5 h-3.5 shrink-0" />
+              <span className="hidden md:inline">Redo</span>
             </button>
           </div>
         )}

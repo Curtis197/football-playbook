@@ -143,6 +143,22 @@ Comprehensive catalog of capabilities and features supported in the Football Pla
       - Defensive Backs: `pressY = losY - 65`, `offCbY = losY - 140`, `robberY = losY - 185`, `twoHighY = losY - 235`, `singleHighY = losY - 275`.
       - Automatic local storage migration seamlessly upgrades legacy cramped wishbone coordinates to the new spacious alignment.
     - Inspector Panel Technique Controller: Categorized tabs (1st Level DL, 2nd Level LB, 3rd Level DB) with quick-select chips, individual defender gap shift buttons (`◀ Shift Gap Left`, `Shift Gap Right ▶`), and re-snap trigger.
+  - Offensive Receiver Reference Alignment Engine for DBs (CB/NB) & 9-Technique Perimeter Anchoring:
+    - Numbered Receiver Analysis (`#1`, `#2`, `#3` from Outside-In):
+      - Dynamically analyzes all eligible perimeter receivers on each side of the center and ranks them from sideline inward: `#1 Outside WR`, `#2 Slot WR`, and `#3 Inner Slot/Wing` for both left and right sides.
+      - Maintains accurate receiver indexing across 2x2 Doubles, 3x1 Trips Open, 2x1 Pro-Sets, and condensed bunch packages.
+    - Explicit Defender Reference Target & Coverage Leverage (`Player` schema):
+      - Extended `Player` model with `alignReferenceTarget?: string` (`#1_wr_left`, `#1_wr_right`, `#2_slot_left`, `#2_slot_right`, `#3_slot_left`, `#3_slot_right`, or offensive player label/id) and `alignLeverage?: AlignmentLeverage` (`head_up`, `inside_shade`, `outside_shade`, `press`, `off_cushion`, `apex`).
+      - Cornerbacks (`CB`) automatically anchor to `#1 Receiver` (Press at 2.5 yds depth, Off Cushion at 7 yds depth with inside leverage).
+      - Nickelbacks / Slot Defenders (`NB`, `NK`, `Star`, `Slot CB`) automatically anchor to `#2 Slot Receiver` (Press, Off Cushion, or Apex overhang).
+      - Automatic re-alignment: Whenever the offensive formation changes or shifts, all anchored defenders adapt their positions dynamically to the new offensive structure while maintaining leverage.
+    - Inspector Panel Offensive Reference Controller:
+      - Dedicated "Offensive Reference (CB / NB)" control block in the Inspector Panel pre-align section.
+      - Includes "Target Player" dropdown (Auto, Numbered Receivers, or specific offensive players) and "Leverage / Depth" dropdown (`Off Cushion (7 yds)`, `Press (2.5 yds)`, `Inside Shade`, `Outside Shade`, `Head-Up`, `Apex Overhang`).
+      - Interactive "Anchored" badge and 1-click Re-Snap action with live chalkboard updates.
+    - 9-Technique / Wide-9 Edge Rusher Fix:
+      - Inline Tight End Proximity Restriction: Enforces strict inline attached proximity (`<= 85px` from Tackle) and explicitly excludes wide receivers (`X`, `Z`, `WR`, `QB`, `RB`, `FB`) from being misclassified as Tight Ends.
+      - Eliminates 9-technique defensive ends straying past perimeter receivers out to the sideline (e.g. `x=895`), anchoring Wide-9 rushers strictly 45px outside the Offensive Tackle or 28px outside an attached TE.
   - Load Defense Front Packages (`DefenseFrontModal.tsx`):
     - Load comprehensive 11-player defensive front schemes pre-aligned directly to the offensive alignment:
       - 3-4 Over Front

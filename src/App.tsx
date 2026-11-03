@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import type { 
   Play, 
   PlaybookFile, 
@@ -17,9 +17,11 @@ import {
   loadPlaybookFromStorage, 
   savePlaybookToStorage, 
   downloadJsonFile, 
-  downloadSvgFile, 
-  parseAndValidateImport 
+  downloadSvgFile,
+  parseAndValidateImport,
+  takeStorageLoadNotice
 } from './utils/storage';
+import { playsEqual } from './utils/playValidation';
 import { ChalkboardCanvas } from './components/ChalkboardCanvas';
 import { Toolbar, type CloudSyncStatus, type CloudSaveTarget } from './components/Toolbar';
 import { ModeSwitcher } from './components/ModeSwitcher';
@@ -35,8 +37,56 @@ import { savePlay, fetchFormations, saveFormation, fetchAllPlays } from './servi
 import { isFirebaseConfigured } from './services/firebase';
 import { INITIAL_PLAYBOOK } from './data/presets';
 
+// Undo/redo keeps whole-playbook snapshots. Edits that arrive within COALESCE_MS of each other
+// (a drag, typing in a field) share one undo step.
+interface PlaybookHistory {
+  present: PlaybookFile;
+  past: PlaybookFile[];
+  future: PlaybookFile[];
+  lastEditAt: number;
+}
+const HISTORY_LIMIT = 100;
+const COALESCE_MS = 600;
+
+// Local edits always win; the cloud only contributes plays this device does not have.
+function mergeCloudPlays(local: PlaybookFile, remote: Play[]): PlaybookFile {
+  const merged = new Map<string, Play>();
+  INITIAL_PLAYBOOK.plays.forEach(p => merged.set(p.id, p));
+  local.plays.forEach(p => merged.set(p.id, p));
+  const localIds = new Set(local.plays.map(p => p.id));
+  remote.forEach(p => {
+    if (!localIds.has(p.id)) merged.set(p.id, p);
+  });
+  return { ...local, plays: Array.from(merged.values()) };
+}
+
 export const App: React.FC = () => {
-  const [playbook, setPlaybook] = useState<PlaybookFile>(() => loadPlaybookFromStorage());
+  const [history, setHistory] = useState<PlaybookHistory>(() => ({
+    present: loadPlaybookFromStorage(),
+    past: [],
+    future: [],
+    lastEditAt: 0
+  }));
+  const playbook = history.present;
+  const latestPlaybook = useRef(playbook);
+  useEffect(() => {
+    latestPlaybook.current = playbook;
+  }, [playbook]);
+
+  const setPlaybook = useCallback((update: PlaybookFile | ((prev: PlaybookFile) => PlaybookFile)) => {
+    setHistory(h => {
+      const next = typeof update === 'function' ? update(h.present) : update;
+      if (next === h.present) return h;
+      const now = Date.now();
+      const joinsLastStep = now - h.lastEditAt < COALESCE_MS;
+      return {
+        present: next,
+        past: joinsLastStep ? h.past : [...h.past, h.present].slice(-HISTORY_LIMIT),
+        future: [],
+        lastEditAt: now
+      };
+    });
+  }, []);
   const [activePlayId, setActivePlayId] = useState<string>(() => playbook.plays[0]?.id || DEFAULT_WISHBONE_PLAY.id);
   const [appMode, setAppMode] = useState<AppMode>('build');
   const [theme, setTheme] = useState<Theme>(() => {
@@ -57,27 +107,31 @@ export const App: React.FC = () => {
   const [formations, setFormations] = useState<Formation[]>(() => DEFAULT_FORMATIONS);
   const [routeAdaptationMode, setRouteAdaptationMode] = useState<RouteAdaptationMode>('player_relative');
 
+  // Background cloud sync changes the playbook without creating an undo step
+  const mergeRemotePlays = useCallback((remote: Play[]) => {
+    setHistory(h => ({ ...h, present: mergeCloudPlays(h.present, remote) }));
+  }, []);
+
+  // Flash notification helper
+  const showNotification = useCallback((message: string, type: 'success' | 'error' | 'info' = 'info', durationMs = 3500) => {
+    setNotification({ message, type });
+    setTimeout(() => {
+      setNotification(null);
+    }, durationMs);
+  }, []);
+
   // Refresh all plays from Cloud Firestore (or fallback to presets & localStorage)
   const refreshCloudPlays = useCallback(async () => {
     if (!isFirebaseConfigured) return;
     try {
       const remotePlays = await fetchAllPlays();
       if (remotePlays.length > 0) {
-        setPlaybook(prev => {
-          const map = new Map<string, Play>();
-          INITIAL_PLAYBOOK.plays.forEach(p => map.set(p.id, p));
-          prev.plays.forEach(p => map.set(p.id, p));
-          remotePlays.forEach(p => map.set(p.id, p));
-          return {
-            ...prev,
-            plays: Array.from(map.values())
-          };
-        });
+        mergeRemotePlays(remotePlays);
       }
     } catch (e) {
       console.warn('Could not refresh cloud plays:', e);
     }
-  }, []);
+  }, [mergeRemotePlays]);
 
   // Load all formations and plays from Firestore on startup so all cloud items are immediately visible
   useEffect(() => {
@@ -97,16 +151,17 @@ export const App: React.FC = () => {
         // 2. Fetch Plays from Cloud
         const remotePlays = await fetchAllPlays();
         if (remotePlays.length > 0 && isMounted) {
-          setPlaybook(prev => {
-            const map = new Map<string, Play>();
-            INITIAL_PLAYBOOK.plays.forEach(p => map.set(p.id, p));
-            prev.plays.forEach(p => map.set(p.id, p));
-            remotePlays.forEach(p => map.set(p.id, p));
-            return {
-              ...prev,
-              plays: Array.from(map.values())
-            };
-          });
+          const differing = remotePlays.filter(remote => {
+            const local = latestPlaybook.current.plays.find(p => p.id === remote.id);
+            return local !== undefined && !playsEqual(local, remote);
+          }).length;
+          mergeRemotePlays(remotePlays);
+          if (differing > 0) {
+            showNotification(
+              `${differing} play${differing === 1 ? ' differs' : 's differ'} from the cloud copy. Your local version was kept; open My Playbook to load the cloud one.`,
+              'info'
+            );
+          }
         }
       } catch (e) {
         console.warn('Could not load remote cloud data, using offline presets:', e);
@@ -116,7 +171,16 @@ export const App: React.FC = () => {
     return () => {
       isMounted = false;
     };
-  }, []);
+  }, [mergeRemotePlays, showNotification]);
+
+  // Tell the user when stored data had to be repaired or set aside on startup
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      const notice = takeStorageLoadNotice();
+      if (notice) showNotification(notice, 'error', 9000);
+    }, 0);
+    return () => clearTimeout(timer);
+  }, [showNotification]);
 
   // Sync theme to document element and LocalStorage
   useEffect(() => {
@@ -150,13 +214,57 @@ export const App: React.FC = () => {
     savePlaybookToStorage(playbook);
   }, [playbook]);
 
-  // Flash notification helper
-  const showNotification = (message: string, type: 'success' | 'error' | 'info' = 'info') => {
-    setNotification({ message, type });
-    setTimeout(() => {
-      setNotification(null);
-    }, 3500);
-  };
+  const canUndo = history.past.length > 0;
+  const canRedo = history.future.length > 0;
+
+  const handleUndo = useCallback(() => {
+    if (!canUndo) return;
+    setHistory(h => {
+      if (h.past.length === 0) return h;
+      return {
+        present: h.past[h.past.length - 1],
+        past: h.past.slice(0, -1),
+        future: [h.present, ...h.future],
+        lastEditAt: 0
+      };
+    });
+    showNotification('Undid last change', 'info');
+  }, [canUndo, showNotification]);
+
+  const handleRedo = useCallback(() => {
+    if (!canRedo) return;
+    setHistory(h => {
+      if (h.future.length === 0) return h;
+      return {
+        present: h.future[0],
+        past: [...h.past, h.present].slice(-HISTORY_LIMIT),
+        future: h.future.slice(1),
+        lastEditAt: 0
+      };
+    });
+    showNotification('Redid change', 'info');
+  }, [canRedo, showNotification]);
+
+  const isAnyModalOpen = isMatrixModalOpen || isLibraryModalOpen || isFormationsModalOpen || isDefenseModalOpen;
+
+  // Ctrl/Cmd+Z undo, Ctrl/Cmd+Shift+Z or Ctrl/Cmd+Y redo. Text fields keep their own native undo.
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (!(e.ctrlKey || e.metaKey) || e.altKey || isAnyModalOpen) return;
+      const target = e.target as HTMLElement | null;
+      if (target && (target.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName))) return;
+      const key = e.key.toLowerCase();
+      if (key === 'z' && !e.shiftKey) {
+        e.preventDefault();
+        handleUndo();
+      } else if ((key === 'z' && e.shiftKey) || key === 'y') {
+        e.preventDefault();
+        handleRedo();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [handleUndo, handleRedo, isAnyModalOpen]);
 
   // Current active play
   const currentPlay = playbook.plays.find(p => p.id === activePlayId) || playbook.plays[0] || DEFAULT_WISHBONE_PLAY;
@@ -171,7 +279,7 @@ export const App: React.FC = () => {
       ...prev,
       plays: prev.plays.map(p => (p.id === currentPlay.id ? updater(p) : p))
     }));
-  }, [currentPlay.id]);
+  }, [currentPlay.id, setPlaybook]);
 
   // Play selection
   const handleSelectPlay = (playId: string) => {
@@ -281,18 +389,20 @@ export const App: React.FC = () => {
     }
   };
 
-  // Reset Canvas to initial Wishbone template
+  // Restore the active play to its own original template (only built-in plays have one)
   const handleResetCanvas = () => {
-    if (window.confirm('Reset this play to default template positions?')) {
-      updateCurrentPlay(() => ({
-        ...DEFAULT_WISHBONE_PLAY,
-        id: currentPlay.id,
-        name: currentPlay.name
-      }));
-      setSelectedPlayerId(null);
-      setSelectedActionId(null);
-      showNotification('Canvas reset to default template', 'info');
+    const original = INITIAL_PLAYBOOK.plays.find(p => p.id === currentPlay.id);
+    if (!original) {
+      showNotification('This play has no original template to reset to. Use Undo (Ctrl+Z) to step back instead.', 'info');
+      return;
     }
+    if (!window.confirm(`Restore "${original.name}" to its original template? Your edits to this play are replaced (Ctrl+Z undoes this).`)) {
+      return;
+    }
+    updateCurrentPlay(() => original);
+    setSelectedPlayerId(null);
+    setSelectedActionId(null);
+    showNotification(`Restored "${original.name}" to its original template`, 'info');
   };
 
   // Create new play
@@ -378,14 +488,27 @@ export const App: React.FC = () => {
       return;
     }
 
+    if (result.warnings && result.warnings.length > 0) {
+      console.info('Import adjustments:', result.warnings);
+    }
+    const adjustments = result.warnings && result.warnings.length > 0 ? ` (${result.warnings.length} adjusted, see console)` : '';
+
     if (result.playbook) {
-      setPlaybook(result.playbook);
-      if (result.playbook.plays.length > 0) {
-        setActivePlayId(result.playbook.plays[0].id);
+      const incoming = result.playbook;
+      if (!window.confirm(`Replace your whole playbook (${playbook.plays.length} plays) with the imported one (${incoming.plays.length} plays)? Ctrl+Z undoes this.`)) {
+        return;
       }
-      showNotification(`Imported playbook with ${result.playbook.plays.length} plays!`, 'success');
+      setPlaybook(incoming);
+      if (incoming.plays.length > 0) {
+        setActivePlayId(incoming.plays[0].id);
+      }
+      showNotification(`Imported playbook with ${incoming.plays.length} plays!${adjustments}`, 'success');
     } else if (result.play) {
       const importedPlay = result.play;
+      const existing = playbook.plays.find(p => p.id === importedPlay.id);
+      if (existing && !window.confirm(`A play named "${existing.name}" already exists with this id. Replace it with the imported "${importedPlay.name}"? Ctrl+Z undoes this.`)) {
+        return;
+      }
       setPlaybook(prev => {
         const exists = prev.plays.some(p => p.id === importedPlay.id);
         const updatedPlays = exists
@@ -394,7 +517,7 @@ export const App: React.FC = () => {
         return { ...prev, plays: updatedPlays };
       });
       setActivePlayId(importedPlay.id);
-      showNotification(`Imported play: "${importedPlay.name}"`, 'success');
+      showNotification(`Imported play: "${importedPlay.name}"${adjustments}`, 'success');
     }
   };
 
@@ -631,7 +754,7 @@ export const App: React.FC = () => {
     // Pre-align new defensive players dynamically according to active offensive structure
     const realignedDefenders = defPlayers.map(p => {
       const tech = inferDefenderTechnique(p, structure);
-      const pos = calculateDefensiveAlignmentPosition(tech, structure);
+      const pos = calculateDefensiveAlignmentPosition(tech, structure, p);
       return { ...p, technique: tech, x: pos.x, y: pos.y };
     });
 
@@ -700,7 +823,13 @@ export const App: React.FC = () => {
   };
 
   // Play Library actions
-  const handleSelectPlayFromLibrary = (play: Play) => {
+  // Returns false when the user declines to replace a differing local copy
+  const handleSelectPlayFromLibrary = (play: Play): boolean => {
+    const local = playbook.plays.find(p => p.id === play.id);
+    if (local && !playsEqual(local, play) &&
+        !window.confirm(`"${local.name}" on this device differs from the copy you are loading. Replace your local version? Ctrl+Z undoes this.`)) {
+      return false;
+    }
     setPlaybook(prev => {
       const exists = prev.plays.some(p => p.id === play.id);
       const updated = exists ? prev.plays.map(p => (p.id === play.id ? play : p)) : [play, ...prev.plays];
@@ -709,6 +838,7 @@ export const App: React.FC = () => {
     setActivePlayId(play.id);
     setSelectedPlayerId(null);
     setSelectedActionId(null);
+    return true;
   };
 
   const handleDuplicatePlayFromLibrary = (play: Play) => {
@@ -775,6 +905,10 @@ export const App: React.FC = () => {
           selectedPlayerId={selectedPlayerId}
           selectedActionId={selectedActionId}
           onDeleteSelected={handleDeleteSelected}
+          canUndo={canUndo}
+          canRedo={canRedo}
+          onUndo={handleUndo}
+          onRedo={handleRedo}
         />
 
         {/* CENTER STAGE: CHALKBOARD SVG CANVAS */}
@@ -881,7 +1015,7 @@ export const App: React.FC = () => {
             notification.type === 'success'
               ? 'bg-emerald-600 text-white border border-emerald-400/40'
               : notification.type === 'error'
-              ? 'bg-rose-600 text-white border border-rose-400/40'
+              ? 'bg-rose-700 text-white border border-rose-400/40'
               : 'bg-slate-800 text-sky-300 border border-slate-600'
           }`}
         >

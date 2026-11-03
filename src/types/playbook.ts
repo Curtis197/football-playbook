@@ -11,6 +11,7 @@ export type RoutePoint = Point;
 
 // 2. Player Entity
 export type PlayerShape = 'round' | 'square' | 'rounded_square' | 'none';
+export type AlignmentLeverage = 'head_up' | 'inside_shade' | 'outside_shade' | 'press' | 'off_cushion' | 'apex';
 
 export interface Player {
   id: string;              // e.g. "off_y", "def_w"
@@ -28,6 +29,8 @@ export interface Player {
   assignmentNotes: string; // e.g. "Attack inside shoulder of Sam; sit if single-high stays deep"
   technique?: string;      // e.g. "0-Tech", "4i-Tech", "Apex"
   coachingKeys?: string[]; // e.g. ["Read Will LB flow", "Eyes inside on snap"]
+  alignReferenceTarget?: string; // Optional offensive reference target: e.g. "#1_wr_left", "#1_wr_right", "#2_slot_left", "#2_slot_right", or offensive player label/id
+  alignLeverage?: AlignmentLeverage; // Optional leverage modifier: e.g. "inside_shade", "off_cushion", "press", "head_up", "outside_shade", "apex"
 }
 
 // 3. Vector Paths (Routes & Blocks)

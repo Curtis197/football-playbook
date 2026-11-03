@@ -29,6 +29,16 @@ export interface OffensiveStructure {
   rightSlots: Player[];
   strength: 'left' | 'right';
   gaps: OffensiveGap[];
+  // Numbered Receiver References (#1, #2, #3 from outside in)
+  number1Left: Player | null;
+  number2Left: Player | null;
+  number3Left: Player | null;
+  number1Right: Player | null;
+  number2Right: Player | null;
+  number3Right: Player | null;
+  allReceiversLeft: Player[];
+  allReceiversRight: Player[];
+  allPlayers?: Player[];
 }
 
 /**
@@ -62,8 +72,8 @@ export const COMMON_DEFENSIVE_TECHNIQUES: TechniqueOption[] = [
   { code: '7-Tech Weak', label: '7-Tech / 6i Weak', category: 'DL', gapDesc: 'Inside eye on weak TE / Ghost 7 edge', level: '1st Level (LOS)' },
   { code: '7-Tech Strong', label: '7-Tech / 6i Strong', category: 'DL', gapDesc: 'Inside eye on strong TE', level: '1st Level (LOS)' },
   { code: '6-Tech Strong', label: '6-Tech Strong (Head-up TE)', category: 'DL', gapDesc: 'Head-up on Tight End', level: '1st Level (LOS)' },
-  { code: '9-Tech Weak', label: '9-Tech / Wide-9 Weak', category: 'DL', gapDesc: 'Ghost 9 / Wide edge rush backside', level: '1st Level (LOS)' },
-  { code: '9-Tech Strong', label: '9-Tech / Wide-9 Strong', category: 'DL', gapDesc: 'Outside shade on TE / Wide edge rush', level: '1st Level (LOS)' },
+  { code: '9-Tech Weak', label: '9-Tech Weak (Ghost 9 off LT)', category: 'DL', gapDesc: 'Ghost 9 / 45px outside Left Tackle', level: '1st Level (LOS)' },
+  { code: '9-Tech Strong', label: '9-Tech Strong (Ghost 9 off RT / TE)', category: 'DL', gapDesc: 'Wide-9 edge rush off Tackle / TE', level: '1st Level (LOS)' },
 
   // 2nd Level: Linebackers & Overhangs
   { code: '00 Stack', label: '00 Stack (Mike Center)', category: 'LB', gapDesc: 'Stacked 4-5 yds directly over Center', level: '2nd Level (Box)' },
@@ -81,12 +91,14 @@ export const COMMON_DEFENSIVE_TECHNIQUES: TechniqueOption[] = [
   { code: 'Apex Strong', label: 'Apex Strong (Nickel/Sam)', category: 'LB', gapDesc: 'Splits tackle/TE and slot receiver strong', level: '2nd Level (Box)' },
 
   // 3rd Level: Defensive Backs & Secondary
-  { code: 'Press CB Left', label: 'Press CB Left', category: 'DB', gapDesc: 'Press man leverage over boundary/left WR', level: '3rd Level (Secondary)' },
-  { code: 'Press CB Right', label: 'Press CB Right', category: 'DB', gapDesc: 'Press man leverage over field/right WR', level: '3rd Level (Secondary)' },
-  { code: 'Off CB Left', label: 'Off CB Left (7-8 yds)', category: 'DB', gapDesc: 'Cushion coverage over left receiver', level: '3rd Level (Secondary)' },
-  { code: 'Off CB Right', label: 'Off CB Right (7-8 yds)', category: 'DB', gapDesc: 'Cushion coverage over right receiver', level: '3rd Level (Secondary)' },
-  { code: 'Nickel / Slot Left', label: 'Nickel / Slot Left', category: 'DB', gapDesc: 'Coverage over inner left slot receiver', level: '3rd Level (Secondary)' },
-  { code: 'Nickel / Slot Right', label: 'Nickel / Slot Right', category: 'DB', gapDesc: 'Coverage over inner right slot receiver', level: '3rd Level (Secondary)' },
+  { code: 'Press CB Left', label: 'Press CB Left (#1 WR)', category: 'DB', gapDesc: 'Press man leverage over #1 left WR', level: '3rd Level (Secondary)' },
+  { code: 'Press CB Right', label: 'Press CB Right (#1 WR)', category: 'DB', gapDesc: 'Press man leverage over #1 right WR', level: '3rd Level (Secondary)' },
+  { code: 'Off CB Left', label: 'Off CB Left (#1 WR 7-8 yds)', category: 'DB', gapDesc: 'Cushion coverage over #1 left receiver', level: '3rd Level (Secondary)' },
+  { code: 'Off CB Right', label: 'Off CB Right (#1 WR 7-8 yds)', category: 'DB', gapDesc: 'Cushion coverage over #1 right receiver', level: '3rd Level (Secondary)' },
+  { code: 'Nickel / Slot Left', label: 'Nickel / Slot Left (#2 Slot)', category: 'DB', gapDesc: 'Coverage over #2 slot receiver left', level: '3rd Level (Secondary)' },
+  { code: 'Nickel / Slot Right', label: 'Nickel / Slot Right (#2 Slot)', category: 'DB', gapDesc: 'Coverage over #2 slot receiver right', level: '3rd Level (Secondary)' },
+  { code: 'Nickel Press Right', label: 'Nickel Press Right (#2 Slot)', category: 'DB', gapDesc: 'Press coverage over #2 slot receiver right', level: '3rd Level (Secondary)' },
+  { code: 'Nickel Press Left', label: 'Nickel Press Left (#2 Slot)', category: 'DB', gapDesc: 'Press coverage over #2 slot receiver left', level: '3rd Level (Secondary)' },
   { code: 'Single-High FS', label: 'Single-High FS (Middle 1/3)', category: 'DB', gapDesc: 'Deep center field post safety', level: '3rd Level (Secondary)' },
   { code: '2-High Safety Left', label: '2-High Safety Left (Cover 2/4)', category: 'DB', gapDesc: 'Deep half/quarter safety left', level: '3rd Level (Secondary)' },
   { code: '2-High Safety Right', label: '2-High Safety Right (Cover 2/4)', category: 'DB', gapDesc: 'Deep half/quarter safety right', level: '3rd Level (Secondary)' },
@@ -127,7 +139,15 @@ export function analyzeOffense(players: Player[]): OffensiveStructure {
       leftSlots: [],
       rightSlots: [],
       strength: 'right',
-      gaps: []
+      gaps: [],
+      number1Left: null,
+      number2Left: null,
+      number3Left: null,
+      number1Right: null,
+      number2Right: null,
+      number3Right: null,
+      allReceiversLeft: [],
+      allReceiversRight: []
     };
   }
 
@@ -168,33 +188,66 @@ export function analyzeOffense(players: Player[]): OffensiveStructure {
   const rightTackle = rightOfCenter.find(p => p.label.trim().toUpperCase() === 'RT') || 
     rightOfCenter.filter(p => p !== rightGuard)[0] || null;
 
-  // Tight Ends (TE / Y) on LOS or flexed close
-  const teCandidates = offense.filter(p => 
-    p.label.trim().toUpperCase() === 'Y' || 
-    p.label.trim().toUpperCase() === 'TE' ||
-    p.assignmentTitle?.toLowerCase().includes('tight end')
+  const ltX = leftTackle ? leftTackle.x : (leftGuard ? leftGuard.x - 60 : centerX - 120);
+  const rtX = rightTackle ? rightTackle.x : (rightGuard ? rightGuard.x + 60 : centerX + 120);
+
+  // Tight Ends: attached inline within 85 units of Tackle
+  // Crucial: Outside wide receivers (X, Z at 120 / 860) must NEVER be considered Tight Ends
+  const isExcludedFromTE = (p: Player) => {
+    const lbl = p.label.trim().toUpperCase();
+    return lbl === 'X' || lbl === 'Z' || lbl === 'WR' || lbl === 'QB' || lbl === 'RB' || lbl === 'FB';
+  };
+
+  const leftTECandidates = offense.filter(p => 
+    p.x < ltX && 
+    (ltX - p.x) <= 85 && 
+    Math.abs(p.y - losY) <= 45 &&
+    !isExcludedFromTE(p)
+  ).sort((a, b) => b.x - a.x); // closest to LT first
+
+  const leftTE = leftTECandidates[0] || null;
+
+  const rightTECandidates = offense.filter(p => 
+    p.x > rtX && 
+    (p.x - rtX) <= 85 && 
+    Math.abs(p.y - losY) <= 45 &&
+    !isExcludedFromTE(p)
+  ).sort((a, b) => a.x - b.x); // closest to RT first
+
+  const rightTE = rightTECandidates[0] || null;
+
+  // 3. Classify all perimeter and slot receivers on each side
+  const eligibleReceivers = offense.filter(p => 
+    p !== center && p !== leftGuard && p !== rightGuard && p !== leftTackle && p !== rightTackle &&
+    p !== leftTE && p !== rightTE &&
+    p.label.trim().toUpperCase() !== 'QB' && 
+    p.label.trim().toUpperCase() !== 'RB' && 
+    p.label.trim().toUpperCase() !== 'FB'
   );
 
-  const leftTE = teCandidates.find(p => p.x < centerX && Math.abs(p.y - losY) <= 50) || 
-    leftOfCenter.filter(p => p !== leftGuard && p !== leftTackle)[0] || null;
+  // Left receivers sorted from outermost (#1) to innermost (#2, #3...)
+  const allReceiversLeft = eligibleReceivers
+    .filter(p => p.x < centerX)
+    .sort((a, b) => a.x - b.x); // smallest X = outermost #1 WR left
 
-  const rightTE = teCandidates.find(p => p.x > centerX && Math.abs(p.y - losY) <= 50) || 
-    rightOfCenter.filter(p => p !== rightGuard && p !== rightTackle)[0] || null;
+  // Right receivers sorted from outermost (#1) to innermost (#2, #3...)
+  const allReceiversRight = eligibleReceivers
+    .filter(p => p.x > centerX)
+    .sort((a, b) => b.x - a.x); // largest X = outermost #1 WR right
 
-  // 3. Wide Receivers & Slots
-  const receivers = offense.filter(p => 
-    p !== center && p !== leftGuard && p !== rightGuard && p !== leftTackle && p !== rightTackle && p !== leftTE && p !== rightTE &&
-    p.label.trim().toUpperCase() !== 'QB' && p.label.trim().toUpperCase() !== 'RB' && p.label.trim().toUpperCase() !== 'FB'
-  );
+  const number1Left = allReceiversLeft[0] || null;
+  const number2Left = allReceiversLeft[1] || null;
+  const number3Left = allReceiversLeft[2] || null;
 
-  const leftReceivers = receivers.filter(p => p.x < centerX).sort((a, b) => a.x - b.x); // smallest X = outermost
-  const rightReceivers = receivers.filter(p => p.x > centerX).sort((a, b) => b.x - a.x); // largest X = outermost
+  const number1Right = allReceiversRight[0] || null;
+  const number2Right = allReceiversRight[1] || null;
+  const number3Right = allReceiversRight[2] || null;
 
-  const leftWR = leftReceivers[0] || null;
-  const rightWR = rightReceivers[0] || null;
+  const leftWR = number1Left;
+  const rightWR = number1Right;
 
-  const leftSlots = leftReceivers.filter(p => p !== leftWR);
-  const rightSlots = rightReceivers.filter(p => p !== rightWR);
+  const leftSlots = allReceiversLeft.filter(p => p !== leftWR);
+  const rightSlots = allReceiversRight.filter(p => p !== rightWR);
 
   // 4. Determine Formation Strength
   // TE presence dictates strength. If both or neither, count total players to right vs left of center
@@ -212,8 +265,6 @@ export function analyzeOffense(players: Player[]): OffensiveStructure {
   // 5. Establish Gaps from Linemen positions
   const lgX = leftGuard ? leftGuard.x : centerX - 60;
   const rgX = rightGuard ? rightGuard.x : centerX + 60;
-  const ltX = leftTackle ? leftTackle.x : lgX - 60;
-  const rtX = rightTackle ? rightTackle.x : rgX + 60;
   const lteX = leftTE ? leftTE.x : ltX - 60;
   const rteX = rightTE ? rightTE.x : rtX + 60;
 
@@ -314,7 +365,16 @@ export function analyzeOffense(players: Player[]): OffensiveStructure {
     leftSlots,
     rightSlots,
     strength,
-    gaps
+    gaps,
+    number1Left,
+    number2Left,
+    number3Left,
+    number1Right,
+    number2Right,
+    number3Right,
+    allReceiversLeft,
+    allReceiversRight,
+    allPlayers: offense
   };
 }
 
@@ -324,14 +384,35 @@ export function analyzeOffense(players: Player[]): OffensiveStructure {
  */
 export function calculateDefensiveAlignmentPosition(
   techniqueStr: string,
-  structure: OffensiveStructure
+  structure: OffensiveStructure,
+  player?: Player
 ): { x: number; y: number; matched: boolean; description: string } {
   if (!techniqueStr || !techniqueStr.trim()) {
     return { x: 480, y: structure.losY - 115, matched: false, description: 'Default LB position' };
   }
 
   const raw = techniqueStr.trim().toLowerCase();
-  const { losY, center, leftGuard, rightGuard, leftTackle, rightTackle, leftTE, rightTE, leftWR, rightWR, leftSlots, rightSlots, strength } = structure;
+  const { 
+    losY, 
+    center, 
+    leftGuard, 
+    rightGuard, 
+    leftTackle, 
+    rightTackle, 
+    leftTE, 
+    rightTE, 
+    leftWR, 
+    rightWR, 
+    leftSlots, 
+    rightSlots, 
+    strength,
+    number1Left,
+    number2Left,
+    number3Left,
+    number1Right,
+    number2Right,
+    number3Right
+  } = structure;
 
   // Key offensive reference points
   const cX = center.x;
@@ -339,19 +420,19 @@ export function calculateDefensiveAlignmentPosition(
   const rgX = rightGuard ? rightGuard.x : cX + 60;
   const ltX = leftTackle ? leftTackle.x : lgX - 60;
   const rtX = rightTackle ? rightTackle.x : rgX + 60;
-  const lteX = leftTE ? leftTE.x : ltX - 60;
-  const rteX = rightTE ? rightTE.x : rtX + 60;
+  const lteX = leftTE ? leftTE.x : ltX - 50;
+  const rteX = rightTE ? rightTE.x : rtX + 50;
 
-  const wrLX = leftWR ? leftWR.x : 120;
-  const wrRX = rightWR ? rightWR.x : 860;
-  const slotLX = leftSlots[0] ? leftSlots[0].x : Math.round((ltX + wrLX) / 2);
-  const slotRX = rightSlots[0] ? rightSlots[0].x : Math.round((rtX + wrRX) / 2);
+  const wrLX = number1Left ? number1Left.x : (leftWR ? leftWR.x : 120);
+  const wrRX = number1Right ? number1Right.x : (rightWR ? rightWR.x : 860);
+  const slotLX = number2Left ? number2Left.x : (leftSlots[0] ? leftSlots[0].x : Math.round((ltX + wrLX) / 2));
+  const slotRX = number2Right ? number2Right.x : (rightSlots[0] ? rightSlots[0].x : Math.round((rtX + wrRX) / 2));
 
-  // Depth offsets (comfortably spaced from LOS for clear blocking tracks, pull angles, and combo releases)
-  const dlY = losY - 55;       // Down lineman on LOS (~5.5 yds off offensive ball spot)
-  const lbY = losY - 115;      // 2nd level box linebacker (60px behind DL, plenty of combo room)
+  // Depth offsets
+  const dlY = losY - 55;       // Down lineman on LOS
+  const lbY = losY - 115;      // 2nd level box linebacker
   const apexY = losY - 80;     // Walked-out apex overhang / nickel
-  const pressY = losY - 65;    // Press cornerback
+  const pressY = losY - 65;    // Press cornerback (~2.5-3 yds off receiver)
   const offCbY = losY - 140;   // Off cornerback (7-8 yds cushion)
   const robberY = losY - 185;  // Intermediate down safety / robber
   const twoHighY = losY - 235; // 2-high safety
@@ -365,6 +446,96 @@ export function calculateDefensiveAlignmentPosition(
     : isTargetWeak 
       ? (strength === 'right' ? 'left' : 'right') 
       : (raw.includes('left') || raw.includes('weakside') ? 'left' : 'right');
+
+  // --- 0. Explicit Offensive Player Reference Overrides ---
+  const refTarget = player?.alignReferenceTarget || (
+    raw.includes('#1 wr left') || raw.includes('over #1 left') ? 'num1_wr_left' :
+    raw.includes('#1 wr right') || raw.includes('over #1 right') ? 'num1_wr_right' :
+    raw.includes('#2 slot left') || raw.includes('over #2 left') ? 'num2_slot_left' :
+    raw.includes('#2 slot right') || raw.includes('over #2 right') ? 'num2_slot_right' :
+    raw.includes('#3 slot') || raw.includes('over #3') ? 'num3_slot_right' :
+    undefined
+  );
+
+  if (refTarget && refTarget !== 'auto') {
+    let targetPlayer: Player | null = null;
+    let targetDesc = '';
+
+    if (refTarget === 'num1_wr_left' || refTarget === '#1_wr_left') {
+      targetPlayer = number1Left || leftWR;
+      targetDesc = '#1 WR Left';
+    } else if (refTarget === 'num1_wr_right' || refTarget === '#1_wr_right') {
+      targetPlayer = number1Right || rightWR;
+      targetDesc = '#1 WR Right';
+    } else if (refTarget === 'num2_slot_left' || refTarget === '#2_slot_left') {
+      targetPlayer = number2Left || leftSlots[0];
+      targetDesc = '#2 Slot Left';
+    } else if (refTarget === 'num2_slot_right' || refTarget === '#2_slot_right') {
+      targetPlayer = number2Right || rightSlots[0];
+      targetDesc = '#2 Slot Right';
+    } else if (refTarget === 'num3_slot_right' || refTarget === '#3_slot_right') {
+      targetPlayer = number3Right || rightSlots[1];
+      targetDesc = '#3 Slot Right';
+    } else if (refTarget === 'num3_slot_left' || refTarget === '#3_slot_left') {
+      targetPlayer = number3Left || leftSlots[1];
+      targetDesc = '#3 Slot Left';
+    } else if (structure.allPlayers) {
+      targetPlayer = structure.allPlayers.find(p => p.id === refTarget || p.label.toLowerCase() === refTarget.toLowerCase()) || null;
+      if (targetPlayer) {
+        targetDesc = `Player ${targetPlayer.label}`;
+      }
+    }
+
+    if (targetPlayer) {
+      const lev = player?.alignLeverage || (
+        raw.includes('press') ? 'press' :
+        raw.includes('head-up') || raw.includes('head up') ? 'head_up' :
+        raw.includes('outside') ? 'outside_shade' :
+        raw.includes('apex') ? 'apex' :
+        'inside_shade'
+      );
+
+      const isLeft = targetPlayer.x < cX;
+      let x = targetPlayer.x;
+      let y = offCbY;
+
+      switch (lev) {
+        case 'head_up':
+          x = targetPlayer.x;
+          y = offCbY;
+          break;
+        case 'press':
+          x = isLeft ? targetPlayer.x + 8 : targetPlayer.x - 8;
+          y = pressY;
+          break;
+        case 'inside_shade':
+          x = isLeft ? targetPlayer.x + 12 : targetPlayer.x - 12;
+          y = offCbY;
+          break;
+        case 'outside_shade':
+          x = isLeft ? targetPlayer.x - 12 : targetPlayer.x + 12;
+          y = offCbY;
+          break;
+        case 'apex':
+          const tackleX = isLeft ? ltX : rtX;
+          x = Math.round((targetPlayer.x + tackleX) / 2);
+          y = apexY;
+          break;
+        case 'off_cushion':
+        default:
+          x = isLeft ? targetPlayer.x + 12 : targetPlayer.x - 12;
+          y = offCbY;
+          break;
+      }
+
+      return {
+        x,
+        y,
+        matched: true,
+        description: `Aligned to ${targetDesc} (${lev.replace('_', ' ')})`
+      };
+    }
+  }
 
   // --- 1. Down Lineman Techniques (0 to 9) ---
   if (raw.startsWith('0-tech') || raw === '0' || raw.includes('nose') || raw.includes('0 tech') || raw.includes('head-up nose')) {
@@ -427,10 +598,21 @@ export function calculateDefensiveAlignmentPosition(
     return { x, y: dlY, matched: true, description: `6-Tech head-up ${targetSide === 'left' ? 'Left' : 'Right'} TE` };
   }
 
-  // 9-Technique / Wide-9 (Outside shade TE / Wide rush edge)
+  // 9-Technique / Wide-9 (Outside shade TE / Wide rush edge off Tackle)
+  // FIXED: No longer strays out past wide receivers; anchors strictly adjacent to TE or 45px off Tackle
   if (raw.includes('9-tech') || raw.includes('9 tech') || raw.includes('wide-9') || raw.includes('wide 9') || raw === '9') {
-    const x = targetSide === 'left' ? (leftTE ? lteX - 35 : ltX - 55) : (rightTE ? rteX + 35 : rtX + 55);
-    return { x, y: dlY, matched: true, description: `9-Tech wide edge ${targetSide === 'left' ? 'Left' : 'Right'} D-gap` };
+    let x: number;
+    if (targetSide === 'left') {
+      x = leftTE ? leftTE.x - 28 : ltX - 45;
+    } else {
+      x = rightTE ? rightTE.x + 28 : rtX + 45;
+    }
+    return { 
+      x, 
+      y: dlY, 
+      matched: true, 
+      description: `9-Tech wide edge ${targetSide === 'left' ? 'Left' : 'Right'} (${targetSide === 'left' ? (leftTE ? 'on TE' : 'off LT') : (rightTE ? 'on TE' : 'off RT')})` 
+    };
   }
 
   // --- 2. Linebacker Stacks (00 to 50 & Apex) ---
@@ -477,22 +659,52 @@ export function calculateDefensiveAlignmentPosition(
   }
 
   // --- 3. Defensive Backs / Secondary ---
-  // Press CB
+  // Press CB (Directly references #1 outside receiver with inside shade at line depth)
   if (raw.includes('press cb') || raw.includes('press corner') || raw.includes('press bail')) {
-    const x = targetSide === 'left' ? wrLX + 8 : wrRX - 8;
-    return { x, y: pressY, matched: true, description: `Press Cornerback ${targetSide === 'left' ? 'Left' : 'Right'}` };
+    let x: number;
+    if (targetSide === 'left') {
+      x = (number1Left ? number1Left.x : wrLX) + 8;
+    } else {
+      x = (number1Right ? number1Right.x : wrRX) - 8;
+    }
+    return { x, y: pressY, matched: true, description: `Press Cornerback ${targetSide === 'left' ? 'Left' : 'Right'} over #1 WR` };
   }
 
-  // Off CB
+  // Off CB (Directly references #1 outside receiver with 7-8 yards cushion & inside leverage)
   if (raw.includes('off cb') || raw.includes('off man') || raw.includes('cover 3 deep') || raw.includes('cornerback') || raw.includes('cb')) {
-    const x = targetSide === 'left' ? wrLX + 12 : wrRX - 12;
-    return { x, y: offCbY, matched: true, description: `Off Cornerback ${targetSide === 'left' ? 'Left' : 'Right'}` };
+    let x: number;
+    if (targetSide === 'left') {
+      x = (number1Left ? number1Left.x : wrLX) + 12;
+    } else {
+      x = (number1Right ? number1Right.x : wrRX) - 12;
+    }
+    return { x, y: offCbY, matched: true, description: `Off Cornerback ${targetSide === 'left' ? 'Left' : 'Right'} over #1 WR` };
   }
 
-  // Nickel / Slot Defender
-  if (raw.includes('nickel') || raw.includes('slot cb') || raw.includes('star')) {
-    const x = targetSide === 'left' ? slotLX : slotRX;
-    return { x, y: apexY, matched: true, description: `Nickel / Slot Defender ${targetSide === 'left' ? 'Left' : 'Right'}` };
+  // Nickel / Slot Defender (Directly references #2 slot receiver)
+  if (raw.includes('nickel') || raw.includes('slot cb') || raw.includes('star') || raw.includes('nb') || raw.includes('nk')) {
+    let x: number;
+    if (targetSide === 'left') {
+      const refSlot = number2Left || leftSlots[0];
+      if (refSlot) {
+        x = raw.includes('press') ? refSlot.x + 6 : refSlot.x + 10;
+      } else {
+        x = Math.round((ltX + wrLX) / 2);
+      }
+    } else {
+      const refSlot = number2Right || rightSlots[0];
+      if (refSlot) {
+        x = raw.includes('press') ? refSlot.x - 6 : refSlot.x - 10;
+      } else {
+        x = Math.round((rtX + wrRX) / 2);
+      }
+    }
+    return { 
+      x, 
+      y: raw.includes('press') ? pressY : apexY, 
+      matched: true, 
+      description: `Nickel Defender ${targetSide === 'left' ? 'Left' : 'Right'} over #2 Slot` 
+    };
   }
 
   // Single-High Free Safety
@@ -709,6 +921,9 @@ export function loadDefensivePackage(
  * if their technique is not explicitly specified.
  */
 export function inferDefenderTechnique(player: Player, structure: OffensiveStructure): string {
+  if (player.alignReferenceTarget) {
+    return player.technique || (player.alignReferenceTarget.includes('#2') ? '#2 Slot' : '#1 WR');
+  }
   if (player.technique && player.technique.trim()) {
     return player.technique;
   }
@@ -727,9 +942,11 @@ export function inferDefenderTechnique(player: Player, structure: OffensiveStruc
   if (lbl === 'CB' || lbl === 'C' || lbl === 'CORNER') return isLeftOfCenter ? 'Off CB Left' : 'Off CB Right';
   if (lbl === 'FS' || lbl === 'FREE') return 'Single-High FS';
   if (lbl === 'SS' || lbl === 'SAFETY') return `Robber ${sideTag}`;
-  if (lbl === 'STAR' || lbl === 'NICKEL' || lbl === 'NK' || lbl === 'ROVER') return `Apex ${sideTag}`;
+  if (lbl === 'STAR' || lbl === 'NICKEL' || lbl === 'NK' || lbl === 'NB' || lbl === 'ROVER' || lbl === 'SLOT') {
+    return isLeftOfCenter ? 'Nickel / Slot Left' : 'Nickel / Slot Right';
+  }
   if (lbl === 'ILB' || lbl === 'LB') return `30 Stack ${sideTag}`;
-  if (lbl === 'OLB' || lbl === 'EDGE') return `Apex ${sideTag}`;
+  if (lbl === 'OLB' || lbl === 'EDGE') return `9-Tech ${sideTag}`;
 
   return `20 Stack ${sideTag}`;
 }
@@ -737,6 +954,7 @@ export function inferDefenderTechnique(player: Player, structure: OffensiveStruc
 /**
  * Re-aligns all defensive players based on their existing technique/alignment parameter
  * against the current offensive formation. If a player lacks a technique, infers one automatically.
+ * Automatically aligns Cornerbacks (CB) to #1 WR, Nickelbacks (NB) to #2 Slot, and Wide-9 DL off the tackle.
  */
 export function realignAllDefenders(
   players: Player[],
@@ -745,7 +963,7 @@ export function realignAllDefenders(
   return players.map(player => {
     if (player.side !== 'defense') return player;
     const tech = inferDefenderTechnique(player, structure);
-    const pos = calculateDefensiveAlignmentPosition(tech, structure);
+    const pos = calculateDefensiveAlignmentPosition(tech, structure, player);
     return {
       ...player,
       technique: tech,
@@ -837,7 +1055,7 @@ export function shiftDefensiveFront(
     }
 
     // Calculate new position based on the adjusted technique
-    const pos = calculateDefensiveAlignmentPosition(nextTech, structure);
+    const pos = calculateDefensiveAlignmentPosition(nextTech, structure, player);
     return {
       ...player,
       technique: nextTech,

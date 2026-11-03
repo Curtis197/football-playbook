@@ -13,6 +13,7 @@ import {
 import { db } from './firebase';
 import type { Play, Formation, PlayCategory } from '../types/playbook';
 import { INITIAL_PLAYBOOK, DEFAULT_FORMATIONS } from '../data/presets';
+import { normalizePlay } from '../utils/playValidation';
 
 const PLAYS_COLLECTION = 'plays';
 const FORMATIONS_COLLECTION = 'formations';
@@ -110,11 +111,23 @@ export async function fetchPlay(id: string): Promise<Play | null> {
     if (!docSnap.exists()) {
       return null;
     }
-    return docSnap.data() as Play;
+    return readPlay(docSnap.data(), id);
   } catch (error) {
     console.error(`[playbookDb] Error fetching play "${id}":`, error);
     throw error;
   }
+}
+
+/**
+ * Cloud documents are untrusted input: validate and fill defaults, or skip the document.
+ */
+function readPlay(data: DocumentData, id: string): Play | null {
+  const result = normalizePlay(data);
+  if (!result.ok) {
+    console.warn(`[playbookDb] Skipping unreadable play "${id}": ${result.error}`);
+    return null;
+  }
+  return result.value;
 }
 
 /**
@@ -123,7 +136,8 @@ export async function fetchPlay(id: string): Promise<Play | null> {
 function mapPlaysSnapshot(snapshot: QuerySnapshot<DocumentData>): Play[] {
   const plays: Play[] = [];
   snapshot.forEach(docSnap => {
-    plays.push(docSnap.data() as Play);
+    const play = readPlay(docSnap.data(), docSnap.id);
+    if (play) plays.push(play);
   });
   return plays;
 }

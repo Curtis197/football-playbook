@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import type { Player, PathAction, Play, ActionType, AppMode, Point, Theme } from '../types/playbook';
+import type { Player, PathAction, Play, ActionType, AppMode, Point, Theme, AlignmentLeverage } from '../types/playbook';
 import { 
   Compass, 
   Shield, 
@@ -95,7 +95,7 @@ export const InspectorPanel: React.FC<InspectorPanelProps> = ({
   // Apply defensive alignment parameter and immediately pre-align coordinates
   const handleApplyDefensiveTechnique = (code: string) => {
     if (!selectedPlayer) return;
-    const pos = calculateDefensiveAlignmentPosition(code, offenseStructure);
+    const pos = calculateDefensiveAlignmentPosition(code, offenseStructure, selectedPlayer);
     onUpdatePlayer({
       ...selectedPlayer,
       technique: code,
@@ -106,13 +106,48 @@ export const InspectorPanel: React.FC<InspectorPanelProps> = ({
 
   // Re-snap defensive player to their declared alignment parameter
   const handleSnapPlayerToAlignment = () => {
-    if (!selectedPlayer || !selectedPlayer.technique) return;
-    const pos = calculateDefensiveAlignmentPosition(selectedPlayer.technique, offenseStructure);
+    if (!selectedPlayer) return;
+    const tech = selectedPlayer.technique || (selectedPlayer.alignReferenceTarget?.includes('#2') ? '#2 Slot' : '#1 WR');
+    const pos = calculateDefensiveAlignmentPosition(tech, offenseStructure, selectedPlayer);
     onUpdatePlayer({
       ...selectedPlayer,
+      technique: selectedPlayer.technique || tech,
       x: pos.x,
       y: pos.y
     });
+  };
+
+  // Update offensive reference target for CB / NB / DB
+  const handleUpdateReferenceTarget = (target: string) => {
+    if (!selectedPlayer) return;
+    const updated: Player = {
+      ...selectedPlayer,
+      alignReferenceTarget: target === 'auto' ? undefined : target
+    };
+    const defaultTech = target.includes('#2') ? '#2 Slot' : '#1 WR';
+    const techToUse = updated.technique || (target !== 'auto' ? defaultTech : undefined);
+    if (techToUse) {
+      updated.technique = techToUse;
+      const pos = calculateDefensiveAlignmentPosition(techToUse, offenseStructure, updated);
+      updated.x = pos.x;
+      updated.y = pos.y;
+    }
+    onUpdatePlayer(updated);
+  };
+
+  // Update coverage alignment leverage (press, off, inside shade, etc.)
+  const handleUpdateLeverage = (leverage: AlignmentLeverage) => {
+    if (!selectedPlayer) return;
+    const updated: Player = {
+      ...selectedPlayer,
+      alignLeverage: leverage
+    };
+    const techToUse = updated.technique || (updated.alignReferenceTarget?.includes('#2') ? '#2 Slot' : '#1 WR');
+    const pos = calculateDefensiveAlignmentPosition(techToUse, offenseStructure, updated);
+    updated.technique = techToUse;
+    updated.x = pos.x;
+    updated.y = pos.y;
+    onUpdatePlayer(updated);
   };
 
   // Shift individual defender left or right
@@ -554,7 +589,7 @@ export const InspectorPanel: React.FC<InspectorPanelProps> = ({
                             {selectedPlayer.technique}
                           </span>
                           <span className="text-[10px] text-slate-400 truncate">
-                            {calculateDefensiveAlignmentPosition(selectedPlayer.technique, offenseStructure).description}
+                            {calculateDefensiveAlignmentPosition(selectedPlayer.technique, offenseStructure, selectedPlayer).description}
                           </span>
                         </div>
                         <span className="text-[10px] font-mono text-slate-400 shrink-0">
@@ -562,6 +597,81 @@ export const InspectorPanel: React.FC<InspectorPanelProps> = ({
                         </span>
                       </div>
                     )}
+
+                    {/* Offensive Receiver / Player Reference Section (For CB / NB / DB) */}
+                    <div className={`p-2.5 rounded-lg border ${isLight ? 'bg-white/95 border-rose-200 shadow-sm' : 'bg-[#151a24] border-slate-700/60'} space-y-2`}>
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-1.5">
+                          <Target className="w-3.5 h-3.5 text-sky-400 shrink-0" />
+                          <span className={`text-[10px] font-bold uppercase tracking-wider ${isLight ? 'text-slate-700' : 'text-slate-300'}`}>
+                            Offensive Reference (CB / NB)
+                          </span>
+                        </div>
+                        {selectedPlayer.alignReferenceTarget && selectedPlayer.alignReferenceTarget !== 'auto' ? (
+                          <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-sky-500/20 text-sky-400 border border-sky-500/40">
+                            Anchored
+                          </span>
+                        ) : (
+                          <span className="text-[9px] text-slate-400 font-medium">
+                            Auto
+                          </span>
+                        )}
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-2">
+                        {/* Target Reference Selector */}
+                        <div>
+                          <label className={`text-[10px] ${isLight ? 'text-slate-600' : 'text-slate-400'} block mb-0.5 font-semibold`}>
+                            Target Player
+                          </label>
+                          <select
+                            value={selectedPlayer.alignReferenceTarget || 'auto'}
+                            onChange={(e) => handleUpdateReferenceTarget(e.target.value)}
+                            className={`w-full ${
+                              isLight ? 'bg-slate-50 text-slate-800 border-slate-300' : 'bg-[#1a212e] text-slate-200 border-slate-700'
+                            } text-xs font-semibold px-2 py-1.5 rounded border focus:border-sky-500 outline-none`}
+                          >
+                            <option value="auto">Auto (from technique)</option>
+                            <optgroup label="Numbered Receivers (Outside-In)">
+                              <option value="#1_wr_left">#1 WR Left {offenseStructure.number1Left ? `(${offenseStructure.number1Left.label})` : ''}</option>
+                              <option value="#1_wr_right">#1 WR Right {offenseStructure.number1Right ? `(${offenseStructure.number1Right.label})` : ''}</option>
+                              <option value="#2_slot_left">#2 Slot Left {offenseStructure.number2Left ? `(${offenseStructure.number2Left.label})` : ''}</option>
+                              <option value="#2_slot_right">#2 Slot Right {offenseStructure.number2Right ? `(${offenseStructure.number2Right.label})` : ''}</option>
+                              <option value="#3_slot_left">#3 Slot Left {offenseStructure.number3Left ? `(${offenseStructure.number3Left.label})` : ''}</option>
+                              <option value="#3_slot_right">#3 Slot Right {offenseStructure.number3Right ? `(${offenseStructure.number3Right.label})` : ''}</option>
+                            </optgroup>
+                            <optgroup label="Offensive Players">
+                              {currentPlay.players.filter(p => p.side === 'offense').map(p => (
+                                <option key={p.id} value={p.id}>
+                                  {p.label} (x: {p.x})
+                                </option>
+                              ))}
+                            </optgroup>
+                          </select>
+                        </div>
+
+                        {/* Alignment Leverage Selector */}
+                        <div>
+                          <label className={`text-[10px] ${isLight ? 'text-slate-600' : 'text-slate-400'} block mb-0.5 font-semibold`}>
+                            Leverage / Depth
+                          </label>
+                          <select
+                            value={selectedPlayer.alignLeverage || 'off_cushion'}
+                            onChange={(e) => handleUpdateLeverage(e.target.value as AlignmentLeverage)}
+                            className={`w-full ${
+                              isLight ? 'bg-slate-50 text-slate-800 border-slate-300' : 'bg-[#1a212e] text-slate-200 border-slate-700'
+                            } text-xs font-semibold px-2 py-1.5 rounded border focus:border-sky-500 outline-none`}
+                          >
+                            <option value="off_cushion">Off Cushion (7 yds)</option>
+                            <option value="press">Press (2.5 yds)</option>
+                            <option value="inside_shade">Inside Shade</option>
+                            <option value="outside_shade">Outside Shade</option>
+                            <option value="head_up">Head-Up</option>
+                            <option value="apex">Apex Overhang</option>
+                          </select>
+                        </div>
+                      </div>
+                    </div>
 
                     {/* Single-Player Gap Shifting Controls */}
                     <div className="flex items-center gap-1.5">

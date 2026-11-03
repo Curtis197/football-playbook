@@ -668,7 +668,7 @@ export const ChalkboardCanvas: React.FC<ChalkboardCanvasProps> = ({
           {(() => {
             const selectedDef = players.find(p => p.id === selectedPlayerId && p.side === 'defense');
             if (!selectedDef || !selectedDef.technique) return null;
-            const targetPos = calculateDefensiveAlignmentPosition(selectedDef.technique, offenseStructure);
+            const targetPos = calculateDefensiveAlignmentPosition(selectedDef.technique, offenseStructure, selectedDef);
             return (
               <g className="alignment-guideline pointer-events-none">
                 <line

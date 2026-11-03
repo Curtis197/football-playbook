@@ -31,7 +31,7 @@ interface PlayLibraryModalProps {
   isOpen: boolean;
   onClose: () => void;
   currentPlayId: string;
-  onSelectPlay: (play: Play) => void;
+  onSelectPlay: (play: Play) => boolean | void;
   onDuplicatePlay: (play: Play) => void;
   onDeletePlay: (playId: string) => void;
   localPlays: Play[];
@@ -190,7 +190,7 @@ export const PlayLibraryModal: React.FC<PlayLibraryModalProps> = ({
 
   // Handle Play Selection
   const handleSelect = (play: Play) => {
-    onSelectPlay(play);
+    if (onSelectPlay(play) === false) return;
     showNotification(`Loaded "${play.name}" onto Chalkboard`, 'success');
     onClose();
   };
