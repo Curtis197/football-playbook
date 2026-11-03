@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import type { Player, PathAction, CanvasMode, Point, AppMode } from '../types/playbook';
-import { generatePathString, getSvgCoordinates, clampFieldCoordinates, getDistance } from '../utils/geometry';
+import { generatePathString, getSvgCoordinates, clampFieldCoordinates, getDistance, insertPointIntoAction } from '../utils/geometry';
 
 interface ChalkboardCanvasProps {
   players: Player[];
@@ -94,11 +94,12 @@ export const ChalkboardCanvas: React.FC<ChalkboardCanvasProps> = ({
 
     let actionType: PathAction['type'] = 'pass_route';
     let endMarker: PathAction['endMarker'] = 'arrow';
-    let isCurved = false;
+    let isCurved = true;
 
     if (mode === 'draw_block') {
       actionType = 'run_block';
       endMarker = 'tbar';
+      isCurved = true; // Catmull-Rom spline with sharp cut break support for decomposed block vectors
     } else if (mode === 'draw_motion') {
       actionType = 'motion';
       endMarker = 'arrow';
@@ -150,17 +151,13 @@ export const ChalkboardCanvas: React.FC<ChalkboardCanvasProps> = ({
       // Minimum distance threshold (prevent overlapping duplicate points)
       if (lastPoint && getDistance(lastPoint, pt) < 10) return;
 
-      // Shift + Click creates a sharp cut break (dig, out, post angle break)
+      // Shift + Click creates a sharp cut break (dig, out, post angle break, pull-block kickout)
       const isSharp = e.shiftKey;
       const newPt: Point = { ...pt, isSharp };
       const newPts = [...drawingPoints, newPt];
 
-      if (mode === 'draw_block' && newPts.length >= 2) {
-        // Block only needs 2 points
-        finishDrawing(newPts);
-      } else {
-        setDrawingPoints(newPts);
-      }
+      // Allow block vectors to be multi-point decomposed just like routes
+      setDrawingPoints(newPts);
       return;
     }
 
@@ -431,18 +428,33 @@ export const ChalkboardCanvas: React.FC<ChalkboardCanvasProps> = ({
                 : null;
 
               return (
-                <g key={act.id} className="cursor-pointer group" onClick={(e) => {
-                  e.stopPropagation();
-                  onSelectAction(act.id);
-                  onSelectPlayer(null);
-                }}>
-                  {/* Thick transparent hit area for easy click selection */}
+                <g key={act.id} className="cursor-pointer group">
+                  {/* Thick transparent hit area for easy click selection & interactive waypoint decomposition */}
                   <path
                     d={pathD}
                     fill="none"
                     stroke="transparent"
-                    strokeWidth="18"
-                  />
+                    strokeWidth="22"
+                    className={isSelected ? "cursor-copy" : "cursor-pointer"}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      if (!isSelected) {
+                        onSelectAction(act.id);
+                        onSelectPlayer(null);
+                      } else if (svgRef.current && appMode === 'build') {
+                        // Interactive decomposition: insert new waypoint along this segment
+                        const clickPt = getSvgCoordinates(e, svgRef.current);
+                        const updated = insertPointIntoAction(act.points, clickPt);
+                        onUpdateActionPoints(act.id, updated);
+                      }
+                    }}
+                  >
+                    <title>
+                      {isSelected 
+                        ? `${act.label || 'Vector'}: Click on line to insert/decompose waypoint` 
+                        : `Click to select ${act.label || 'vector'}`}
+                    </title>
+                  </path>
                   {/* Actual visible vector line */}
                   <path
                     d={pathD}
@@ -454,7 +466,7 @@ export const ChalkboardCanvas: React.FC<ChalkboardCanvasProps> = ({
                     strokeLinejoin="round"
                     markerEnd={markerEnd}
                     filter={isPlayerHoveredInView ? "url(#glow)" : undefined}
-                    className="transition-all duration-150 group-hover:brightness-125"
+                    className="transition-all duration-150 group-hover:brightness-125 pointer-events-none"
                   />
 
                   {/* Waypoint cues / labels */}
@@ -564,13 +576,13 @@ export const ChalkboardCanvas: React.FC<ChalkboardCanvasProps> = ({
               );
             })}
 
-            {/* LIVE DRAWING PREVIEW (Catmull-Rom with Sharp Cut Support) */}
+            {/* LIVE DRAWING PREVIEW (Catmull-Rom with Sharp Cut Support for Routes, Blocks & Motion) */}
             {drawingPlayerId && drawingPoints.length > 0 && cursorPos && (
               <g className="drawing-preview pointer-events-none">
                 <path
                   d={generatePathString(
                     [...drawingPoints, { ...cursorPos, isSharp: false }],
-                    mode === 'draw_route' || mode === 'draw_motion'
+                    true
                   )}
                   fill="none"
                   stroke={mode === 'draw_block' ? '#f59e0b' : mode === 'draw_motion' ? '#c084fc' : '#38bdf8'}
@@ -592,7 +604,13 @@ export const ChalkboardCanvas: React.FC<ChalkboardCanvasProps> = ({
                       strokeWidth="1.5"
                     />
                   ) : (
-                    <circle key={`draft-pt-${i}`} cx={pt.x} cy={pt.y} r="5" fill="#38bdf8" />
+                    <circle 
+                      key={`draft-pt-${i}`} 
+                      cx={pt.x} 
+                      cy={pt.y} 
+                      r="5" 
+                      fill={mode === 'draw_block' ? '#f59e0b' : mode === 'draw_motion' ? '#c084fc' : '#38bdf8'} 
+                    />
                   )
                 ))}
               </g>
@@ -796,15 +814,15 @@ export const ChalkboardCanvas: React.FC<ChalkboardCanvasProps> = ({
                 </span>
                 {drawingPlayerId ? (
                   <span className="text-amber-400 font-semibold flex items-center gap-2">
-                    <span>Click: <strong className="text-sky-300">Smooth Arc</strong></span>
+                    <span>Click: <strong className="text-sky-300">Add Waypoint</strong></span>
                     <span>•</span>
-                    <span>Shift+Click: <strong className="text-amber-300">Sharp Cut</strong></span>
+                    <span>Shift+Click: <strong className="text-amber-300">Sharp Break / Cut</strong></span>
                     <span>•</span>
                     <span>Double-Click/Enter: <strong>Finish</strong></span>
                   </span>
                 ) : (
                   <span className="text-slate-400 text-[11px] hidden sm:inline">
-                    Click player to edit assignments on side panel • Hover overlays hidden during building
+                    Click vector to select • Click selected vector line to insert/decompose waypoints
                   </span>
                 )}
               </>

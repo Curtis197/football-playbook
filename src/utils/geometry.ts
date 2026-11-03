@@ -46,3 +46,40 @@ export function getSvgCoordinates(e: React.MouseEvent | React.PointerEvent, svgE
 
   return clampFieldCoordinates({ x, y });
 }
+
+/**
+ * Inserts a new waypoint into a vector path (route or block) at the nearest segment
+ * to allow interactive path decomposition.
+ */
+export function insertPointIntoAction(points: Point[], clickPoint: Point): Point[] {
+  if (points.length < 2) {
+    return [...points, { x: Math.round(clickPoint.x), y: Math.round(clickPoint.y), isSharp: false }];
+  }
+
+  function distToSegmentSquared(p: Point, a: Point, b: Point): number {
+    const l2 = (b.x - a.x) * (b.x - a.x) + (b.y - a.y) * (b.y - a.y);
+    if (l2 === 0) return (p.x - a.x) * (p.x - a.x) + (p.y - a.y) * (p.y - a.y);
+    let t = ((p.x - a.x) * (b.x - a.x) + (p.y - a.y) * (b.y - a.y)) / l2;
+    t = Math.max(0, Math.min(1, t));
+    const projX = a.x + t * (b.x - a.x);
+    const projY = a.y + t * (b.y - a.y);
+    return (p.x - projX) * (p.x - projX) + (p.y - projY) * (p.y - projY);
+  }
+
+  let bestIndex = 1;
+  let minDistanceSq = Infinity;
+
+  for (let i = 0; i < points.length - 1; i++) {
+    const dSq = distToSegmentSquared(clickPoint, points[i], points[i + 1]);
+    if (dSq < minDistanceSq) {
+      minDistanceSq = dSq;
+      bestIndex = i + 1;
+    }
+  }
+
+  return [
+    ...points.slice(0, bestIndex),
+    { x: Math.round(clickPoint.x), y: Math.round(clickPoint.y), isSharp: false },
+    ...points.slice(bestIndex)
+  ];
+}

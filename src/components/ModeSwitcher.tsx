@@ -51,7 +51,7 @@ export const ModeSwitcher: React.FC<ModeSwitcherProps> = ({
       id: 'draw_block',
       label: 'Draw Block',
       icon: <ShieldAlert className="w-5 h-5 text-amber-400" />,
-      desc: 'Run block with T-Bar marker',
+      desc: 'Multi-point block track with T-Bar marker',
       shortcut: 'B'
     },
     {

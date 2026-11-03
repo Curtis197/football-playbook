@@ -25,8 +25,13 @@ Comprehensive catalog of capabilities and features supported in the Football Pla
   - Multi-mode switcher:
     - Mode 1: Select / Move (Drag players, reposition waypoints, edit assignments)
     - Mode 2: Draw Route (Click player -> click waypoints -> Enter/Double-click to finish with Arrowhead)
-    - Mode 3: Draw Block (Click player -> click target point -> Enter/Double-click to finish with T-Bar)
+    - Mode 3: Draw Block (Multi-point decomposed block tracks -> Enter/Double-click to finish with T-Bar)
     - Mode 4: Draw Motion (Click player -> waypoints -> Finish with Motion styling)
+  - Full Block Vector Decomposition (Identical to Routes):
+    - Multi-point waypoint drawing for pull blocks, fold tracks, combo climb releases, and kick-out angles.
+    - Full Catmull-Rom spline arcs ($C^1$) and Shift+Click sharp plant breaks ($C^0$) with terminal T-Bar alignment.
+    - In-canvas interactive decomposition: Clicking anywhere along a selected block or route vector inserts a new waypoint at that coordinate.
+    - Inspector Panel Waypoints Manager: Interactive "+ Decompose Path / Add Waypoint" button, point deletion, and smooth/sharp toggle per waypoint.
   - Dedicated Build Mode vs View Mode Separation:
     - Build Mode: Clean, unobstructed play building where hovering does not display any blocking overlay; clicking players opens the dedicated Side Annotation Form for configuring assignments, notes, and coaching keys; quick player roster in side panel.
     - View Mode: Review & presentation mode where hovering over any player displays the Thought Partner interactive explanation overlay (badge, assignment, technique, coaching cues) and illuminates associated route vectors with glowing highlights.

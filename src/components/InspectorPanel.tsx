@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import type { Player, PathAction, Play, ActionType, AppMode } from '../types/playbook';
+import type { Player, PathAction, Play, ActionType, AppMode, Point } from '../types/playbook';
 import { 
   Compass, 
   Shield, 
@@ -8,7 +8,8 @@ import {
   X, 
   Lightbulb, 
   FileEdit,
-  Sliders
+  Sliders,
+  Trash2
 } from 'lucide-react';
 
 interface InspectorPanelProps {
@@ -578,7 +579,7 @@ export const InspectorPanel: React.FC<InspectorPanelProps> = ({
                     <span className="text-[10px] text-slate-500 font-mono">C¹ Spline / C⁰ Cut</span>
                   </div>
                   <p className="text-[10px] text-slate-400 leading-tight">
-                    Toggle break angles between smooth sweeping arcs ($C^1$) and crisp plant-foot cuts ($C^0$).
+                    Decompose route and block tracks into multi-segment paths ($C^1$ smooth sweeps & $C^0$ sharp plant cuts).
                   </p>
                   <div className="space-y-1.5 pt-1">
                     {selectedAction.points.map((pt, pIdx) => {
@@ -599,32 +600,76 @@ export const InspectorPanel: React.FC<InspectorPanelProps> = ({
                             </span>
                           </div>
 
-                          {!isOrigin && (
-                            <button
-                              type="button"
-                              onClick={() => {
-                                const updated = [...selectedAction.points];
-                                updated[pIdx] = { ...pt, isSharp: !isSharp };
-                                onUpdateAction({ ...selectedAction, points: updated });
-                              }}
-                              className={`px-2 py-0.5 rounded text-[10px] font-semibold flex items-center gap-1 transition-all ${
-                                isSharp
-                                  ? 'bg-amber-950/80 text-amber-300 border border-amber-600/50'
-                                  : 'bg-sky-950/80 text-sky-300 border border-sky-600/50'
-                              }`}
-                            >
-                              <span
-                                className={`w-1.5 h-1.5 ${
-                                  isSharp ? 'rotate-45 bg-amber-400' : 'rounded-full bg-sky-400'
+                          <div className="flex items-center gap-1.5">
+                            {!isOrigin && (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  const updated = [...selectedAction.points];
+                                  updated[pIdx] = { ...pt, isSharp: !isSharp };
+                                  onUpdateAction({ ...selectedAction, points: updated });
+                                }}
+                                className={`px-2 py-0.5 rounded text-[10px] font-semibold flex items-center gap-1 transition-all cursor-pointer ${
+                                  isSharp
+                                    ? 'bg-amber-950/80 text-amber-300 border border-amber-600/50'
+                                    : 'bg-sky-950/80 text-sky-300 border border-sky-600/50'
                                 }`}
-                              ></span>
-                              {isSharp ? 'Sharp Cut Break' : 'Smooth Arc'}
-                            </button>
-                          )}
+                                title="Toggle between Sharp Cut Plant (C0) and Smooth Arc (C1)"
+                              >
+                                <span
+                                  className={`w-1.5 h-1.5 ${
+                                    isSharp ? 'rotate-45 bg-amber-400' : 'rounded-full bg-sky-400'
+                                  }`}
+                                ></span>
+                                {isSharp ? 'Sharp Cut' : 'Smooth Arc'}
+                              </button>
+                            )}
+
+                            {!isOrigin && selectedAction.points.length > 2 && (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  const updated = selectedAction.points.filter((_, idx) => idx !== pIdx);
+                                  onUpdateAction({ ...selectedAction, points: updated });
+                                }}
+                                className="text-slate-500 hover:text-rose-400 p-1 rounded hover:bg-slate-800 transition-colors cursor-pointer"
+                                title="Delete this waypoint"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            )}
+                          </div>
                         </div>
                       );
                     })}
                   </div>
+
+                  {/* Decompose / Add Waypoint Button */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const pts = selectedAction.points;
+                      if (pts.length < 2) return;
+                      // Insert midpoint between last two points
+                      const pPrev = pts[pts.length - 2];
+                      const pLast = pts[pts.length - 1];
+                      const midPoint: Point = {
+                        x: Math.round((pPrev.x + pLast.x) / 2),
+                        y: Math.round((pPrev.y + pLast.y) / 2),
+                        isSharp: false
+                      };
+                      const updated = [
+                        ...pts.slice(0, pts.length - 1),
+                        midPoint,
+                        pLast
+                      ];
+                      onUpdateAction({ ...selectedAction, points: updated });
+                    }}
+                    className="w-full mt-2 py-1.5 px-3 bg-slate-800 hover:bg-slate-700 border border-slate-700 hover:border-sky-500/50 text-sky-300 rounded text-xs font-semibold flex items-center justify-center gap-1.5 transition-all cursor-pointer"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                    <span>Decompose Path / Add Waypoint</span>
+                  </button>
                 </div>
               </div>
             ) : (
