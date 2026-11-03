@@ -26,17 +26,17 @@ export const DEFAULT_WISHBONE_PLAY: Play = {
     { id: "Z",  label: "Z",  side: "offense", x: 550, y: 530, assignmentTitle: "Zone Path", assignmentNotes: "Aiming point playside A/B gap; press vertical then cut.", coachingKeys: ["Receive mesh with soft hands", "Cut off center block"] },
 
     // Defense (3-5 Odd Front - 11 players)
-    { id: "def_c1", label: "CB", side: "defense", x: 120, y: 280, assignmentTitle: "Off Man / Deep 1/3", assignmentNotes: "Cushion technique on X; bails on pass flash.", technique: "Press Bail" },
-    { id: "def_w",  label: "W",  side: "defense", x: 300, y: 310, assignmentTitle: "Will Linebacker", assignmentNotes: "B-gap scrape on zone action; susceptible to Glance read.", technique: "Scrape B-Gap" },
-    { id: "def_e1", label: "DE", side: "defense", x: 370, y: 350, assignmentTitle: "4i Weak DE", assignmentNotes: "B-gap anchor; read option key for QB.", technique: "4i Technique" },
+    { id: "def_c1", label: "CB", side: "defense", x: 120, y: 280, assignmentTitle: "Off Man / Deep 1/3", assignmentNotes: "Cushion technique on X; bails on pass flash.", technique: "Off CB Left" },
+    { id: "def_w",  label: "W",  side: "defense", x: 300, y: 310, assignmentTitle: "Will Linebacker", assignmentNotes: "B-gap scrape on zone action; susceptible to Glance read.", technique: "30 Stack Weak" },
+    { id: "def_e1", label: "DE", side: "defense", x: 370, y: 350, assignmentTitle: "4i Weak DE", assignmentNotes: "B-gap anchor; read option key for QB.", technique: "4i-Tech Weak" },
     { id: "def_nt", label: "NT", side: "defense", x: 480, y: 350, assignmentTitle: "0-Tech Nose", assignmentNotes: "Two-gap A-gaps; primary double-team target.", technique: "0-Tech Head-up" },
-    { id: "def_m",  label: "M",  side: "defense", x: 480, y: 290, assignmentTitle: "Mike Linebacker", assignmentNotes: "Flows playside to mirror H/Z mesh; vulnerable to seam.", technique: "Flow to Zone" },
-    { id: "def_e2", label: "DE", side: "defense", x: 590, y: 350, assignmentTitle: "4i Strong DE", assignmentNotes: "Controls frontside C-gap; tight leverage on RT.", technique: "4i Technique" },
-    { id: "def_s",  label: "S",  side: "defense", x: 670, y: 310, assignmentTitle: "Sam Linebacker", assignmentNotes: "Apex over Y/F; must honor F-wing speed flat.", technique: "Apex / Seam Drop" },
-    { id: "def_nik",label: "NK", side: "defense", x: 770, y: 330, assignmentTitle: "Nickel / Overhang", assignmentNotes: "Perimeter force defender; expands with F flat.", technique: "Force / Curl-Flat" },
-    { id: "def_c2", label: "CB", side: "defense", x: 860, y: 270, assignmentTitle: "Cornerback", assignmentNotes: "Deep 1/3 boundary; retreat against vertical stem.", technique: "Cover 3 Deep" },
-    { id: "def_fs", label: "FS", side: "defense", x: 480, y: 150, assignmentTitle: "Single-High Free Safety", assignmentNotes: "Deep middle of field; rotated toward strongside seam.", technique: "Middle 1/3" },
-    { id: "def_ss", label: "SS", side: "defense", x: 620, y: 220, assignmentTitle: "Strong Safety", assignmentNotes: "Robber / intermediate hole defender; reads Y release.", technique: "Robber" }
+    { id: "def_m",  label: "M",  side: "defense", x: 480, y: 290, assignmentTitle: "Mike Linebacker", assignmentNotes: "Flows playside to mirror H/Z mesh; vulnerable to seam.", technique: "00 Stack" },
+    { id: "def_e2", label: "DE", side: "defense", x: 590, y: 350, assignmentTitle: "4i Strong DE", assignmentNotes: "Controls frontside C-gap; tight leverage on RT.", technique: "4i-Tech Strong" },
+    { id: "def_s",  label: "S",  side: "defense", x: 670, y: 310, assignmentTitle: "Sam Linebacker", assignmentNotes: "Apex over Y/F; must honor F-wing speed flat.", technique: "Apex Strong" },
+    { id: "def_nik",label: "NK", side: "defense", x: 770, y: 330, assignmentTitle: "Nickel / Overhang", assignmentNotes: "Perimeter force defender; expands with F flat.", technique: "Apex Strong" },
+    { id: "def_c2", label: "CB", side: "defense", x: 860, y: 270, assignmentTitle: "Cornerback", assignmentNotes: "Deep 1/3 boundary; retreat against vertical stem.", technique: "Off CB Right" },
+    { id: "def_fs", label: "FS", side: "defense", x: 480, y: 150, assignmentTitle: "Single-High Free Safety", assignmentNotes: "Deep middle of field; rotated toward strongside seam.", technique: "Single-High FS" },
+    { id: "def_ss", label: "SS", side: "defense", x: 620, y: 220, assignmentTitle: "Strong Safety", assignmentNotes: "Robber / intermediate hole defender; reads Y release.", technique: "Robber Strong" }
   ],
   actions: [
     { id: "a_x", playerId: "X", type: "pass_route", endMarker: "arrow", points: [{ x: 120, y: 380, isSharp: false }, { x: 180, y: 250, isSharp: true }, { x: 260, y: 140, isSharp: false }], isCurved: true, label: "5-Step Glance" },
@@ -85,17 +85,17 @@ export const GUN_TREY_BOOT_PLAY: Play = {
     { id: "RB", label: "RB", side: "offense", x: 530, y: 460, assignmentTitle: "Zone Fake", assignmentNotes: "Fierce zone run track right; sell downhill contact.", coachingKeys: ["Pocket mesh arms", "Attack frontside B-gap"] },
 
     // Defense (3-4 Over)
-    { id: "def_cb1", label: "CB", side: "defense", x: 100, y: 280, assignmentTitle: "Deep 1/3", assignmentNotes: "Backpedal on snap." },
-    { id: "def_olb1",label: "OLB",side: "defense", x: 280, y: 340, assignmentTitle: "Backside Edge", assignmentNotes: "Bites hard on RB zone fake right; leaves flat open." },
-    { id: "def_de1", label: "DE", side: "defense", x: 380, y: 345, assignmentTitle: "4-Tech DT", assignmentNotes: "Occupied by slide protection." },
-    { id: "def_nt",  label: "NT", side: "defense", x: 470, y: 345, assignmentTitle: "Nose Tackle", assignmentNotes: "Anchors A-gap." },
-    { id: "def_ilb1",label: "ILB",side: "defense", x: 420, y: 290, assignmentTitle: "Backside ILB", assignmentNotes: "Flows right with zone steps." },
-    { id: "def_ilb2",label: "ILB",side: "defense", x: 540, y: 290, assignmentTitle: "Playside ILB", assignmentNotes: "Flows to C-gap." },
-    { id: "def_de2", label: "DE", side: "defense", x: 590, y: 345, assignmentTitle: "5-Tech DE", assignmentNotes: "Contain edge." },
-    { id: "def_olb2",label: "OLB",side: "defense", x: 680, y: 340, assignmentTitle: "Strong OLB", assignmentNotes: "Drops to hook-curl." },
-    { id: "def_cb2", label: "CB", side: "defense", x: 840, y: 280, assignmentTitle: "Cover 3 Deep", assignmentNotes: "Deep third strong." },
-    { id: "def_fs",  label: "FS", side: "defense", x: 400, y: 160, assignmentTitle: "Free Safety", assignmentNotes: "Carries vertical route." },
-    { id: "def_ss",  label: "SS", side: "defense", x: 650, y: 190, assignmentTitle: "Strong Safety", assignmentNotes: "Bite on deep corner." }
+    { id: "def_cb1", label: "CB", side: "defense", x: 100, y: 280, technique: "Off CB Left", assignmentTitle: "Deep 1/3", assignmentNotes: "Backpedal on snap." },
+    { id: "def_olb1",label: "OLB",side: "defense", x: 280, y: 340, technique: "9-Tech Wide Weak", assignmentTitle: "Backside Edge", assignmentNotes: "Bites hard on RB zone fake right; leaves flat open." },
+    { id: "def_de1", label: "DE", side: "defense", x: 380, y: 345, technique: "4i-Tech Weak", assignmentTitle: "4-Tech DT", assignmentNotes: "Occupied by slide protection." },
+    { id: "def_nt",  label: "NT", side: "defense", x: 470, y: 345, technique: "0-Tech Head-up", assignmentTitle: "Nose Tackle", assignmentNotes: "Anchors A-gap." },
+    { id: "def_ilb1",label: "ILB",side: "defense", x: 420, y: 290, technique: "30 Stack Weak", assignmentTitle: "Backside ILB", assignmentNotes: "Flows right with zone steps." },
+    { id: "def_ilb2",label: "ILB",side: "defense", x: 540, y: 290, technique: "30 Stack Strong", assignmentTitle: "Playside ILB", assignmentNotes: "Flows to C-gap." },
+    { id: "def_de2", label: "DE", side: "defense", x: 590, y: 345, technique: "5-Tech Strong", assignmentTitle: "5-Tech DE", assignmentNotes: "Contain edge." },
+    { id: "def_olb2",label: "OLB",side: "defense", x: 680, y: 340, technique: "Apex Strong", assignmentTitle: "Strong OLB", assignmentNotes: "Drops to hook-curl." },
+    { id: "def_cb2", label: "CB", side: "defense", x: 840, y: 280, technique: "Off CB Right", assignmentTitle: "Cover 3 Deep", assignmentNotes: "Deep third strong." },
+    { id: "def_fs",  label: "FS", side: "defense", x: 400, y: 160, technique: "Single-High FS", assignmentTitle: "Free Safety", assignmentNotes: "Carries vertical route." },
+    { id: "def_ss",  label: "SS", side: "defense", x: 650, y: 190, technique: "Robber Strong", assignmentTitle: "Strong Safety", assignmentNotes: "Bite on deep corner." }
   ],
   actions: [
     { id: "b_y", playerId: "Y", type: "pass_route", endMarker: "arrow", points: [{ x: 660, y: 380, isSharp: false }, { x: 450, y: 440, isSharp: false }, { x: 260, y: 430, isSharp: false }, { x: 180, y: 350, isSharp: false }], isCurved: true, label: "Boot Leak" },
@@ -126,7 +126,7 @@ export const PISTOL_COUNTER_TREY_PLAY: Play = {
   tags: ["counter-gt", "gap-scheme", "pull-block", "4-2-5-punisher"],
   situation: ["3rd & 2", "Goal Line", "Aggressive LB flow"],
   players: [
-    // Offense
+    // Offense (11 Players - 12 Personnel)
     { id: "X",  label: "X",  side: "offense", x: 120, y: 380, assignmentTitle: "Stalk Block", assignmentNotes: "Stalk corner; prevent secondary run fill.", technique: "Stalk" },
     { id: "LT", label: "LT", side: "offense", x: 360, y: 380, assignmentTitle: "Down Block", assignmentNotes: "Angle down block on 3-tech DT; secure inside gap.", technique: "Down Angle" },
     { id: "LG", label: "LG", side: "offense", x: 420, y: 380, assignmentTitle: "Pull & Kick", assignmentNotes: "Pull flat down LOS; kick out unblocked defensive end.", technique: "Skip Pull Kick" },
@@ -134,9 +134,23 @@ export const PISTOL_COUNTER_TREY_PLAY: Play = {
     { id: "RG", label: "RG", side: "offense", x: 540, y: 380, assignmentTitle: "Pull & Lead", assignmentNotes: "Follow LG pull; wrap up into hole on Mike LB.", technique: "Wrap Pull Lead" },
     { id: "RT", label: "RT", side: "offense", x: 600, y: 380, assignmentTitle: "Hinge Backside", assignmentNotes: "Step inside then hinge to protect backside rush.", technique: "Step & Hinge" },
     { id: "Y",  label: "Y",  side: "offense", x: 300, y: 380, assignmentTitle: "Down Block", assignmentNotes: "Pin 7-tech DE inside with LT.", technique: "Pin Block" },
+    { id: "H",  label: "H",  side: "offense", x: 250, y: 400, assignmentTitle: "Wing Seal", assignmentNotes: "Seal edge overhang or double 7-tech with Y.", technique: "Wing Seal" },
     { id: "Z",  label: "Z",  side: "offense", x: 880, y: 380, assignmentTitle: "Clearout / Post", assignmentNotes: "Run off safety.", technique: "Clear" },
     { id: "QB", label: "QB", side: "offense", x: 480, y: 450, assignmentTitle: "Reverse Pivot & Hand", assignmentNotes: "Reverse pivot to left; hand off to RB; boot fake right.", technique: "Reverse Pivot" },
-    { id: "RB", label: "RB", side: "offense", x: 480, y: 530, assignmentTitle: "Counter Step & Cut", assignmentNotes: "Counter step right, press behind pulling RG, explode in alley.", technique: "Counter Cut" }
+    { id: "RB", label: "RB", side: "offense", x: 480, y: 530, assignmentTitle: "Counter Step & Cut", assignmentNotes: "Counter step right, press behind pulling RG, explode in alley.", technique: "Counter Cut" },
+
+    // Defense (4-2-5 Nickel Over - 11 Players)
+    { id: "def_425_nt", label: "NT", side: "defense", x: 462, y: 348, technique: "1-Tech Weak", assignmentTitle: "1-Tech Shade", assignmentNotes: "Weak A-gap anchor; control Center." },
+    { id: "def_425_dt", label: "DT", side: "defense", x: 562, y: 348, technique: "3-Tech Strong", assignmentTitle: "3-Tech DT", assignmentNotes: "Strong B-gap penetration." },
+    { id: "def_425_dew", label: "DE", side: "defense", x: 335, y: 348, technique: "5-Tech Weak", assignmentTitle: "Weak 5-End", assignmentNotes: "C-gap contain / pull kick target." },
+    { id: "def_425_des", label: "DE", side: "defense", x: 625, y: 348, technique: "5-Tech Strong", assignmentTitle: "Strong 5-End", assignmentNotes: "Contain edge strong." },
+    { id: "def_425_w",  label: "W",  side: "defense", x: 420, y: 295, technique: "20 Stack Weak", assignmentTitle: "Will Linebacker", assignmentNotes: "Scrape backside to frontside A/B gap." },
+    { id: "def_425_m",  label: "M",  side: "defense", x: 540, y: 295, technique: "20 Stack Strong", assignmentTitle: "Mike Linebacker", assignmentNotes: "Plug strong B/C gap downhill." },
+    { id: "def_425_nk", label: "NK", side: "defense", x: 680, y: 320, technique: "Apex Strong", assignmentTitle: "Nickel / Star", assignmentNotes: "Apex overhang; alley force defender." },
+    { id: "def_425_cb1",label: "CB", side: "defense", x: 132, y: 275, technique: "Off CB Left", assignmentTitle: "Left Cornerback", assignmentNotes: "Cover 4 quarters / Cover 3 deep." },
+    { id: "def_425_cb2",label: "CB", side: "defense", x: 848, y: 275, technique: "Off CB Right", assignmentTitle: "Right Cornerback", assignmentNotes: "Cover 4 quarters / Cover 3 deep." },
+    { id: "def_425_fs", label: "FS", side: "defense", x: 360, y: 185, technique: "2-High Safety Left", assignmentTitle: "Free Safety", assignmentNotes: "Cover 4 boundary quarter safety." },
+    { id: "def_425_ss", label: "SS", side: "defense", x: 600, y: 185, technique: "2-High Safety Right", assignmentTitle: "Strong Safety", assignmentNotes: "Cover 4 field quarter safety." }
   ],
   actions: [
     { id: "c_lg", playerId: "LG", type: "pull_block", endMarker: "tbar", points: [{ x: 420, y: 380 }, { x: 370, y: 410 }, { x: 260, y: 370 }], isCurved: true, label: "Kick Out DE" },
@@ -173,51 +187,6 @@ export const DEFAULT_FORMATIONS: Formation[] = [
     personnel: "21 Personnel",
     description: "Heavy backfield with H & Z flankers flanking QB in gun; Y tight wing.",
     players: DEFAULT_WISHBONE_PLAY.players.filter(p => p.side === 'offense'),
-    createdAt: new Date().toISOString()
-  },
-  {
-    id: "formation-3-5-odd",
-    name: "3-5 Odd Front (0-Tech Nose)",
-    side: "defense",
-    personnel: "3-5-3 Defense",
-    description: "3 down linemen with 0-tech head-up nose, 4i DEs, 3 second-level LBs and 2 apex overhangs.",
-    players: DEFAULT_WISHBONE_PLAY.players.filter(p => p.side === 'defense'),
-    createdAt: new Date().toISOString()
-  },
-  {
-    id: "formation-gun-trey-11",
-    name: "11 Personnel Gun Trey Open",
-    side: "offense",
-    personnel: "11 Personnel",
-    description: "Single-back 3x1 spread formation creating boundary 1-on-1 and field passing triangles.",
-    players: GUN_TREY_BOOT_PLAY.players.filter(p => p.side === 'offense'),
-    createdAt: new Date().toISOString()
-  },
-  {
-    id: "formation-3-4-over",
-    name: "3-4 Over Front",
-    side: "defense",
-    personnel: "3-4 Defense",
-    description: "Two-gap front shifted toward the field / strongside with stand-up edge rushers.",
-    players: GUN_TREY_BOOT_PLAY.players.filter(p => p.side === 'defense'),
-    createdAt: new Date().toISOString()
-  },
-  {
-    id: "formation-pistol-12-ace",
-    name: "Pistol 12 Personnel Ace Wing",
-    side: "offense",
-    personnel: "12 Personnel",
-    description: "Downhill Pistol alignment with tight end attached and wing tight-end for double-pull gap schemes.",
-    players: PISTOL_COUNTER_TREY_PLAY.players.filter(p => p.side === 'offense'),
-    createdAt: new Date().toISOString()
-  },
-  {
-    id: "formation-4-2-5-nickel",
-    name: "4-2-5 Nickel Over",
-    side: "defense",
-    personnel: "4-2-5 Nickel",
-    description: "Modern 4-down front with twin inside backers and athletic nickel safety playing the alley.",
-    players: PISTOL_COUNTER_TREY_PLAY.players.filter(p => p.side === 'defense'),
     createdAt: new Date().toISOString()
   },
   {

@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect, useCallback } from 'react';
 import type { Player, PathAction, CanvasMode, Point, AppMode, Theme, Formation } from '../types/playbook';
 import { generatePathString, getSvgCoordinates, clampFieldCoordinates, getDistance, insertPointIntoAction } from '../utils/geometry';
 import { isLightColor } from '../utils/colors';
-import { Shield, ChevronLeft, ChevronRight, RotateCcw } from 'lucide-react';
+import { Shield, ChevronLeft, ChevronRight, RotateCcw, Save } from 'lucide-react';
 import { analyzeOffense, calculateDefensiveAlignmentPosition } from '../utils/defensiveAlignment';
 
 interface ChalkboardCanvasProps {
@@ -21,6 +21,8 @@ interface ChalkboardCanvasProps {
   activeDefenseFront?: string;
   onSelectOffenseFormation?: (formationId: string) => void;
   onSelectDefenseFront?: (formationId: string) => void;
+  onUpdateOffenseFormation?: () => void;
+  onUpdateDefenseFront?: () => void;
   selectedPlayerId: string | null;
   selectedActionId: string | null;
   onSelectPlayer: (id: string | null) => void;
@@ -51,6 +53,8 @@ export const ChalkboardCanvas: React.FC<ChalkboardCanvasProps> = ({
   activeDefenseFront,
   onSelectOffenseFormation,
   onSelectDefenseFront,
+  onUpdateOffenseFormation,
+  onUpdateDefenseFront,
   selectedPlayerId,
   selectedActionId,
   onSelectPlayer,
@@ -1137,6 +1141,21 @@ export const ChalkboardCanvas: React.FC<ChalkboardCanvasProps> = ({
                   </option>
                 ))}
               </select>
+              {onUpdateOffenseFormation && activeOffenseId && (
+                <button
+                  type="button"
+                  onClick={onUpdateOffenseFormation}
+                  className={`px-1.5 py-1 rounded text-[10px] font-bold border transition-all cursor-pointer flex items-center gap-1 active:scale-95 ${
+                    isLight
+                      ? 'bg-amber-100 hover:bg-amber-200 text-amber-900 border-amber-300'
+                      : 'bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border-amber-500/40'
+                  }`}
+                  title={`Update "${activeOffenseFormation}" with current chalkboard offensive positions`}
+                >
+                  <Save className="w-3 h-3 text-amber-500" />
+                  <span>Update</span>
+                </button>
+              )}
             </div>
 
             <div className={`h-4 w-[1px] ${isLight ? 'bg-slate-300' : 'bg-slate-700'}`} />
@@ -1167,6 +1186,21 @@ export const ChalkboardCanvas: React.FC<ChalkboardCanvasProps> = ({
                   </option>
                 ))}
               </select>
+              {onUpdateDefenseFront && activeDefenseId && (
+                <button
+                  type="button"
+                  onClick={onUpdateDefenseFront}
+                  className={`px-1.5 py-1 rounded text-[10px] font-bold border transition-all cursor-pointer flex items-center gap-1 active:scale-95 ${
+                    isLight
+                      ? 'bg-rose-100 hover:bg-rose-200 text-rose-900 border-rose-300'
+                      : 'bg-rose-500/20 hover:bg-rose-500/30 text-rose-300 border-rose-500/40'
+                  }`}
+                  title={`Update "${activeDefenseFront}" with current chalkboard defensive positions & techniques`}
+                >
+                  <Save className="w-3 h-3 text-rose-500" />
+                  <span>Update</span>
+                </button>
+              )}
             </div>
           </div>
 

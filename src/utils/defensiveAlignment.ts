@@ -434,7 +434,7 @@ export function calculateDefensiveAlignmentPosition(
   }
 
   // --- 2. Linebacker Stacks (00 to 50 & Apex) ---
-  if (raw.includes('00') || raw.includes('mike stack') || raw.includes('center stack')) {
+  if (raw.includes('00') || raw.includes('mike stack') || raw.includes('center stack') || raw.includes('flow to zone')) {
     return { x: cX, y: lbY, matched: true, description: '00 Stack over Center' };
   }
 
@@ -448,7 +448,7 @@ export function calculateDefensiveAlignmentPosition(
     return { x, y: lbY, matched: true, description: `20 Stack over ${targetSide === 'left' ? 'Left' : 'Right'} Guard` };
   }
 
-  if (raw.includes('30 stack') || raw.includes('30') || raw.includes('will stack') || raw.includes('sam stack') || raw.includes('b-gap stack')) {
+  if (raw.includes('30 stack') || raw.includes('30') || raw.includes('will stack') || raw.includes('sam stack') || raw.includes('b-gap stack') || raw.includes('scrape')) {
     const x = targetSide === 'left' ? Math.round((ltX + lgX) / 2) : Math.round((rtX + rgX) / 2);
     return { x, y: lbY, matched: true, description: `30 Stack over ${targetSide === 'left' ? 'Left' : 'Right'} B-Gap` };
   }
@@ -704,18 +704,51 @@ export function loadDefensivePackage(
 }
 
 /**
+ * Infers an appropriate defensive alignment technique for a defensive player
+ * based on their label (e.g. NT, DT, DE, W, M, S, CB, FS, SS) and relative field position
+ * if their technique is not explicitly specified.
+ */
+export function inferDefenderTechnique(player: Player, structure: OffensiveStructure): string {
+  if (player.technique && player.technique.trim()) {
+    return player.technique;
+  }
+  const lbl = (player.label || '').toUpperCase().trim();
+  const isLeftOfCenter = player.x < structure.center.x;
+  const sideTag = isLeftOfCenter 
+    ? (structure.strength === 'left' ? 'Strong' : 'Weak') 
+    : (structure.strength === 'right' ? 'Strong' : 'Weak');
+
+  if (lbl === 'NT' || lbl === 'NOSE' || lbl === 'N') return '0-Tech Head-up';
+  if (lbl === 'DT' || lbl === 'T' || lbl === 'TACKLE') return `3-Tech ${sideTag}`;
+  if (lbl === 'DE' || lbl === 'E' || lbl === 'END') return `5-Tech ${sideTag}`;
+  if (lbl === 'W' || lbl === 'WILL') return '30 Stack Weak';
+  if (lbl === 'M' || lbl === 'MIKE') return '20 Stack Strong';
+  if (lbl === 'S' || lbl === 'SAM') return 'Apex Strong';
+  if (lbl === 'CB' || lbl === 'C' || lbl === 'CORNER') return isLeftOfCenter ? 'Off CB Left' : 'Off CB Right';
+  if (lbl === 'FS' || lbl === 'FREE') return 'Single-High FS';
+  if (lbl === 'SS' || lbl === 'SAFETY') return `Robber ${sideTag}`;
+  if (lbl === 'STAR' || lbl === 'NICKEL' || lbl === 'NK' || lbl === 'ROVER') return `Apex ${sideTag}`;
+  if (lbl === 'ILB' || lbl === 'LB') return `30 Stack ${sideTag}`;
+  if (lbl === 'OLB' || lbl === 'EDGE') return `Apex ${sideTag}`;
+
+  return `20 Stack ${sideTag}`;
+}
+
+/**
  * Re-aligns all defensive players based on their existing technique/alignment parameter
- * against the current offensive formation.
+ * against the current offensive formation. If a player lacks a technique, infers one automatically.
  */
 export function realignAllDefenders(
   players: Player[],
   structure: OffensiveStructure
 ): Player[] {
   return players.map(player => {
-    if (player.side !== 'defense' || !player.technique) return player;
-    const pos = calculateDefensiveAlignmentPosition(player.technique, structure);
+    if (player.side !== 'defense') return player;
+    const tech = inferDefenderTechnique(player, structure);
+    const pos = calculateDefensiveAlignmentPosition(tech, structure);
     return {
       ...player,
+      technique: tech,
       x: pos.x,
       y: pos.y
     };

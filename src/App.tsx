@@ -27,8 +27,8 @@ import { SituationMatrixModal } from './components/SituationMatrixModal';
 import { PlayLibraryModal } from './components/PlayLibraryModal';
 import { FormationSwitcherModal } from './components/FormationSwitcherModal';
 import { DefenseFrontModal } from './components/DefenseFrontModal';
-import { shiftDefensiveFront, realignAllDefenders, analyzeOffense, calculateDefensiveAlignmentPosition } from './utils/defensiveAlignment';
-import { savePlay, fetchFormations } from './services/playbookDb';
+import { shiftDefensiveFront, realignAllDefenders, analyzeOffense, calculateDefensiveAlignmentPosition, inferDefenderTechnique } from './utils/defensiveAlignment';
+import { savePlay, fetchFormations, saveFormation } from './services/playbookDb';
 import { isFirebaseConfigured } from './services/firebase';
 
 export const App: React.FC = () => {
@@ -507,9 +507,9 @@ export const App: React.FC = () => {
     const structure = analyzeOffense(currentPlay.players);
     // Pre-align new defensive players dynamically according to active offensive structure
     const realignedDefenders = defPlayers.map(p => {
-      if (!p.technique) return p;
-      const pos = calculateDefensiveAlignmentPosition(p.technique, structure);
-      return { ...p, x: pos.x, y: pos.y };
+      const tech = inferDefenderTechnique(p, structure);
+      const pos = calculateDefensiveAlignmentPosition(tech, structure);
+      return { ...p, technique: tech, x: pos.x, y: pos.y };
     });
 
     updateCurrentPlay(p => {
@@ -524,6 +524,51 @@ export const App: React.FC = () => {
     setSelectedPlayerId(null);
     setSelectedActionId(null);
     showNotification(`Loaded Defensive Front: "${formation.name}"`, 'success');
+  };
+
+  // Update an existing saved formation template with current chalkboard layout
+  const handleUpdateFormation = async (formationId: string, side: 'offense' | 'defense' | 'both') => {
+    const existing = formations.find(f => f.id === formationId || f.name === formationId);
+    if (!existing) return;
+
+    let updatedPlayers: Player[] = [];
+    if (side === 'both') {
+      updatedPlayers = currentPlay.players;
+    } else if (side === 'offense') {
+      updatedPlayers = currentPlay.players.filter(p => p.side === 'offense');
+    } else {
+      // For defense, ensure every defender has their technique recorded
+      const structure = analyzeOffense(currentPlay.players);
+      updatedPlayers = currentPlay.players
+        .filter(p => p.side === 'defense')
+        .map(p => ({
+          ...p,
+          technique: inferDefenderTechnique(p, structure)
+        }));
+    }
+
+    if (updatedPlayers.length === 0) {
+      showNotification(`No ${side} players on chalkboard to update "${existing.name}".`, 'error');
+      return;
+    }
+
+    const updatedFormation: Formation = {
+      ...existing,
+      players: updatedPlayers,
+      updatedAt: new Date().toISOString()
+    };
+
+    try {
+      if (isFirebaseConfigured) {
+        await saveFormation(updatedFormation);
+      }
+      setFormations(prev => prev.map(f => (f.id === existing.id ? updatedFormation : f)));
+      showNotification(`Updated formation "${existing.name}" with current chalkboard positions!`, 'success');
+    } catch (err: unknown) {
+      console.warn('Could not update formation remotely:', err);
+      setFormations(prev => prev.map(f => (f.id === existing.id ? updatedFormation : f)));
+      showNotification(`Updated "${existing.name}" locally in storage.`, 'info');
+    }
   };
 
   const handleToggleShowGaps = () => {
@@ -626,6 +671,14 @@ export const App: React.FC = () => {
             activeDefenseFront={currentPlay.frontDefense}
             onSelectOffenseFormation={handleSelectOffenseFormation}
             onSelectDefenseFront={handleSelectDefenseFront}
+            onUpdateOffenseFormation={() => {
+              const f = formations.find(fm => (fm.side === 'offense' || fm.side === 'both') && (fm.id === currentPlay.formationOffense || fm.name === currentPlay.formationOffense));
+              if (f) handleUpdateFormation(f.id, 'offense');
+            }}
+            onUpdateDefenseFront={() => {
+              const f = formations.find(fm => (fm.side === 'defense' || fm.side === 'both') && (fm.id === currentPlay.frontDefense || fm.name === currentPlay.frontDefense));
+              if (f) handleUpdateFormation(f.id, 'defense');
+            }}
             selectedPlayerId={selectedPlayerId}
             selectedActionId={selectedActionId}
             onSelectPlayer={setSelectedPlayerId}
@@ -723,6 +776,7 @@ export const App: React.FC = () => {
         currentPlayers={currentPlay.players}
         currentActions={currentPlay.actions}
         onApplyFormation={handleApplyFormation}
+        onUpdateFormation={handleUpdateFormation}
         showNotification={showNotification}
       />
 

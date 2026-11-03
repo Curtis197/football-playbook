@@ -163,4 +163,9 @@ Comprehensive catalog of capabilities and features supported in the Football Pla
       - 🏈 **Offense Formation Dropdown**: Directly select any offensive formation (e.g. Spread 2x2 Open, Trips Open 3x1, Pro-I 21 Pers, Single Back Ace 12 Pers, Shotgun Bunch 11 Pers, Pistol Diamond 20 Pers, Empty Quads 3x2, Shotgun Wishbone 21 Pers); offensive players instantly update their positions, offensive structure is dynamically re-analyzed, and all existing defensive players automatically re-align to the newly established gaps and strength.
       - 🛡️ **Defense Front Dropdown**: Directly select any defensive front (e.g. 4-3 Over Front, 4-3 Under Front, 3-4 Over Front, 3-5 Odd Front, 4-2-5 Nickel Over, 3-4 Mint Tite, 46 Bear Front); defensive players immediately snap to their designated alignment techniques mapped dynamically against the active offensive formation.
       - Seamless two-way integration with Firebase Firestore `formations` collection and offline presets fallback, supporting both dark mode chalkboard and light mode whiteboard styling.
+    - Universal Defensive Technique Auto-Inference (`inferDefenderTechnique`):
+      - If an imported or legacy defensive player lacks an explicit `technique` parameter, the engine automatically deduces their role and gap technique from their position label (NT, DT, DE, W, M, S, CB, FS, SS, NK) and relative alignment to the offensive center and strength, guaranteeing zero unaligned defensive players.
+    - Update Saved Formation Engine:
+      - 1-Click "Update" buttons integrated directly on the Chalkboard Canvas top HUD bar for active offensive formations and active defensive fronts. Saves adjusted positions and techniques directly back to the formation template in Firestore and local state.
+      - "Update with Current Canvas" action within `FormationSwitcherModal.tsx` allowing coaches to overwrite existing templates with updated chalkboard positioning.
 

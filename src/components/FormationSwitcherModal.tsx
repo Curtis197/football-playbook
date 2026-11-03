@@ -14,7 +14,8 @@ import {
   Shield, 
   Users, 
   Sparkles, 
-  AlertCircle
+  AlertCircle,
+  Save
 } from 'lucide-react';
 
 interface FormationSwitcherModalProps {
@@ -23,6 +24,7 @@ interface FormationSwitcherModalProps {
   currentPlayers: Player[];
   currentActions: PathAction[];
   onApplyFormation: (players: Player[], keepActions: boolean) => void;
+  onUpdateFormation?: (formationId: string, side: 'offense' | 'defense' | 'both') => Promise<void> | void;
   showNotification: (msg: string, type?: 'success' | 'error' | 'info') => void;
 }
 
@@ -32,6 +34,7 @@ export const FormationSwitcherModal: React.FC<FormationSwitcherModalProps> = ({
   currentPlayers,
   currentActions,
   onApplyFormation,
+  onUpdateFormation,
   showNotification
 }) => {
   const [formations, setFormations] = useState<Formation[]>(DEFAULT_FORMATIONS);
@@ -145,6 +148,42 @@ export const FormationSwitcherModal: React.FC<FormationSwitcherModalProps> = ({
         setSelectedFormationId(DEFAULT_FORMATIONS[0].id);
       }
       showNotification(`Deleted formation "${formation.name}"`, 'info');
+    }
+  };
+
+  // Update selected formation with current chalkboard layout
+  const handleUpdateSelectedFormation = async () => {
+    if (!selectedFormation) return;
+    if (window.confirm(`Update formation "${selectedFormation.name}" with current chalkboard positions?`)) {
+      if (onUpdateFormation) {
+        await onUpdateFormation(selectedFormation.id, selectedFormation.side);
+        void loadFormations();
+        return;
+      }
+
+      let playersToSave: Player[] = [];
+      if (selectedFormation.side === 'both') {
+        playersToSave = currentPlayers;
+      } else {
+        playersToSave = currentPlayers.filter(p => p.side === selectedFormation.side);
+      }
+      if (playersToSave.length === 0) {
+        showNotification(`No ${selectedFormation.side} players on chalkboard to update "${selectedFormation.name}".`, 'error');
+        return;
+      }
+      const updatedFormation: Formation = {
+        ...selectedFormation,
+        players: playersToSave,
+        updatedAt: new Date().toISOString()
+      };
+      try {
+        await saveFormation(updatedFormation);
+        showNotification(`Updated formation "${updatedFormation.name}"!`, 'success');
+        setFormations(prev => prev.map(f => (f.id === updatedFormation.id ? updatedFormation : f)));
+      } catch {
+        setFormations(prev => prev.map(f => (f.id === updatedFormation.id ? updatedFormation : f)));
+        showNotification(`Updated "${updatedFormation.name}" locally`, 'info');
+      }
     }
   };
 
@@ -452,16 +491,27 @@ export const FormationSwitcherModal: React.FC<FormationSwitcherModalProps> = ({
             ) : null}
 
             {selectedFormation && (
-              <div className="pt-6 border-t border-[#232936] mt-6 flex items-center justify-end gap-3">
+              <div className="pt-6 border-t border-[#232936] mt-6 flex items-center justify-end gap-3 flex-wrap">
                 <button
+                  type="button"
                   onClick={onClose}
-                  className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold rounded-lg transition-all"
+                  className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold rounded-lg transition-all cursor-pointer"
                 >
                   Cancel
                 </button>
                 <button
+                  type="button"
+                  onClick={handleUpdateSelectedFormation}
+                  className="px-4 py-2 bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/40 text-xs font-bold rounded-lg shadow-md transition-all flex items-center gap-1.5 active:scale-95 cursor-pointer"
+                  title="Update this formation template with current player positions from the chalkboard"
+                >
+                  <Save className="w-4 h-4 text-amber-400" />
+                  Update with Current Canvas
+                </button>
+                <button
+                  type="button"
                   onClick={() => handleInitiateApply(selectedFormation)}
-                  className="px-5 py-2 bg-gradient-to-r from-sky-600 to-indigo-600 hover:from-sky-500 hover:to-indigo-500 text-white text-xs font-bold rounded-lg shadow-md transition-all flex items-center gap-1.5 active:scale-95"
+                  className="px-5 py-2 bg-gradient-to-r from-sky-600 to-indigo-600 hover:from-sky-500 hover:to-indigo-500 text-white text-xs font-bold rounded-lg shadow-md transition-all flex items-center gap-1.5 active:scale-95 cursor-pointer"
                 >
                   <Check className="w-4 h-4" />
                   Apply Template to Canvas

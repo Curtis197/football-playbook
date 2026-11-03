@@ -95,5 +95,6 @@ export interface Formation {
   description?: string;
   players: Player[];
   createdAt?: string;
+  updatedAt?: string;
 }
 
