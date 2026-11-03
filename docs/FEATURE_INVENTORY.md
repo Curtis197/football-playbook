@@ -50,10 +50,14 @@ Comprehensive catalog of capabilities and features supported in the Football Pla
     - 4 selectable node shape profiles per player: `round` (classic circle), `square` (traditional block), `rounded_square` (modern squircle), and `none` (bare text label).
     - `none` shape renders cleanly as bare high-contrast text in player's schematic/custom color with an invisible responsive hit box (`fill="transparent"`) for seamless click, drag-and-drop, and hover detection.
     - Subtle dashed bounding rectangle on selection and dashed tooltip badge for bare text players.
-  - Player Accent Color Picker:
-    - Dedicated color picker in InspectorPanel with 12 preset football swatches (Offense Sky, Defense Rose, Amber Gold, Emerald Green, Royal Purple, Hot Pink, Electric Cyan, Vivid Orange, Crimson Maroon, Midnight Navy, Deep Charcoal, Clean White) plus native HTML5 custom color picker.
-    - Automatic contrast calculation using ITU-R BT.601 relative luminance for player labels ensuring 100% legibility on light and dark jersey fills.
-    - Active selection halo and roster badge synchronization with 1-click "Reset Default" action.
+  - Multi-Parameter Player Color Engine (Spec: 3 Color Parameters + Optional Hover Color):
+    - **Letter Color**: Customizable position label / text color (defaults to high-contrast white `#ffffff` against black fill, or `#000000` when bare text).
+    - **Node Color (Border)**: Customizable perimeter outline/stroke color (defaults to pure black `#000000` with no shade).
+    - **Fill Color (Interior)**: Customizable node body background color (defaults to pure black `#000000` with no shade, with 1-click 'None' transparent fill option).
+    - **Hover Color (Optional)**: Optional interactive accent color highlighting the player's border and halo on canvas hover in both build and view modes.
+    - **Default Black Setting**: All player node and fill geometries default to pure solid black `#000000` with no shade. 1-click "Default Black" quick-reset button restores the solid black standard instantly.
+    - Comprehensive swatches for all 4 parameters plus native HTML5 color pickers (`<input type="color" />`).
+    - Synchronized live preview across chalkboard canvas nodes, Thought Partner hover tooltip badges, inspector header badges, and offensive/defensive roster lists.
   - Vector Line & Terminal Marker Color Picker:
     - Custom color picking for pass routes, run blocks, pull blocks, and motion tracks with 11 football concept swatches and custom color picker.
     - Dynamic SVG `<marker>` generation per action (`arrow-${id}`, `tbar-${id}`, `dot-${id}`) ensuring terminal arrowheads and perpendicular T-Bars match the custom stroke color.

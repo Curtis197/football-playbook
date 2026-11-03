@@ -17,7 +17,11 @@ export interface Player {
   label: string;           // "Y", "H", "Z", "W", "M", "NT"
   side: Side;
   shape?: PlayerShape;     // 'round', 'square', 'rounded_square', or 'none' (bare text)
-  color?: string;          // Custom hex color (e.g. '#0284c7', '#e11d48')
+  color?: string;          // Legacy custom hex color fallback
+  letterColor?: string;    // Custom position label / text color (default: black '#000000' or contrasting '#ffffff')
+  nodeColor?: string;      // Custom node stroke / border color (default: pure black '#000000')
+  fillColor?: string;      // Custom node background fill color (default: pure black '#000000')
+  hoverColor?: string;     // Optional custom hover accent color
   x: number;               // Normalized X coordinate
   y: number;               // Normalized Y coordinate
   assignmentTitle: string; // e.g. "Seam Attack / Clearout"

@@ -53,6 +53,7 @@ export const ChalkboardCanvas: React.FC<ChalkboardCanvasProps> = ({
 
   // Hover state for Thought Partner tooltip (Active only in View Mode)
   const [hoveredPlayerId, setHoveredPlayerId] = useState<string | null>(null);
+  const [canvasHoveredPlayerId, setCanvasHoveredPlayerId] = useState<string | null>(null);
   const [tooltipPos, setTooltipPos] = useState<{ x: number; y: number } | null>(null);
 
   const activeHoveredPlayer = appMode === 'view' 
@@ -664,39 +665,37 @@ export const ChalkboardCanvas: React.FC<ChalkboardCanvasProps> = ({
           <g className="players-layer">
             {players.map(player => {
               const isSelected = selectedPlayerId === player.id;
-              const isHovered = appMode === 'view' && hoveredPlayerId === player.id;
+              const isHovered = (appMode === 'view' && hoveredPlayerId === player.id) || canvasHoveredPlayerId === player.id;
               const isOffense = player.side === 'offense';
               const isView = appMode === 'view';
               const shape = player.shape || (isOffense ? 'round' : 'square');
 
-              const customColor = player.color;
-              let fillColor: string;
-              let strokeColor: string;
-              let haloStroke: string;
+              // 3 Color parameters: letterColor, nodeColor, fillColor + optional hoverColor
+              // Default color: Black with no shade (#000000)
+              const defaultColor = '#000000';
+              const effectiveNodeColor = player.nodeColor || player.color || defaultColor;
+              const effectiveFillColor = shape === 'none'
+                ? 'transparent'
+                : (player.fillColor !== undefined ? player.fillColor : (player.color || defaultColor));
+              const effectiveLetterColor = player.letterColor || (shape === 'none'
+                ? effectiveNodeColor
+                : (effectiveFillColor === 'transparent'
+                  ? (isLight ? '#000000' : '#ffffff')
+                  : (isLightColor(effectiveFillColor) ? '#000000' : '#ffffff')));
 
-              if (customColor) {
-                fillColor = customColor;
-                strokeColor = isSelected 
-                  ? (isLight ? '#0284c7' : '#38bdf8') 
-                  : (isLight ? '#0f172a' : '#ffffff');
-                haloStroke = customColor;
-              } else {
-                fillColor = isOffense
-                  ? (isSelected ? "#0284c7" : (isLight ? "#ffffff" : "#0f172a"))
-                  : (isSelected ? "#e11d48" : (isLight ? "#ffffff" : "#1e1b2e"));
-                strokeColor = isOffense
-                  ? (isSelected ? (isLight ? "#0284c7" : "#38bdf8") : (isLight ? "#0284c7" : "#0ea5e9"))
-                  : (isSelected ? (isLight ? "#e11d48" : "#fda4af") : (isLight ? "#e11d48" : "#f43f5e"));
-                haloStroke = isOffense ? (isLight ? "#0284c7" : "#38bdf8") : (isLight ? "#e11d48" : "#f43f5e");
-              }
+              const strokeColor = (isHovered && player.hoverColor)
+                ? player.hoverColor
+                : (isSelected
+                  ? (isLight ? '#0284c7' : '#38bdf8')
+                  : effectiveNodeColor);
 
-              const textFill = shape === 'none'
-                ? (customColor || (isLight ? (isOffense ? '#0284c7' : '#e11d48') : (isOffense ? '#38bdf8' : '#f43f5e')))
-                : (customColor
-                  ? (isLightColor(customColor) ? '#0f172a' : '#ffffff')
-                  : (isSelected
-                    ? '#ffffff'
-                    : (isLight ? (isOffense ? '#0284c7' : '#e11d48') : '#ffffff')));
+              const fillColor = effectiveFillColor;
+
+              const haloStroke = (isHovered && player.hoverColor)
+                ? player.hoverColor
+                : (isSelected ? (isLight ? '#0284c7' : '#38bdf8') : effectiveNodeColor);
+
+              const textFill = effectiveLetterColor;
 
               const glowFilter = isSelected
                 ? (isOffense ? "url(#glow)" : "url(#defense-glow)")
@@ -709,12 +708,14 @@ export const ChalkboardCanvas: React.FC<ChalkboardCanvasProps> = ({
                   className={isView ? "cursor-pointer transition-transform duration-75" : "cursor-grab active:cursor-grabbing transition-transform duration-75"}
                   onPointerDown={(e) => handlePlayerPointerDown(e, player)}
                   onPointerEnter={() => {
+                    setCanvasHoveredPlayerId(player.id);
                     if (isView) {
                       setHoveredPlayerId(player.id);
                       setTooltipPos({ x: player.x, y: player.y });
                     }
                   }}
                   onPointerLeave={() => {
+                    setCanvasHoveredPlayerId(null);
                     if (isView) {
                       setHoveredPlayerId(null);
                     }
@@ -862,21 +863,39 @@ export const ChalkboardCanvas: React.FC<ChalkboardCanvasProps> = ({
           >
             <div className="bg-[#0f172a]/95 backdrop-blur-md border border-[#38bdf8]/50 text-slate-100 rounded-lg p-3 shadow-2xl min-w-[240px] max-w-[300px] pointer-events-auto">
               <div className="flex items-center gap-2 mb-1.5">
-                <span className={`inline-flex items-center justify-center w-6 h-6 text-xs font-bold ${
-                  (activeHoveredPlayer.shape || (activeHoveredPlayer.side === 'offense' ? 'round' : 'square')) === 'round'
-                    ? 'rounded-full'
-                    : (activeHoveredPlayer.shape || (activeHoveredPlayer.side === 'offense' ? 'round' : 'square')) === 'rounded_square'
-                    ? 'rounded'
-                    : (activeHoveredPlayer.shape || (activeHoveredPlayer.side === 'offense' ? 'round' : 'square')) === 'square'
-                    ? 'rounded-none'
-                    : 'rounded border border-dashed'
-                } ${
-                  activeHoveredPlayer.shape === 'none'
-                    ? (activeHoveredPlayer.side === 'offense' ? 'text-sky-400 border-sky-400 bg-transparent' : 'text-rose-400 border-rose-400 bg-transparent')
-                    : (activeHoveredPlayer.side === 'offense' ? 'bg-sky-600 text-white' : 'bg-rose-600 text-white')
-                }`}>
-                  {activeHoveredPlayer.label}
-                </span>
+                {(() => {
+                  const activeShape = activeHoveredPlayer.shape || (activeHoveredPlayer.side === 'offense' ? 'round' : 'square');
+                  const activeNodeColor = activeHoveredPlayer.nodeColor || activeHoveredPlayer.color || '#000000';
+                  const activeFillColor = activeShape === 'none'
+                    ? 'transparent'
+                    : (activeHoveredPlayer.fillColor !== undefined ? activeHoveredPlayer.fillColor : (activeHoveredPlayer.color || '#000000'));
+                  const activeLetterColor = activeHoveredPlayer.letterColor || (activeShape === 'none'
+                    ? activeNodeColor
+                    : (activeFillColor === 'transparent' ? '#ffffff' : (isLightColor(activeFillColor) ? '#000000' : '#ffffff')));
+
+                  return (
+                    <span
+                      className={`inline-flex items-center justify-center w-6 h-6 text-xs font-bold ${
+                        activeShape === 'round'
+                          ? 'rounded-full'
+                          : activeShape === 'rounded_square'
+                          ? 'rounded'
+                          : activeShape === 'square'
+                          ? 'rounded-none'
+                          : 'rounded border border-dashed'
+                      }`}
+                      style={{
+                        backgroundColor: activeFillColor,
+                        borderColor: activeHoveredPlayer.hoverColor || activeNodeColor,
+                        borderWidth: '2px',
+                        borderStyle: activeShape === 'none' ? 'dashed' : 'solid',
+                        color: activeLetterColor
+                      }}
+                    >
+                      {activeHoveredPlayer.label}
+                    </span>
+                  );
+                })()}
                 <span className="font-semibold text-xs tracking-wider uppercase text-sky-400">
                   {activeHoveredPlayer.assignmentTitle || 'Unassigned'}
                 </span>

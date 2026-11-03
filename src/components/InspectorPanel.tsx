@@ -11,9 +11,31 @@ import {
   Sliders,
   Trash2,
   Palette,
-  Type
+  Type,
+  RotateCcw
 } from 'lucide-react';
-import { PLAYER_COLOR_SWATCHES, LINE_COLOR_SWATCHES, isLightColor } from '../utils/colors';
+import { LINE_COLOR_SWATCHES, isLightColor } from '../utils/colors';
+
+const CORE_PLAYER_SWATCHES = [
+  { label: 'Solid Black', color: '#000000' },
+  { label: 'Clean White', color: '#ffffff' },
+  { label: 'Offense Sky', color: '#0284c7' },
+  { label: 'Defense Rose', color: '#e11d48' },
+  { label: 'Amber Gold', color: '#f59e0b' },
+  { label: 'Emerald Green', color: '#10b981' },
+  { label: 'Royal Purple', color: '#8b5cf6' },
+  { label: 'Deep Charcoal', color: '#334155' },
+];
+
+const HOVER_SWATCHES = [
+  { label: 'Sky Highlight', color: '#38bdf8' },
+  { label: 'Amber Gold', color: '#f59e0b' },
+  { label: 'Emerald Green', color: '#10b981' },
+  { label: 'Hot Pink', color: '#ec4899' },
+  { label: 'Royal Purple', color: '#a855f7' },
+  { label: 'Clean White', color: '#ffffff' },
+  { label: 'Solid Black', color: '#000000' },
+];
 
 interface InspectorPanelProps {
   currentPlay: Play;
@@ -80,6 +102,25 @@ export const InspectorPanel: React.FC<InspectorPanelProps> = ({
   const handleRemoveTag = (tagToRemove: string) => {
     const updated = currentPlay.tags.filter(t => t !== tagToRemove);
     onUpdateStrategyMatrix({ tags: updated });
+  };
+
+  const getPlayerRosterBadgeStyle = (pl: Player) => {
+    const shape = pl.shape || (pl.side === 'offense' ? 'round' : 'square');
+    const nodeColor = pl.nodeColor || pl.color || '#000000';
+    const fillColor = shape === 'none'
+      ? 'transparent'
+      : (pl.fillColor !== undefined ? pl.fillColor : (pl.color || '#000000'));
+    const letterColor = pl.letterColor || (shape === 'none'
+      ? nodeColor
+      : (fillColor === 'transparent' ? (isLight ? '#000000' : '#ffffff') : (isLightColor(fillColor) ? '#000000' : '#ffffff')));
+
+    return {
+      backgroundColor: fillColor,
+      borderColor: pl.hoverColor || nodeColor,
+      borderWidth: '1.5px',
+      borderStyle: shape === 'none' ? ('dashed' as const) : ('solid' as const),
+      color: letterColor
+    };
   };
 
   // Handler for adding situation
@@ -372,26 +413,39 @@ export const InspectorPanel: React.FC<InspectorPanelProps> = ({
               <div className="space-y-4">
                 <div className={`flex items-center justify-between pb-2 border-b ${isLight ? 'border-slate-200' : 'border-slate-700'}`}>
                   <div className="flex items-center gap-2">
-                    <span
-                      className={`w-7 h-7 flex items-center justify-center font-bold text-xs shadow-sm ${
-                        (selectedPlayer.shape || (selectedPlayer.side === 'offense' ? 'round' : 'square')) === 'round'
-                          ? 'rounded-full'
-                          : (selectedPlayer.shape || (selectedPlayer.side === 'offense' ? 'round' : 'square')) === 'rounded_square'
-                          ? 'rounded-md'
-                          : (selectedPlayer.shape || (selectedPlayer.side === 'offense' ? 'round' : 'square')) === 'square'
-                          ? 'rounded-none'
-                          : 'rounded-md border-2 border-dashed'
-                      }`}
-                      style={{
-                        backgroundColor: selectedPlayer.shape === 'none' ? 'transparent' : (selectedPlayer.color || (selectedPlayer.side === 'offense' ? '#0284c7' : '#e11d48')),
-                        borderColor: selectedPlayer.shape === 'none' ? (selectedPlayer.color || (selectedPlayer.side === 'offense' ? '#0284c7' : '#e11d48')) : undefined,
-                        color: selectedPlayer.shape === 'none'
-                          ? (selectedPlayer.color || (selectedPlayer.side === 'offense' ? '#0284c7' : '#e11d48'))
-                          : (isLightColor(selectedPlayer.color || (selectedPlayer.side === 'offense' ? '#0284c7' : '#e11d48')) ? '#0f172a' : '#ffffff')
-                      }}
-                    >
-                      {selectedPlayer.label}
-                    </span>
+                    {(() => {
+                      const pShape = selectedPlayer.shape || (selectedPlayer.side === 'offense' ? 'round' : 'square');
+                      const pNodeColor = selectedPlayer.nodeColor || selectedPlayer.color || '#000000';
+                      const pFillColor = pShape === 'none'
+                        ? 'transparent'
+                        : (selectedPlayer.fillColor !== undefined ? selectedPlayer.fillColor : (selectedPlayer.color || '#000000'));
+                      const pLetterColor = selectedPlayer.letterColor || (pShape === 'none'
+                        ? pNodeColor
+                        : (pFillColor === 'transparent' ? (isLight ? '#000000' : '#ffffff') : (isLightColor(pFillColor) ? '#000000' : '#ffffff')));
+
+                      return (
+                        <span
+                          className={`w-7 h-7 flex items-center justify-center font-bold text-xs shadow-sm ${
+                            pShape === 'round'
+                              ? 'rounded-full'
+                              : pShape === 'rounded_square'
+                              ? 'rounded-md'
+                              : pShape === 'square'
+                              ? 'rounded-none'
+                              : 'rounded-md border-2 border-dashed'
+                          }`}
+                          style={{
+                            backgroundColor: pFillColor,
+                            borderColor: selectedPlayer.hoverColor || pNodeColor,
+                            borderWidth: '2px',
+                            borderStyle: pShape === 'none' ? 'dashed' : 'solid',
+                            color: pLetterColor
+                          }}
+                        >
+                          {selectedPlayer.label}
+                        </span>
+                      );
+                    })()}
                     <div>
                       <h3 className={`text-xs font-bold ${isLight ? 'text-slate-900' : 'text-white'}`}>Player Annotation Form</h3>
                       <p className={`text-[10px] ${isLight ? 'text-slate-500' : 'text-slate-400'} capitalize`}>{selectedPlayer.side} • Side Form</p>
@@ -505,61 +559,261 @@ export const InspectorPanel: React.FC<InspectorPanelProps> = ({
                   </div>
                 </div>
 
-                {/* Player Accent Color Picker */}
-                <div className={`p-2.5 rounded-lg border ${isLight ? 'bg-slate-50 border-slate-200' : 'bg-slate-900/60 border-slate-800'}`}>
-                  <div className="flex items-center justify-between mb-2">
-                    <label className={`text-[11px] ${isLight ? 'text-slate-700' : 'text-slate-300'} font-semibold flex items-center gap-1.5`}>
-                      <Palette className="w-3.5 h-3.5 text-sky-500" />
-                      <span>Player Accent Color</span>
-                    </label>
-                    {selectedPlayer.color && (
-                      <button
-                        type="button"
-                        onClick={() => onUpdatePlayer({ ...selectedPlayer, color: undefined })}
-                        className="text-[10px] text-sky-500 hover:underline cursor-pointer"
-                        title="Reset to default role color"
-                      >
-                        Reset Default
-                      </button>
-                    )}
-                  </div>
-                  <div className="flex items-center gap-1.5 flex-wrap">
-                    {PLAYER_COLOR_SWATCHES.map(swatch => {
-                      const activeColor = selectedPlayer.color || (selectedPlayer.side === 'offense' ? '#0284c7' : '#e11d48');
-                      const isCurrent = activeColor.toLowerCase() === swatch.color.toLowerCase();
-                      return (
-                        <button
-                          key={swatch.color}
-                          type="button"
-                          onClick={() => onUpdatePlayer({ ...selectedPlayer, color: swatch.color })}
-                          className={`w-5 h-5 rounded-full border transition-all cursor-pointer hover:scale-125 shrink-0 ${
-                            isCurrent
-                              ? 'ring-2 ring-sky-500 ring-offset-1 border-white scale-110 shadow-sm'
-                              : 'border-black/20 hover:border-slate-400 opacity-90 hover:opacity-100'
-                          }`}
-                          style={{ backgroundColor: swatch.color }}
-                          title={swatch.label}
-                        />
-                      );
-                    })}
+                {/* PLAYER COLOR PARAMETERS (3 Color Parameters: Letter Color, Node Color, Fill Color + Optional Hover Color) */}
+                {(() => {
+                  const pShape = selectedPlayer.shape || (selectedPlayer.side === 'offense' ? 'round' : 'square');
+                  const pNodeColor = selectedPlayer.nodeColor || selectedPlayer.color || '#000000';
+                  const pFillColor = pShape === 'none'
+                    ? 'transparent'
+                    : (selectedPlayer.fillColor !== undefined ? selectedPlayer.fillColor : (selectedPlayer.color || '#000000'));
+                  const pLetterColor = selectedPlayer.letterColor || (pShape === 'none'
+                    ? pNodeColor
+                    : (pFillColor === 'transparent' ? (isLight ? '#000000' : '#ffffff') : (isLightColor(pFillColor) ? '#000000' : '#ffffff')));
 
-                    {/* Custom Color Input */}
-                    <label
-                      className={`relative w-5 h-5 rounded-full border border-dashed ${
-                        isLight ? 'border-slate-400 hover:border-sky-500 bg-white' : 'border-slate-600 hover:border-sky-400 bg-slate-800'
-                      } cursor-pointer flex items-center justify-center overflow-hidden transition-all hover:scale-125 shrink-0`}
-                      title="Custom color picker"
-                    >
-                      <input
-                        type="color"
-                        value={selectedPlayer.color || (selectedPlayer.side === 'offense' ? '#0284c7' : '#e11d48')}
-                        onChange={(e) => onUpdatePlayer({ ...selectedPlayer, color: e.target.value })}
-                        className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
-                      />
-                      <span className="text-[10px] font-bold text-slate-400 leading-none">+</span>
-                    </label>
-                  </div>
-                </div>
+                  return (
+                    <div className={`p-3 rounded-lg border ${isLight ? 'bg-slate-50 border-slate-200' : 'bg-slate-900/60 border-slate-800'} space-y-3`}>
+                      <div className="flex items-center justify-between">
+                        <label className={`text-[11px] ${isLight ? 'text-slate-800' : 'text-slate-200'} font-bold flex items-center gap-1.5`}>
+                          <Palette className="w-3.5 h-3.5 text-sky-500" />
+                          <span>Player Colors</span>
+                        </label>
+                        <button
+                          type="button"
+                          onClick={() => onUpdatePlayer({
+                            ...selectedPlayer,
+                            nodeColor: '#000000',
+                            fillColor: '#000000',
+                            letterColor: '#ffffff',
+                            hoverColor: undefined,
+                            color: undefined
+                          })}
+                          className={`text-[10px] font-semibold px-2 py-0.5 rounded border transition-colors cursor-pointer flex items-center gap-1 ${
+                            isLight
+                              ? 'bg-white hover:bg-slate-100 text-slate-700 border-slate-300'
+                              : 'bg-slate-800 hover:bg-slate-700 text-slate-300 border-slate-700'
+                          }`}
+                          title="Set black with no shade as default setting"
+                        >
+                          <RotateCcw className="w-2.5 h-2.5" />
+                          <span>Default Black</span>
+                        </button>
+                      </div>
+
+                      {/* 1. Node Color (Border / Outline) */}
+                      <div className="space-y-1.5">
+                        <div className="flex items-center justify-between">
+                          <span className={`text-[10px] font-semibold ${isLight ? 'text-slate-700' : 'text-slate-300'} flex items-center gap-1.5`}>
+                            <span
+                              className="w-2.5 h-2.5 rounded-full border border-black/30 inline-block shadow-xs"
+                              style={{ backgroundColor: pNodeColor }}
+                            />
+                            <span>Node Color (Border)</span>
+                          </span>
+                          <span className="text-[9px] font-mono text-slate-500 uppercase">{pNodeColor}</span>
+                        </div>
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          {CORE_PLAYER_SWATCHES.map(swatch => {
+                            const isCurrent = pNodeColor.toLowerCase() === swatch.color.toLowerCase();
+                            return (
+                              <button
+                                key={`node-${swatch.color}`}
+                                type="button"
+                                onClick={() => onUpdatePlayer({ ...selectedPlayer, nodeColor: swatch.color })}
+                                className={`w-5 h-5 rounded-full border transition-all cursor-pointer hover:scale-125 shrink-0 ${
+                                  isCurrent
+                                    ? 'ring-2 ring-sky-500 ring-offset-1 border-white scale-110 shadow-sm'
+                                    : 'border-black/20 hover:border-slate-400 opacity-90 hover:opacity-100'
+                                }`}
+                                style={{ backgroundColor: swatch.color }}
+                                title={`Node: ${swatch.label}`}
+                              />
+                            );
+                          })}
+                          {/* Custom Picker */}
+                          <label
+                            className={`relative w-5 h-5 rounded-full border border-dashed ${
+                              isLight ? 'border-slate-400 hover:border-sky-500 bg-white' : 'border-slate-600 hover:border-sky-400 bg-slate-800'
+                            } cursor-pointer flex items-center justify-center overflow-hidden transition-all hover:scale-125 shrink-0`}
+                            title="Custom node color"
+                          >
+                            <input
+                              type="color"
+                              value={pNodeColor}
+                              onChange={(e) => onUpdatePlayer({ ...selectedPlayer, nodeColor: e.target.value })}
+                              className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
+                            />
+                            <span className="text-[10px] font-bold text-slate-400 leading-none">+</span>
+                          </label>
+                        </div>
+                      </div>
+
+                      {/* 2. Fill Color (Interior Background) */}
+                      <div className="space-y-1.5 pt-2 border-t border-slate-200/60 dark:border-slate-800">
+                        <div className="flex items-center justify-between">
+                          <span className={`text-[10px] font-semibold ${isLight ? 'text-slate-700' : 'text-slate-300'} flex items-center gap-1.5`}>
+                            <span
+                              className="w-2.5 h-2.5 rounded-full border border-black/30 inline-block shadow-xs"
+                              style={{ backgroundColor: pFillColor === 'transparent' ? 'transparent' : pFillColor }}
+                            />
+                            <span>Fill Color (Interior)</span>
+                          </span>
+                          <span className="text-[9px] font-mono text-slate-500 uppercase">{pFillColor}</span>
+                        </div>
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          {CORE_PLAYER_SWATCHES.map(swatch => {
+                            const isCurrent = pFillColor.toLowerCase() === swatch.color.toLowerCase();
+                            return (
+                              <button
+                                key={`fill-${swatch.color}`}
+                                type="button"
+                                onClick={() => onUpdatePlayer({ ...selectedPlayer, fillColor: swatch.color })}
+                                className={`w-5 h-5 rounded-full border transition-all cursor-pointer hover:scale-125 shrink-0 ${
+                                  isCurrent
+                                    ? 'ring-2 ring-sky-500 ring-offset-1 border-white scale-110 shadow-sm'
+                                    : 'border-black/20 hover:border-slate-400 opacity-90 hover:opacity-100'
+                                }`}
+                                style={{ backgroundColor: swatch.color }}
+                                title={`Fill: ${swatch.label}`}
+                              />
+                            );
+                          })}
+                          {/* Transparent chip */}
+                          <button
+                            type="button"
+                            onClick={() => onUpdatePlayer({ ...selectedPlayer, fillColor: 'transparent' })}
+                            className={`px-1.5 py-0.5 rounded text-[9px] font-semibold border transition-all cursor-pointer ${
+                              pFillColor === 'transparent'
+                                ? 'ring-2 ring-sky-500 border-sky-400 bg-sky-50 text-sky-800'
+                                : isLight ? 'bg-white border-slate-300 text-slate-600 hover:bg-slate-100' : 'bg-slate-800 border-slate-700 text-slate-300 hover:bg-slate-700'
+                            }`}
+                            title="Hollow / Transparent interior"
+                          >
+                            None
+                          </button>
+                          {/* Custom Picker */}
+                          <label
+                            className={`relative w-5 h-5 rounded-full border border-dashed ${
+                              isLight ? 'border-slate-400 hover:border-sky-500 bg-white' : 'border-slate-600 hover:border-sky-400 bg-slate-800'
+                            } cursor-pointer flex items-center justify-center overflow-hidden transition-all hover:scale-125 shrink-0`}
+                            title="Custom fill color"
+                          >
+                            <input
+                              type="color"
+                              value={pFillColor === 'transparent' ? '#000000' : pFillColor}
+                              onChange={(e) => onUpdatePlayer({ ...selectedPlayer, fillColor: e.target.value })}
+                              className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
+                            />
+                            <span className="text-[10px] font-bold text-slate-400 leading-none">+</span>
+                          </label>
+                        </div>
+                      </div>
+
+                      {/* 3. Letter Color (Position Label Text) */}
+                      <div className="space-y-1.5 pt-2 border-t border-slate-200/60 dark:border-slate-800">
+                        <div className="flex items-center justify-between">
+                          <span className={`text-[10px] font-semibold ${isLight ? 'text-slate-700' : 'text-slate-300'} flex items-center gap-1.5`}>
+                            <span
+                              className="w-2.5 h-2.5 rounded-full border border-black/30 inline-block shadow-xs"
+                              style={{ backgroundColor: pLetterColor }}
+                            />
+                            <span>Letter Color (Text)</span>
+                          </span>
+                          <span className="text-[9px] font-mono text-slate-500 uppercase">{pLetterColor}</span>
+                        </div>
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          {CORE_PLAYER_SWATCHES.map(swatch => {
+                            const isCurrent = pLetterColor.toLowerCase() === swatch.color.toLowerCase();
+                            return (
+                              <button
+                                key={`letter-${swatch.color}`}
+                                type="button"
+                                onClick={() => onUpdatePlayer({ ...selectedPlayer, letterColor: swatch.color })}
+                                className={`w-5 h-5 rounded-full border transition-all cursor-pointer hover:scale-125 shrink-0 ${
+                                  isCurrent
+                                    ? 'ring-2 ring-sky-500 ring-offset-1 border-white scale-110 shadow-sm'
+                                    : 'border-black/20 hover:border-slate-400 opacity-90 hover:opacity-100'
+                                }`}
+                                style={{ backgroundColor: swatch.color }}
+                                title={`Letter: ${swatch.label}`}
+                              />
+                            );
+                          })}
+                          {/* Custom Picker */}
+                          <label
+                            className={`relative w-5 h-5 rounded-full border border-dashed ${
+                              isLight ? 'border-slate-400 hover:border-sky-500 bg-white' : 'border-slate-600 hover:border-sky-400 bg-slate-800'
+                            } cursor-pointer flex items-center justify-center overflow-hidden transition-all hover:scale-125 shrink-0`}
+                            title="Custom letter color"
+                          >
+                            <input
+                              type="color"
+                              value={pLetterColor}
+                              onChange={(e) => onUpdatePlayer({ ...selectedPlayer, letterColor: e.target.value })}
+                              className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
+                            />
+                            <span className="text-[10px] font-bold text-slate-400 leading-none">+</span>
+                          </label>
+                        </div>
+                      </div>
+
+                      {/* 4. Optional Hover Color */}
+                      <div className="space-y-1.5 pt-2 border-t border-slate-200/60 dark:border-slate-800">
+                        <div className="flex items-center justify-between">
+                          <span className={`text-[10px] font-semibold ${isLight ? 'text-slate-700' : 'text-slate-300'} flex items-center gap-1.5`}>
+                            <span
+                              className="w-2.5 h-2.5 rounded-full border border-black/30 inline-block shadow-xs"
+                              style={{ backgroundColor: selectedPlayer.hoverColor || 'transparent' }}
+                            />
+                            <span>Hover Color (Optional)</span>
+                          </span>
+                          {selectedPlayer.hoverColor && (
+                            <button
+                              type="button"
+                              onClick={() => onUpdatePlayer({ ...selectedPlayer, hoverColor: undefined })}
+                              className="text-[9px] text-slate-400 hover:text-rose-500 hover:underline cursor-pointer"
+                            >
+                              Clear
+                            </button>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          {HOVER_SWATCHES.map(swatch => {
+                            const isCurrent = (selectedPlayer.hoverColor || '').toLowerCase() === swatch.color.toLowerCase();
+                            return (
+                              <button
+                                key={`hover-${swatch.color}`}
+                                type="button"
+                                onClick={() => onUpdatePlayer({ ...selectedPlayer, hoverColor: swatch.color })}
+                                className={`w-5 h-5 rounded-full border transition-all cursor-pointer hover:scale-125 shrink-0 ${
+                                  isCurrent
+                                    ? 'ring-2 ring-sky-500 ring-offset-1 border-white scale-110 shadow-sm'
+                                    : 'border-black/20 hover:border-slate-400 opacity-90 hover:opacity-100'
+                                }`}
+                                style={{ backgroundColor: swatch.color }}
+                                title={`Hover: ${swatch.label}`}
+                              />
+                            );
+                          })}
+                          {/* Custom Picker */}
+                          <label
+                            className={`relative w-5 h-5 rounded-full border border-dashed ${
+                              isLight ? 'border-slate-400 hover:border-sky-500 bg-white' : 'border-slate-600 hover:border-sky-400 bg-slate-800'
+                            } cursor-pointer flex items-center justify-center overflow-hidden transition-all hover:scale-125 shrink-0`}
+                            title="Custom hover color"
+                          >
+                            <input
+                              type="color"
+                              value={selectedPlayer.hoverColor || '#38bdf8'}
+                              onChange={(e) => onUpdatePlayer({ ...selectedPlayer, hoverColor: e.target.value })}
+                              className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
+                            />
+                            <span className="text-[10px] font-bold text-slate-400 leading-none">+</span>
+                          </label>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })()}
 
                 {/* Assignment Title */}
                 <div>
@@ -893,8 +1147,7 @@ export const InspectorPanel: React.FC<InspectorPanelProps> = ({
                   </span>
                   <div className="grid grid-cols-2 gap-1.5">
                     {currentPlay.players.filter(p => p.side === 'offense').map(player => {
-                      const playerColor = player.color || '#0284c7';
-                      const textColor = isLightColor(playerColor) ? '#0f172a' : '#ffffff';
+                      const badgeStyle = getPlayerRosterBadgeStyle(player);
                       return (
                         <button
                           key={player.id}
@@ -916,11 +1169,7 @@ export const InspectorPanel: React.FC<InspectorPanelProps> = ({
                                 ? 'rounded-none'
                                 : 'rounded-sm border border-dashed'
                             }`}
-                            style={{
-                              backgroundColor: player.shape === 'none' ? 'transparent' : playerColor,
-                              borderColor: player.shape === 'none' ? playerColor : undefined,
-                              color: player.shape === 'none' ? playerColor : textColor
-                            }}
+                            style={badgeStyle}
                           >
                             {player.label}
                           </span>
@@ -948,8 +1197,7 @@ export const InspectorPanel: React.FC<InspectorPanelProps> = ({
                   </span>
                   <div className="grid grid-cols-2 gap-1.5">
                     {currentPlay.players.filter(p => p.side === 'defense').map(player => {
-                      const playerColor = player.color || '#e11d48';
-                      const textColor = isLightColor(playerColor) ? '#0f172a' : '#ffffff';
+                      const badgeStyle = getPlayerRosterBadgeStyle(player);
                       return (
                         <button
                           key={player.id}
@@ -971,11 +1219,7 @@ export const InspectorPanel: React.FC<InspectorPanelProps> = ({
                                 ? 'rounded-none'
                                 : 'rounded-sm border border-dashed'
                             }`}
-                            style={{
-                              backgroundColor: player.shape === 'none' ? 'transparent' : playerColor,
-                              borderColor: player.shape === 'none' ? playerColor : undefined,
-                              color: player.shape === 'none' ? playerColor : textColor
-                            }}
+                            style={badgeStyle}
                           >
                             {player.label}
                           </span>

@@ -8,18 +8,18 @@ export interface ColorSwatch {
 }
 
 export const PLAYER_COLOR_SWATCHES: ColorSwatch[] = [
+  { label: 'Solid Black', color: '#000000' },
+  { label: 'Clean White', color: '#ffffff' },
   { label: 'Offense Sky', color: '#0284c7' },
   { label: 'Defense Rose', color: '#e11d48' },
   { label: 'Amber Gold', color: '#f59e0b' },
   { label: 'Emerald Green', color: '#10b981' },
   { label: 'Royal Purple', color: '#8b5cf6' },
-  { label: 'Hot Pink', color: '#ec4899' },
   { label: 'Electric Cyan', color: '#06b6d4' },
   { label: 'Vivid Orange', color: '#ea580c' },
   { label: 'Crimson Maroon', color: '#991b1b' },
   { label: 'Midnight Navy', color: '#1e3a8a' },
   { label: 'Deep Charcoal', color: '#334155' },
-  { label: 'Clean White', color: '#f8fafc' },
 ];
 
 export const LINE_COLOR_SWATCHES: ColorSwatch[] = [
