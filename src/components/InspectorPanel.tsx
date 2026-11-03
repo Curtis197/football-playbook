@@ -525,6 +525,64 @@ export const InspectorPanel: React.FC<InspectorPanelProps> = ({
                     className="w-full bg-[#161b22] text-xs text-slate-200 px-2.5 py-1.5 rounded border border-slate-700 focus:border-sky-500 outline-none"
                   />
                 </div>
+
+                {/* Waypoints & Break Geometry (Catmull-Rom & Sharp Cuts) */}
+                <div className="bg-slate-900/70 p-3 rounded-lg border border-slate-800 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[11px] font-bold uppercase tracking-wider text-sky-400 block">
+                      Waypoints & Break Geometry
+                    </span>
+                    <span className="text-[10px] text-slate-500 font-mono">C¹ Spline / C⁰ Cut</span>
+                  </div>
+                  <p className="text-[10px] text-slate-400 leading-tight">
+                    Toggle break angles between smooth sweeping arcs ($C^1$) and crisp plant-foot cuts ($C^0$).
+                  </p>
+                  <div className="space-y-1.5 pt-1">
+                    {selectedAction.points.map((pt, pIdx) => {
+                      const isOrigin = pIdx === 0;
+                      const isSharp = Boolean(pt.isSharp);
+
+                      return (
+                        <div
+                          key={pIdx}
+                          className="flex items-center justify-between text-[11px] bg-[#161b22] px-2.5 py-1.5 rounded border border-slate-800"
+                        >
+                          <div className="flex items-center gap-2">
+                            <span className="font-mono text-[10px] text-slate-500">
+                              {isOrigin ? 'P0 (Origin)' : `P${pIdx}`}
+                            </span>
+                            <span className="text-slate-300 font-mono text-[11px]">
+                              ({Math.round(pt.x)}, {Math.round(pt.y)})
+                            </span>
+                          </div>
+
+                          {!isOrigin && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const updated = [...selectedAction.points];
+                                updated[pIdx] = { ...pt, isSharp: !isSharp };
+                                onUpdateAction({ ...selectedAction, points: updated });
+                              }}
+                              className={`px-2 py-0.5 rounded text-[10px] font-semibold flex items-center gap-1 transition-all ${
+                                isSharp
+                                  ? 'bg-amber-950/80 text-amber-300 border border-amber-600/50'
+                                  : 'bg-sky-950/80 text-sky-300 border border-sky-600/50'
+                              }`}
+                            >
+                              <span
+                                className={`w-1.5 h-1.5 ${
+                                  isSharp ? 'rotate-45 bg-amber-400' : 'rounded-full bg-sky-400'
+                                }`}
+                              ></span>
+                              {isSharp ? 'Sharp Cut Break' : 'Smooth Arc'}
+                            </button>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
               </div>
             ) : (
               <div className="flex flex-col items-center justify-center py-12 text-center text-slate-500 space-y-2">

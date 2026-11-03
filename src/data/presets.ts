@@ -39,16 +39,16 @@ export const DEFAULT_WISHBONE_PLAY: Play = {
     { id: "def_ss", label: "SS", side: "defense", x: 620, y: 220, assignmentTitle: "Strong Safety", assignmentNotes: "Robber / intermediate hole defender; reads Y release.", technique: "Robber" }
   ],
   actions: [
-    { id: "a_x", playerId: "X", type: "pass_route", endMarker: "arrow", points: [{ x: 120, y: 380 }, { x: 180, y: 250 }, { x: 260, y: 140 }], isCurved: false, label: "5-Step Glance" },
-    { id: "a_y", playerId: "Y", type: "pass_route", endMarker: "arrow", points: [{ x: 660, y: 380 }, { x: 660, y: 260 }, { x: 660, y: 100 }], isCurved: false, label: "Seam Attack" },
-    { id: "a_f", playerId: "F", type: "pass_route", endMarker: "arrow", points: [{ x: 740, y: 420 }, { x: 840, y: 380 }], isCurved: true, label: "Speed Flat" },
-    { id: "a_z", playerId: "Z", type: "run_block",  endMarker: "arrow", points: [{ x: 550, y: 530 }, { x: 500, y: 430 }, { x: 520, y: 340 }], isCurved: true, label: "Playside Zone Track" },
+    { id: "a_x", playerId: "X", type: "pass_route", endMarker: "arrow", points: [{ x: 120, y: 380, isSharp: false }, { x: 180, y: 250, isSharp: true }, { x: 260, y: 140, isSharp: false }], isCurved: true, label: "5-Step Glance" },
+    { id: "a_y", playerId: "Y", type: "pass_route", endMarker: "arrow", points: [{ x: 660, y: 380, isSharp: false }, { x: 660, y: 260, isSharp: false }, { x: 660, y: 100, isSharp: false }], isCurved: false, label: "Seam Attack" },
+    { id: "a_f", playerId: "F", type: "pass_route", endMarker: "arrow", points: [{ x: 740, y: 420, isSharp: false }, { x: 840, y: 380, isSharp: false }], isCurved: true, label: "Speed Flat" },
+    { id: "a_z", playerId: "Z", type: "run_block",  endMarker: "arrow", points: [{ x: 550, y: 530, isSharp: false }, { x: 500, y: 430, isSharp: true }, { x: 520, y: 340, isSharp: false }], isCurved: true, label: "Playside Zone Track" },
     { id: "a_lt", playerId: "LT", type: "run_block", endMarker: "tbar", points: [{ x: 360, y: 380 }, { x: 370, y: 355 }], isCurved: false },
     { id: "a_lg", playerId: "LG", type: "run_block", endMarker: "tbar", points: [{ x: 420, y: 380 }, { x: 470, y: 355 }], isCurved: false },
     { id: "a_c",  playerId: "C",  type: "run_block", endMarker: "tbar", points: [{ x: 480, y: 380 }, { x: 480, y: 355 }], isCurved: false },
     { id: "a_rg", playerId: "RG", type: "run_block", endMarker: "tbar", points: [{ x: 540, y: 380 }, { x: 580, y: 355 }], isCurved: false },
     { id: "a_rt", playerId: "RT", type: "run_block", endMarker: "tbar", points: [{ x: 600, y: 380 }, { x: 595, y: 355 }], isCurved: false },
-    { id: "a_h",  playerId: "H",  type: "pull_block", endMarker: "tbar", points: [{ x: 410, y: 530 }, { x: 360, y: 420 }, { x: 320, y: 330 }], isCurved: true, label: "Insert Kickout" }
+    { id: "a_h",  playerId: "H",  type: "pull_block", endMarker: "tbar", points: [{ x: 410, y: 530, isSharp: false }, { x: 360, y: 420, isSharp: false }, { x: 320, y: 330, isSharp: true }], isCurved: true, label: "Insert Kickout" }
   ],
   notes: {
     qbRead: "Key weakside 4i/5 DE; if crashes, keep or fire glance behind scraping Will LB.",
@@ -98,12 +98,12 @@ export const GUN_TREY_BOOT_PLAY: Play = {
     { id: "def_ss",  label: "SS", side: "defense", x: 650, y: 190, assignmentTitle: "Strong Safety", assignmentNotes: "Bite on deep corner." }
   ],
   actions: [
-    { id: "b_y", playerId: "Y", type: "pass_route", endMarker: "arrow", points: [{ x: 660, y: 380 }, { x: 450, y: 440 }, { x: 260, y: 430 }, { x: 180, y: 350 }], isCurved: true, label: "Boot Leak" },
-    { id: "b_qb", playerId: "QB", type: "motion", endMarker: "arrow", points: [{ x: 480, y: 460 }, { x: 380, y: 480 }, { x: 280, y: 440 }], isCurved: true, label: "Naked Boot" },
-    { id: "b_rb", playerId: "RB", type: "run_block", endMarker: "arrow", points: [{ x: 530, y: 460 }, { x: 620, y: 380 }], isCurved: false, label: "Zone Fake Track" },
-    { id: "b_x", playerId: "X", type: "pass_route", endMarker: "arrow", points: [{ x: 100, y: 380 }, { x: 240, y: 250 }, { x: 500, y: 220 }], isCurved: true, label: "14-Yd Over Cross" },
-    { id: "b_h", playerId: "H", type: "pass_route", endMarker: "arrow", points: [{ x: 730, y: 380 }, { x: 740, y: 260 }, { x: 860, y: 170 }], isCurved: true, label: "Deep Corner" },
-    { id: "b_z", playerId: "Z", type: "pass_route", endMarker: "arrow", points: [{ x: 820, y: 380 }, { x: 880, y: 320 }], isCurved: false, label: "6-Yd Out" }
+    { id: "b_y", playerId: "Y", type: "pass_route", endMarker: "arrow", points: [{ x: 660, y: 380, isSharp: false }, { x: 450, y: 440, isSharp: false }, { x: 260, y: 430, isSharp: false }, { x: 180, y: 350, isSharp: false }], isCurved: true, label: "Boot Leak" },
+    { id: "b_qb", playerId: "QB", type: "motion", endMarker: "arrow", points: [{ x: 480, y: 460, isSharp: false }, { x: 380, y: 480, isSharp: false }, { x: 280, y: 440, isSharp: false }], isCurved: true, label: "Naked Boot" },
+    { id: "b_rb", playerId: "RB", type: "run_block", endMarker: "arrow", points: [{ x: 530, y: 460, isSharp: false }, { x: 620, y: 380, isSharp: false }], isCurved: false, label: "Zone Fake Track" },
+    { id: "b_x", playerId: "X", type: "pass_route", endMarker: "arrow", points: [{ x: 100, y: 380, isSharp: false }, { x: 240, y: 250, isSharp: false }, { x: 500, y: 220, isSharp: false }], isCurved: true, label: "14-Yd Over Cross" },
+    { id: "b_h", playerId: "H", type: "pass_route", endMarker: "arrow", points: [{ x: 730, y: 380, isSharp: false }, { x: 740, y: 260, isSharp: true }, { x: 860, y: 170, isSharp: false }], isCurved: true, label: "Deep Corner" },
+    { id: "b_z", playerId: "Z", type: "pass_route", endMarker: "arrow", points: [{ x: 820, y: 380, isSharp: false }, { x: 880, y: 320, isSharp: true }], isCurved: false, label: "6-Yd Out" }
   ],
   notes: {
     qbRead: "Boot progression: 1. Y leak in flat; 2. X over crossing face of safety; 3. Run for 1st down.",

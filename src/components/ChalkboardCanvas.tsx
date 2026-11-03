@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import type { Player, PathAction, CanvasMode, Point } from '../types/playbook';
-import { generatePathString, getSvgCoordinates, clampFieldCoordinates } from '../utils/geometry';
+import { generatePathString, getSvgCoordinates, clampFieldCoordinates, getDistance } from '../utils/geometry';
 
 interface ChalkboardCanvasProps {
   players: Player[];
@@ -66,7 +66,7 @@ export const ChalkboardCanvas: React.FC<ChalkboardCanvasProps> = ({
     } else if (mode === 'draw_route' || mode === 'draw_block' || mode === 'draw_motion') {
       // Start drawing from this player
       setDrawingPlayerId(player.id);
-      setDrawingPoints([{ x: player.x, y: player.y }]);
+      setDrawingPoints([{ x: player.x, y: player.y, isSharp: false }]);
       onSelectPlayer(player.id);
     }
   };
@@ -93,7 +93,7 @@ export const ChalkboardCanvas: React.FC<ChalkboardCanvasProps> = ({
     } else {
       actionType = 'pass_route';
       endMarker = 'arrow';
-      isCurved = pointsToSave.length > 2;
+      isCurved = true; // Catmull-Rom spline with sharp cut preservation
     }
 
     const newAction: PathAction = {
@@ -126,8 +126,15 @@ export const ChalkboardCanvas: React.FC<ChalkboardCanvasProps> = ({
     }
 
     if (drawingPlayerId && (mode === 'draw_route' || mode === 'draw_block' || mode === 'draw_motion')) {
-      // Add waypoint
-      const newPts = [...drawingPoints, pt];
+      const lastPoint = drawingPoints[drawingPoints.length - 1];
+      // Minimum distance threshold (prevent overlapping duplicate points)
+      if (lastPoint && getDistance(lastPoint, pt) < 10) return;
+
+      // Shift + Click creates a sharp cut break (dig, out, post angle break)
+      const isSharp = e.shiftKey;
+      const newPt: Point = { ...pt, isSharp };
+      const newPts = [...drawingPoints, newPt];
+
       if (mode === 'draw_block' && newPts.length >= 2) {
         // Block only needs 2 points
         finishDrawing(newPts);
@@ -167,7 +174,7 @@ export const ChalkboardCanvas: React.FC<ChalkboardCanvasProps> = ({
       const playerActions = actions.filter(a => a.playerId === draggingPlayerId);
       playerActions.forEach(act => {
         if (act.points.length > 0) {
-          const updatedPoints = [{ x: clamped.x, y: clamped.y }, ...act.points.slice(1)];
+          const updatedPoints = [{ ...act.points[0], x: clamped.x, y: clamped.y }, ...act.points.slice(1)];
           onUpdateActionPoints(act.id, updatedPoints);
         }
       });
@@ -175,7 +182,11 @@ export const ChalkboardCanvas: React.FC<ChalkboardCanvasProps> = ({
       const act = actions.find(a => a.id === draggingWaypoint.actionId);
       if (act) {
         const updatedPoints = [...act.points];
-        updatedPoints[draggingWaypoint.pointIndex] = pt;
+        updatedPoints[draggingWaypoint.pointIndex] = {
+          ...updatedPoints[draggingWaypoint.pointIndex],
+          x: pt.x,
+          y: pt.y
+        };
         onUpdateActionPoints(act.id, updatedPoints);
       }
     }
@@ -449,32 +460,93 @@ export const ChalkboardCanvas: React.FC<ChalkboardCanvasProps> = ({
                     </g>
                   )}
 
-                  {/* Waypoint handle dots if selected */}
-                  {isSelected && act.points.map((pt, idx) => (
-                    <circle
-                      key={`handle-${act.id}-${idx}`}
-                      cx={pt.x}
-                      cy={pt.y}
-                      r={idx === 0 ? "5" : "7"}
-                      fill={idx === 0 ? "#64748b" : "#38bdf8"}
-                      stroke="#ffffff"
-                      strokeWidth="2"
-                      className="cursor-move hover:scale-125 transition-transform"
-                      onPointerDown={(e) => {
-                        e.stopPropagation();
-                        setDraggingWaypoint({ actionId: act.id, pointIndex: idx });
-                      }}
-                    />
-                  ))}
+                  {/* Waypoint handles if selected */}
+                  {isSelected && act.points.map((pt, idx) => {
+                    const isStart = idx === 0;
+                    const isSharpCut = Boolean(pt.isSharp);
+
+                    return (
+                      <g key={`handle-${act.id}-${idx}`}>
+                        {isSharpCut ? (
+                          // Sharp Cut: Diamond handle
+                          <rect
+                            x={pt.x - 6}
+                            y={pt.y - 6}
+                            width="12"
+                            height="12"
+                            transform={`rotate(45, ${pt.x}, ${pt.y})`}
+                            fill="#f59e0b"
+                            stroke="#ffffff"
+                            strokeWidth="2"
+                            className="cursor-move hover:scale-125 transition-transform"
+                            onPointerDown={(e) => {
+                              e.stopPropagation();
+                              setDraggingWaypoint({ actionId: act.id, pointIndex: idx });
+                            }}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              const updated = [...act.points];
+                              updated[idx] = { ...pt, isSharp: false };
+                              onUpdateActionPoints(act.id, updated);
+                            }}
+                          >
+                            <title>{`Point ${idx + 1}: Sharp Cut Break (Click to toggle smooth)`}</title>
+                          </rect>
+                        ) : (
+                          // Smooth Arc: Circle handle
+                          <circle
+                            cx={pt.x}
+                            cy={pt.y}
+                            r={isStart ? "5" : "7"}
+                            fill={isStart ? "#64748b" : "#38bdf8"}
+                            stroke="#ffffff"
+                            strokeWidth="2"
+                            className="cursor-move hover:scale-125 transition-transform"
+                            onPointerDown={(e) => {
+                              e.stopPropagation();
+                              setDraggingWaypoint({ actionId: act.id, pointIndex: idx });
+                            }}
+                            onClick={(e) => {
+                              if (isStart) return;
+                              e.stopPropagation();
+                              const updated = [...act.points];
+                              updated[idx] = { ...pt, isSharp: true };
+                              onUpdateActionPoints(act.id, updated);
+                            }}
+                          >
+                            <title>{isStart ? "Route Origin" : `Point ${idx + 1}: Smooth Arc (Click to toggle sharp cut)`}</title>
+                          </circle>
+                        )}
+
+                        {/* Label indicating Sharp Cut on canvas */}
+                        {isSharpCut && (
+                          <text
+                            x={pt.x}
+                            y={pt.y - 11}
+                            fill="#f59e0b"
+                            fontSize="9"
+                            fontWeight="bold"
+                            textAnchor="middle"
+                            className="pointer-events-none select-none font-mono"
+                          >
+                            CUT
+                          </text>
+                        )}
+                      </g>
+                    );
+                  })}
                 </g>
               );
             })}
 
-            {/* LIVE DRAWING PREVIEW */}
+            {/* LIVE DRAWING PREVIEW (Catmull-Rom with Sharp Cut Support) */}
             {drawingPlayerId && drawingPoints.length > 0 && cursorPos && (
               <g className="drawing-preview pointer-events-none">
                 <path
-                  d={generatePathString([...drawingPoints, cursorPos], mode === 'draw_motion' || drawingPoints.length > 1)}
+                  d={generatePathString(
+                    [...drawingPoints, { ...cursorPos, isSharp: false }],
+                    mode === 'draw_route' || mode === 'draw_motion'
+                  )}
                   fill="none"
                   stroke={mode === 'draw_block' ? '#f59e0b' : mode === 'draw_motion' ? '#c084fc' : '#38bdf8'}
                   strokeWidth="3"
@@ -482,7 +554,21 @@ export const ChalkboardCanvas: React.FC<ChalkboardCanvasProps> = ({
                   markerEnd={mode === 'draw_block' ? 'url(#tbar)' : 'url(#arrow)'}
                 />
                 {drawingPoints.map((pt, i) => (
-                  <circle key={`draft-pt-${i}`} cx={pt.x} cy={pt.y} r="5" fill="#38bdf8" />
+                  pt.isSharp ? (
+                    <rect
+                      key={`draft-pt-${i}`}
+                      x={pt.x - 5}
+                      y={pt.y - 5}
+                      width="10"
+                      height="10"
+                      transform={`rotate(45, ${pt.x}, ${pt.y})`}
+                      fill="#f59e0b"
+                      stroke="#ffffff"
+                      strokeWidth="1.5"
+                    />
+                  ) : (
+                    <circle key={`draft-pt-${i}`} cx={pt.x} cy={pt.y} r="5" fill="#38bdf8" />
+                  )
                 ))}
               </g>
             )}
@@ -555,7 +641,7 @@ export const ChalkboardCanvas: React.FC<ChalkboardCanvasProps> = ({
                       </text>
                     </g>
                   ) : (
-                    // DEFENSE: Square/Diamond with crimson border
+                    // DEFENSE: Square with crimson border
                     <g filter={isSelected ? "url(#defense-glow)" : undefined}>
                       {isSelected && (
                         <rect
@@ -649,14 +735,22 @@ export const ChalkboardCanvas: React.FC<ChalkboardCanvasProps> = ({
         )}
 
         {/* BOTTOM CANVAS STATUS BAR */}
-        <div className="absolute bottom-2 left-3 right-3 flex items-center justify-between text-xs text-slate-400 bg-slate-900/80 backdrop-blur-sm px-3 py-1.5 rounded-md border border-slate-700/50 pointer-events-none">
+        <div className="absolute bottom-2 left-3 right-3 flex items-center justify-between text-xs text-slate-400 bg-slate-900/85 backdrop-blur-sm px-3 py-1.5 rounded-md border border-slate-700/50 pointer-events-none">
           <div className="flex items-center gap-4">
             <span>
               Mode: <strong className="text-sky-400 capitalize">{mode.replace('_', ' ')}</strong>
             </span>
-            {drawingPlayerId && (
-              <span className="text-amber-400 animate-pulse font-medium">
-                Click waypoints on field $\to$ Press Enter or Double-Click to finish
+            {drawingPlayerId ? (
+              <span className="text-amber-400 font-semibold flex items-center gap-2">
+                <span>Click: <strong className="text-sky-300">Smooth Arc</strong></span>
+                <span>•</span>
+                <span>Shift+Click: <strong className="text-amber-300">Sharp Cut</strong> (Dig / Post / Out)</span>
+                <span>•</span>
+                <span>Double-Click/Enter: <strong>Finish</strong></span>
+              </span>
+            ) : (
+              <span className="text-slate-500 text-[11px]">
+                Tip: Click selected waypoint handles to toggle between Smooth Arc and Sharp Cut Break
               </span>
             )}
           </div>
@@ -668,7 +762,7 @@ export const ChalkboardCanvas: React.FC<ChalkboardCanvasProps> = ({
               <span className="w-2.5 h-2.5 rounded-sm bg-amber-400 inline-block"></span> Run Block
             </span>
             <span className="flex items-center gap-1">
-              <span className="w-2.5 h-2.5 rounded-full bg-purple-400 inline-block"></span> Motion
+              <span className="w-2 h-2 rotate-45 bg-amber-500 inline-block"></span> Sharp Cut
             </span>
             {cursorPos && (
               <span className="font-mono text-[11px] text-slate-500 ml-2">

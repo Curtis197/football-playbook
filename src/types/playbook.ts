@@ -4,7 +4,10 @@ export type Side = 'offense' | 'defense';
 export interface Point {
   x: number;
   y: number;
+  isSharp?: boolean; // True if this waypoint represents a hard directional cut / plant-foot break
 }
+
+export type RoutePoint = Point;
 
 // 2. Player Entity
 export interface Player {

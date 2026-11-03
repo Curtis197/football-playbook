@@ -16,7 +16,12 @@ Comprehensive catalog of capabilities and features supported in the Football Pla
   - Responsive SVG `<viewBox="0 0 1000 700">` chalkboard rendering (`#1a1f26`)
   - Football field layout: Yard lines, 5-yard increments, hash marks, Line of Scrimmage (LOS)
   - Reusable `<defs>` SVG markers: `#arrow` (pass routes), `#tbar` (run blocks), `#dot` (motion/endpoints), `#pull-tbar`
-  - Real-time Bézier curve rendering ($B(t) = (1-t)^2 P_0 + 2(1-t)t P_1 + t^2 P_2$) and segmented polyline generation
+  - Advanced Catmull-Rom to Cubic Bézier spline engine ($C^1$ continuity) with tension parameter $\alpha = 0.5$
+  - Sharp Cut break geometry ($C^0$ continuity) preserving crisp directional breaks on plants, digs, outs, and posts
+  - Standalone `bezier-math.js` / `bezier-math.ts` and `RouteDrawer.js` / `RouteDrawer.ts` modules
+  - Shift + Click interactive creation of sharp break waypoints during route and block drawing
+  - Waypoint visual differentiation: Diamonds for sharp cuts with "CUT" label, circles for smooth splines
+  - In-canvas and inspector toggle for toggling between smooth arcs ($C^1$) and sharp cuts ($C^0$)
   - Multi-mode switcher:
     - Mode 1: Select / Move (Drag players, reposition waypoints, edit assignments)
     - Mode 2: Draw Route (Click player -> click waypoints -> Enter/Double-click to finish with Arrowhead)
