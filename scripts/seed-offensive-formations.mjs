@@ -199,7 +199,9 @@ async function seed() {
   process.exit(0);
 }
 
-seed().catch(err => {
-  console.error('❌ Seeding failed:', err);
-  process.exit(1);
-});
+if (process.argv[1] && process.argv[1].endsWith('seed-offensive-formations.mjs')) {
+  seed().catch(err => {
+    console.error('❌ Seeding failed:', err);
+    process.exit(1);
+  });
+}

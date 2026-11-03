@@ -1,4 +1,4 @@
-import React, { useRef } from 'react';
+import React, { useRef, useState, useEffect } from 'react';
 import type { Play, PlayCategory, AppMode, Theme } from '../types/playbook';
 import { 
   Download, 
@@ -19,10 +19,13 @@ import {
   Eye,
   PenTool,
   Sun,
-  Moon
+  Moon,
+  ChevronDown,
+  Zap
 } from 'lucide-react';
 
 export type CloudSyncStatus = 'idle' | 'saving' | 'saved' | 'error';
+export type CloudSaveTarget = 'play' | 'offense' | 'defense' | 'playbook';
 
 interface ToolbarProps {
   currentPlay: Play;
@@ -46,6 +49,7 @@ interface ToolbarProps {
   onOpenFormations?: () => void;
   onOpenDefense?: () => void;
   onSaveToCloud?: () => void;
+  onSaveToCloudOption?: (target: CloudSaveTarget) => void;
   cloudSyncStatus?: CloudSyncStatus;
 }
 
@@ -71,10 +75,28 @@ export const Toolbar: React.FC<ToolbarProps> = ({
   onOpenFormations,
   onOpenDefense,
   onSaveToCloud,
+  onSaveToCloudOption,
   cloudSyncStatus = 'idle'
 }) => {
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const cloudMenuRef = useRef<HTMLDivElement | null>(null);
+  const [isCloudMenuOpen, setIsCloudMenuOpen] = useState(false);
   const isLight = theme === 'light';
+
+  // Close cloud menu on outside click
+  useEffect(() => {
+    const handleOutsideClick = (e: MouseEvent) => {
+      if (cloudMenuRef.current && !cloudMenuRef.current.contains(e.target as Node)) {
+        setIsCloudMenuOpen(false);
+      }
+    };
+    if (isCloudMenuOpen) {
+      document.addEventListener('mousedown', handleOutsideClick);
+    }
+    return () => {
+      document.removeEventListener('mousedown', handleOutsideClick);
+    };
+  }, [isCloudMenuOpen]);
 
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -109,56 +131,186 @@ export const Toolbar: React.FC<ToolbarProps> = ({
     }
   };
 
-  const renderCloudButton = () => {
-    if (!onSaveToCloud) return null;
-
-    switch (cloudSyncStatus) {
-      case 'saving':
-        return (
-          <button
-            disabled
-            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold bg-sky-900/60 text-sky-200 border border-sky-600/50 rounded-lg cursor-wait transition-all"
-            title="Saving to Firestore..."
-          >
-            <RefreshCw className="w-3.5 h-3.5 animate-spin text-sky-400" />
-            <span>Saving...</span>
-          </button>
-        );
-      case 'saved':
-        return (
-          <button
-            onClick={onSaveToCloud}
-            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold bg-emerald-900/70 text-emerald-200 border border-emerald-500/50 rounded-lg shadow-sm transition-all animate-in fade-in"
-            title="Successfully persisted to cloud"
-          >
-            <Check className="w-3.5 h-3.5 text-emerald-400" />
-            <span>Saved to Cloud</span>
-          </button>
-        );
-      case 'error':
-        return (
-          <button
-            onClick={onSaveToCloud}
-            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold bg-rose-950/70 text-rose-200 border border-rose-500/50 rounded-lg hover:bg-rose-900/80 transition-all"
-            title="Cloud write failed (Click to retry)"
-          >
-            <AlertCircle className="w-3.5 h-3.5 text-rose-400" />
-            <span>Sync Error (Retry)</span>
-          </button>
-        );
-      case 'idle':
-      default:
-        return (
-          <button
-            onClick={onSaveToCloud}
-            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold bg-gradient-to-r from-sky-700 to-blue-700 hover:from-sky-600 hover:to-blue-600 text-white rounded-lg shadow-sm transition-all active:scale-95 border border-sky-500/40"
-            title="Save active play to Firebase Firestore"
-          >
-            <Cloud className="w-3.5 h-3.5 text-sky-200" />
-            <span>Save to Cloud</span>
-          </button>
-        );
+  const handleSelectSaveTarget = (target: CloudSaveTarget) => {
+    setIsCloudMenuOpen(false);
+    if (onSaveToCloudOption) {
+      onSaveToCloudOption(target);
+    } else if (onSaveToCloud) {
+      onSaveToCloud();
     }
+  };
+
+  const renderCloudButton = () => {
+    if (!onSaveToCloud && !onSaveToCloudOption) return null;
+
+    if (cloudSyncStatus === 'saving') {
+      return (
+        <button
+          disabled
+          className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold bg-sky-900/60 text-sky-200 border border-sky-600/50 rounded-lg cursor-wait transition-all"
+          title="Saving to Firestore..."
+        >
+          <RefreshCw className="w-3.5 h-3.5 animate-spin text-sky-400" />
+          <span>Saving...</span>
+        </button>
+      );
+    }
+
+    if (cloudSyncStatus === 'saved') {
+      return (
+        <button
+          onClick={() => handleSelectSaveTarget('play')}
+          className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold bg-emerald-900/70 text-emerald-200 border border-emerald-500/50 rounded-lg shadow-sm transition-all animate-in fade-in"
+          title="Successfully persisted to cloud"
+        >
+          <Check className="w-3.5 h-3.5 text-emerald-400" />
+          <span>Saved to Cloud</span>
+        </button>
+      );
+    }
+
+    if (cloudSyncStatus === 'error') {
+      return (
+        <button
+          onClick={() => handleSelectSaveTarget('play')}
+          className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold bg-rose-950/70 text-rose-200 border border-rose-500/50 rounded-lg hover:bg-rose-900/80 transition-all"
+          title="Cloud write failed (Click to retry)"
+        >
+          <AlertCircle className="w-3.5 h-3.5 text-rose-400" />
+          <span>Sync Error (Retry)</span>
+        </button>
+      );
+    }
+
+    return (
+      <div className="relative inline-flex items-stretch rounded-lg shadow-sm" ref={cloudMenuRef}>
+        {/* Main Save Play button */}
+        <button
+          type="button"
+          onClick={() => handleSelectSaveTarget('play')}
+          className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-semibold bg-gradient-to-r from-sky-700 to-blue-700 hover:from-sky-600 hover:to-blue-600 text-white rounded-l-lg border-y border-l border-sky-500/40 transition-all active:scale-95"
+          title={`Quick Save Play: "${currentPlay.name}" to Cloud`}
+        >
+          <Cloud className="w-3.5 h-3.5 text-sky-200" />
+          <span>Save to Cloud</span>
+        </button>
+
+        {/* Dropdown Chevron toggle for target options */}
+        <button
+          type="button"
+          onClick={() => setIsCloudMenuOpen(!isCloudMenuOpen)}
+          className={`px-1.5 py-1.5 text-xs font-semibold bg-blue-800 hover:bg-blue-700 text-white rounded-r-lg border border-sky-500/40 transition-all active:scale-95 flex items-center justify-center ${
+            isCloudMenuOpen ? 'bg-blue-900 ring-1 ring-sky-400' : ''
+          }`}
+          title="Choose what to save to Cloud: Active Play, Offensive Formation, Defensive Front, or Playbook"
+        >
+          <ChevronDown className={`w-3.5 h-3.5 text-sky-200 transition-transform ${isCloudMenuOpen ? 'rotate-180' : ''}`} />
+        </button>
+
+        {/* CLOUD TARGET OPTIONS POPUP MENU */}
+        {isCloudMenuOpen && (
+          <div className={`absolute right-0 top-full mt-1.5 w-72 rounded-xl shadow-2xl border z-50 p-1.5 animate-in fade-in slide-in-from-top-1 ${
+            isLight ? 'bg-white border-slate-200 text-slate-800' : 'bg-[#161c27] border-slate-700 text-slate-100'
+          }`}>
+            <div className={`px-2.5 py-1.5 text-[10px] font-black uppercase tracking-wider border-b ${
+              isLight ? 'text-slate-400 border-slate-100' : 'text-slate-400 border-slate-800'
+            }`}>
+              Cloud Save Targets
+            </div>
+
+            <div className="py-1 space-y-0.5">
+              {/* Option 1: Save Active Play */}
+              <button
+                type="button"
+                onClick={() => handleSelectSaveTarget('play')}
+                className={`w-full text-left px-2.5 py-2 rounded-lg text-xs flex items-start gap-2.5 transition-all ${
+                  isLight ? 'hover:bg-slate-100' : 'hover:bg-slate-800/80'
+                }`}
+              >
+                <div className="w-6 h-6 rounded-md bg-sky-600/20 text-sky-400 flex items-center justify-center flex-shrink-0 mt-0.5">
+                  🏈
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="font-bold flex items-center justify-between">
+                    <span>Save Active Play</span>
+                    <span className="text-[10px] text-sky-400 font-semibold">Play</span>
+                  </div>
+                  <p className={`text-[11px] truncate ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>
+                    "{currentPlay.name}"
+                  </p>
+                </div>
+              </button>
+
+              {/* Option 2: Save Offensive Formation */}
+              <button
+                type="button"
+                onClick={() => handleSelectSaveTarget('offense')}
+                className={`w-full text-left px-2.5 py-2 rounded-lg text-xs flex items-start gap-2.5 transition-all ${
+                  isLight ? 'hover:bg-slate-100' : 'hover:bg-slate-800/80'
+                }`}
+              >
+                <div className="w-6 h-6 rounded-md bg-amber-600/20 text-amber-400 flex items-center justify-center flex-shrink-0 mt-0.5">
+                  <Zap className="w-3.5 h-3.5" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="font-bold flex items-center justify-between">
+                    <span>Save Offense Formation</span>
+                    <span className="text-[10px] text-amber-400 font-semibold">11 Players</span>
+                  </div>
+                  <p className={`text-[11px] truncate ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>
+                    "{currentPlay.formationOffense || 'Active Offense'}"
+                  </p>
+                </div>
+              </button>
+
+              {/* Option 3: Save Defensive Front */}
+              <button
+                type="button"
+                onClick={() => handleSelectSaveTarget('defense')}
+                className={`w-full text-left px-2.5 py-2 rounded-lg text-xs flex items-start gap-2.5 transition-all ${
+                  isLight ? 'hover:bg-slate-100' : 'hover:bg-slate-800/80'
+                }`}
+              >
+                <div className="w-6 h-6 rounded-md bg-rose-600/20 text-rose-400 flex items-center justify-center flex-shrink-0 mt-0.5">
+                  <Shield className="w-3.5 h-3.5" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="font-bold flex items-center justify-between">
+                    <span>Save Defensive Front</span>
+                    <span className="text-[10px] text-rose-400 font-semibold">Techniques</span>
+                  </div>
+                  <p className={`text-[11px] truncate ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>
+                    "{currentPlay.frontDefense || 'Active Defense Front'}"
+                  </p>
+                </div>
+              </button>
+
+              {/* Option 4: Save Entire Playbook */}
+              <button
+                type="button"
+                onClick={() => handleSelectSaveTarget('playbook')}
+                className={`w-full text-left px-2.5 py-2 rounded-lg text-xs flex items-start gap-2.5 transition-all ${
+                  isLight ? 'hover:bg-slate-100' : 'hover:bg-slate-800/80'
+                }`}
+              >
+                <div className="w-6 h-6 rounded-md bg-indigo-600/20 text-indigo-400 flex items-center justify-center flex-shrink-0 mt-0.5">
+                  <Layers className="w-3.5 h-3.5" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="font-bold flex items-center justify-between">
+                    <span>Save Entire Playbook</span>
+                    <span className="text-[10px] text-indigo-400 font-semibold">{allPlays.length} Plays</span>
+                  </div>
+                  <p className={`text-[11px] truncate ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>
+                    Sync all playbook concepts to Cloud
+                  </p>
+                </div>
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+    );
   };
 
   return (

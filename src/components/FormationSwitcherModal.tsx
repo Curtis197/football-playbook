@@ -44,6 +44,10 @@ export const FormationSwitcherModal: React.FC<FormationSwitcherModalProps> = ({
   const [newFormationName, setNewFormationName] = useState('');
   const [newFormationSide, setNewFormationSide] = useState<Side | 'both'>('offense');
   const [newFormationPersonnel, setNewFormationPersonnel] = useState('');
+  const [newFormationStyle, setNewFormationStyle] = useState<string>('pro_style');
+  const [newFormationLabels, setNewFormationLabels] = useState<string>('');
+  const [sideFilter, setSideFilter] = useState<'all' | 'offense' | 'defense'>('all');
+  const [styleFilter, setStyleFilter] = useState<string>('all');
   const [showSaveForm, setShowSaveForm] = useState(false);
   const [confirmApplyModal, setConfirmApplyModal] = useState<Formation | null>(null);
 
@@ -103,14 +107,22 @@ export const FormationSwitcherModal: React.FC<FormationSwitcherModalProps> = ({
       return;
     }
 
+    const labelsList = newFormationLabels
+      .split(',')
+      .map(s => s.trim())
+      .filter(Boolean);
+
     const newFormation: Formation = {
       id: `formation_${Date.now()}`,
       name: newFormationName.trim(),
       side: newFormationSide,
       personnel: newFormationPersonnel.trim() || (newFormationSide === 'offense' ? '11 Personnel' : 'Base Front'),
+      style: newFormationStyle as any,
+      labels: labelsList.length > 0 ? labelsList : [newFormationSide === 'offense' ? 'Offense' : 'Defense Front'],
       players: playersToSave,
       description: `Saved from active chalkboard with ${playersToSave.length} players.`,
-      createdAt: new Date().toISOString()
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
     };
 
     setIsSaving(true);
@@ -267,8 +279,8 @@ export const FormationSwitcherModal: React.FC<FormationSwitcherModalProps> = ({
               <Sparkles className="w-3.5 h-3.5 text-amber-400" />
               Save Chalkboard Alignment as New Formation Template
             </h3>
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-3 items-end">
-              <div>
+            <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-6 gap-3 items-end">
+              <div className="lg:col-span-2">
                 <label className="block text-[11px] font-semibold text-slate-300 mb-1">
                   Formation Name *
                 </label>
@@ -288,7 +300,12 @@ export const FormationSwitcherModal: React.FC<FormationSwitcherModalProps> = ({
                 </label>
                 <select
                   value={newFormationSide}
-                  onChange={(e) => setNewFormationSide(e.target.value as Side | 'both')}
+                  onChange={(e) => {
+                    const side = e.target.value as Side | 'both';
+                    setNewFormationSide(side);
+                    if (side === 'defense') setNewFormationStyle('even_front');
+                    else setNewFormationStyle('pro_style');
+                  }}
                   className="w-full bg-[#0d1117] border border-[#30363d] rounded-lg px-3 py-1.5 text-xs text-white outline-none focus:border-sky-500"
                 >
                   <option value="offense">Offense Only ({currentPlayers.filter(p => p.side === 'offense').length} players)</option>
@@ -299,13 +316,38 @@ export const FormationSwitcherModal: React.FC<FormationSwitcherModalProps> = ({
 
               <div>
                 <label className="block text-[11px] font-semibold text-slate-300 mb-1">
-                  Personnel / Tag
+                  Style Category
+                </label>
+                <select
+                  value={newFormationStyle}
+                  onChange={(e) => setNewFormationStyle(e.target.value)}
+                  className="w-full bg-[#0d1117] border border-[#30363d] rounded-lg px-3 py-1.5 text-xs text-white outline-none focus:border-sky-500 font-medium"
+                >
+                  {newFormationSide !== 'defense' ? (
+                    <>
+                      <option value="pro_style">Pro Style</option>
+                      <option value="spread">Spread</option>
+                      <option value="old_school">Old School</option>
+                    </>
+                  ) : (
+                    <>
+                      <option value="even_front">Even Front (4-Down)</option>
+                      <option value="odd_front">Odd Front (3-Down)</option>
+                      <option value="heavy_front">Heavy / Bear Front</option>
+                    </>
+                  )}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-semibold text-slate-300 mb-1">
+                  Labels (Comma-separated)
                 </label>
                 <input
                   type="text"
-                  placeholder="e.g. 21 Personnel, 3-5-3"
-                  value={newFormationPersonnel}
-                  onChange={(e) => setNewFormationPersonnel(e.target.value)}
+                  placeholder="e.g. Spread, 11P, Trips"
+                  value={newFormationLabels}
+                  onChange={(e) => setNewFormationLabels(e.target.value)}
                   className="w-full bg-[#0d1117] border border-[#30363d] rounded-lg px-3 py-1.5 text-xs text-white outline-none focus:border-sky-500"
                 />
               </div>
@@ -371,43 +413,210 @@ export const FormationSwitcherModal: React.FC<FormationSwitcherModalProps> = ({
         {/* CONTENT AREA: SPLIT LIST & PREVIEW */}
         <div className="flex-1 flex overflow-hidden">
           {/* LEFT LIST */}
-          <div className="w-1/2 border-r border-[#30363d] overflow-y-auto p-4 space-y-2 bg-[#0c1017]">
-            {isLoading ? (
-              <p className="text-xs text-slate-400 p-4">Loading formation templates...</p>
-            ) : (
-              formations.map(f => {
-                const isSelected = f.id === selectedFormationId;
-                const isDefault = DEFAULT_FORMATIONS.some(def => def.id === f.id);
+          <div className="w-1/2 border-r border-[#30363d] flex flex-col bg-[#0c1017] overflow-hidden">
+            {/* FILTER BAR: SIDE & STYLE TABS */}
+            <div className="p-3 border-b border-[#222834] bg-[#11151e] space-y-2 flex-shrink-0">
+              {/* SIDE TABS */}
+              <div className="flex items-center gap-1 bg-[#090d14] p-1 rounded-lg border border-[#222834]">
+                <button
+                  type="button"
+                  onClick={() => { setSideFilter('all'); setStyleFilter('all'); }}
+                  className={`flex-1 py-1 text-[11px] font-bold rounded-md transition-all cursor-pointer ${
+                    sideFilter === 'all' ? 'bg-sky-600 text-white shadow-sm' : 'text-slate-400 hover:text-slate-200'
+                  }`}
+                >
+                  All ({formations.length})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => { setSideFilter('offense'); setStyleFilter('all'); }}
+                  className={`flex-1 py-1 text-[11px] font-bold rounded-md transition-all cursor-pointer ${
+                    sideFilter === 'offense' ? 'bg-amber-600 text-white shadow-sm' : 'text-slate-400 hover:text-slate-200'
+                  }`}
+                >
+                  Offense ({formations.filter(f => f.side === 'offense' || f.side === 'both').length})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => { setSideFilter('defense'); setStyleFilter('all'); }}
+                  className={`flex-1 py-1 text-[11px] font-bold rounded-md transition-all cursor-pointer ${
+                    sideFilter === 'defense' ? 'bg-rose-600 text-white shadow-sm' : 'text-slate-400 hover:text-slate-200'
+                  }`}
+                >
+                  Defense ({formations.filter(f => f.side === 'defense' || f.side === 'both').length})
+                </button>
+              </div>
 
-                return (
-                  <div
-                    key={f.id}
-                    onClick={() => setSelectedFormationId(f.id)}
-                    className={`p-3 rounded-xl border cursor-pointer transition-all flex items-start justify-between gap-3 ${
-                      isSelected
-                        ? 'bg-[#182234] border-sky-500 ring-1 ring-sky-500/50 shadow-md'
-                        : 'bg-[#121620] hover:bg-[#161c28] border-[#222834]'
-                    }`}
-                  >
-                    <div className="flex items-start gap-2.5">
-                      <div className={`w-7 h-7 rounded-lg flex items-center justify-center text-xs font-bold mt-0.5 ${
-                        f.side === 'offense' 
-                          ? 'bg-amber-950/80 text-amber-300 border border-amber-600/40' 
-                          : f.side === 'defense'
-                          ? 'bg-rose-950/80 text-rose-300 border border-rose-600/40'
-                          : 'bg-indigo-950/80 text-indigo-300 border border-indigo-600/40'
-                      }`}>
-                        {f.side === 'offense' ? 'OFF' : f.side === 'defense' ? 'DEF' : 'ALL'}
-                      </div>
-                      <div>
-                        <h4 className="text-xs font-bold text-white">{f.name}</h4>
-                        <p className="text-[10px] text-slate-400 font-medium">
-                          {f.personnel || (f.side === 'offense' ? 'Offense' : 'Defense')} • {f.players.length} Players
-                        </p>
-                      </div>
-                    </div>
+              {/* STYLE PILLS */}
+              <div className="flex items-center gap-1 overflow-x-auto py-0.5 text-[10px]">
+                <button
+                  type="button"
+                  onClick={() => setStyleFilter('all')}
+                  className={`px-2 py-0.5 rounded-full font-bold transition-all flex-shrink-0 cursor-pointer ${
+                    styleFilter === 'all'
+                      ? 'bg-slate-200 text-slate-900 shadow-sm'
+                      : 'bg-slate-800 text-slate-400 hover:text-slate-200'
+                  }`}
+                >
+                  All Styles
+                </button>
+                {sideFilter !== 'defense' ? (
+                  <>
+                    <button
+                      type="button"
+                      onClick={() => setStyleFilter('pro_style')}
+                      className={`px-2 py-0.5 rounded-full font-bold transition-all flex-shrink-0 cursor-pointer ${
+                        styleFilter === 'pro_style'
+                          ? 'bg-sky-600 text-white shadow-sm'
+                          : 'bg-slate-800 text-slate-400 hover:text-slate-200'
+                      }`}
+                    >
+                      Pro Style
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setStyleFilter('spread')}
+                      className={`px-2 py-0.5 rounded-full font-bold transition-all flex-shrink-0 cursor-pointer ${
+                        styleFilter === 'spread'
+                          ? 'bg-emerald-600 text-white shadow-sm'
+                          : 'bg-slate-800 text-slate-400 hover:text-slate-200'
+                      }`}
+                    >
+                      Spread
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setStyleFilter('old_school')}
+                      className={`px-2 py-0.5 rounded-full font-bold transition-all flex-shrink-0 cursor-pointer ${
+                        styleFilter === 'old_school'
+                          ? 'bg-amber-600 text-white shadow-sm'
+                          : 'bg-slate-800 text-slate-400 hover:text-slate-200'
+                      }`}
+                    >
+                      Old School
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    <button
+                      type="button"
+                      onClick={() => setStyleFilter('even_front')}
+                      className={`px-2 py-0.5 rounded-full font-bold transition-all flex-shrink-0 cursor-pointer ${
+                        styleFilter === 'even_front'
+                          ? 'bg-blue-600 text-white shadow-sm'
+                          : 'bg-slate-800 text-slate-400 hover:text-slate-200'
+                      }`}
+                    >
+                      Even (4-Down)
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setStyleFilter('odd_front')}
+                      className={`px-2 py-0.5 rounded-full font-bold transition-all flex-shrink-0 cursor-pointer ${
+                        styleFilter === 'odd_front'
+                          ? 'bg-purple-600 text-white shadow-sm'
+                          : 'bg-slate-800 text-slate-400 hover:text-slate-200'
+                      }`}
+                    >
+                      Odd (3-Down)
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setStyleFilter('heavy_front')}
+                      className={`px-2 py-0.5 rounded-full font-bold transition-all flex-shrink-0 cursor-pointer ${
+                        styleFilter === 'heavy_front'
+                          ? 'bg-rose-600 text-white shadow-sm'
+                          : 'bg-slate-800 text-slate-400 hover:text-slate-200'
+                      }`}
+                    >
+                      Heavy / Bear
+                    </button>
+                  </>
+                )}
+              </div>
+            </div>
 
-                    <div className="flex items-center gap-1.5">
+            {/* FORMATION CARDS LIST */}
+            <div className="flex-1 overflow-y-auto p-3 space-y-2">
+              {isLoading ? (
+                <p className="text-xs text-slate-400 p-4">Loading formation templates...</p>
+              ) : formations.filter(f => {
+                if (sideFilter === 'offense' && f.side !== 'offense' && f.side !== 'both') return false;
+                if (sideFilter === 'defense' && f.side !== 'defense' && f.side !== 'both') return false;
+                if (styleFilter !== 'all' && f.style !== styleFilter) return false;
+                return true;
+              }).length === 0 ? (
+                <div className="p-8 text-center text-slate-500 text-xs">
+                  No formations found matching selected style filters.
+                </div>
+              ) : (
+                formations.filter(f => {
+                  if (sideFilter === 'offense' && f.side !== 'offense' && f.side !== 'both') return false;
+                  if (sideFilter === 'defense' && f.side !== 'defense' && f.side !== 'both') return false;
+                  if (styleFilter !== 'all' && f.style !== styleFilter) return false;
+                  return true;
+                }).map(f => {
+                  const isSelected = f.id === selectedFormationId;
+                  const isDefault = DEFAULT_FORMATIONS.some(def => def.id === f.id);
+
+                  return (
+                    <div
+                      key={f.id}
+                      onClick={() => setSelectedFormationId(f.id)}
+                      className={`p-3 rounded-xl border cursor-pointer transition-all flex items-start justify-between gap-3 ${
+                        isSelected
+                          ? 'bg-[#182234] border-sky-500 ring-1 ring-sky-500/50 shadow-md'
+                          : 'bg-[#121620] hover:bg-[#161c28] border-[#222834]'
+                      }`}
+                    >
+                      <div className="flex items-start gap-2.5 min-w-0">
+                        <div className={`w-7 h-7 rounded-lg flex items-center justify-center text-[10px] font-black mt-0.5 flex-shrink-0 ${
+                          f.side === 'offense' 
+                            ? 'bg-amber-950/80 text-amber-300 border border-amber-600/40' 
+                            : f.side === 'defense'
+                            ? 'bg-rose-950/80 text-rose-300 border border-rose-600/40'
+                            : 'bg-indigo-950/80 text-indigo-300 border border-indigo-600/40'
+                        }`}>
+                          {f.side === 'offense' ? 'OFF' : f.side === 'defense' ? 'DEF' : 'ALL'}
+                        </div>
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <h4 className="text-xs font-bold text-white truncate">{f.name}</h4>
+                            {f.style && (
+                              <span className={`text-[9px] px-1.5 py-0.2 rounded font-black uppercase tracking-wider ${
+                                f.style === 'pro_style' ? 'bg-sky-950 text-sky-300 border border-sky-700/50' :
+                                f.style === 'spread' ? 'bg-emerald-950 text-emerald-300 border border-emerald-700/50' :
+                                f.style === 'old_school' ? 'bg-amber-950 text-amber-300 border border-amber-700/50' :
+                                f.style === 'even_front' ? 'bg-blue-950 text-blue-300 border border-blue-700/50' :
+                                f.style === 'odd_front' ? 'bg-purple-950 text-purple-300 border border-purple-700/50' :
+                                f.style === 'heavy_front' ? 'bg-rose-950 text-rose-300 border border-rose-700/50' :
+                                'bg-slate-800 text-slate-300 border border-slate-700'
+                              }`}>
+                                {f.style === 'pro_style' ? 'Pro Style' :
+                                 f.style === 'spread' ? 'Spread' :
+                                 f.style === 'old_school' ? 'Old School' :
+                                 f.style === 'even_front' ? 'Even Front' :
+                                 f.style === 'odd_front' ? 'Odd Front' :
+                                 f.style === 'heavy_front' ? 'Heavy Front' : f.style}
+                              </span>
+                            )}
+                          </div>
+                          <p className="text-[10px] text-slate-400 font-medium mt-0.5">
+                            {f.personnel || (f.side === 'offense' ? 'Offense' : 'Defense')} • {f.players.length} Players
+                          </p>
+                          {f.labels && f.labels.length > 0 && (
+                            <div className="flex items-center gap-1 mt-1 flex-wrap">
+                              {f.labels.map(lbl => (
+                                <span key={lbl} className="text-[9px] px-1.5 py-0.2 rounded bg-slate-800/80 text-slate-400 border border-slate-700/60">
+                                  {lbl}
+                                </span>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-1.5 flex-shrink-0">
                       {!isDefault && (
                         <button
                           onClick={(e) => handleDeleteFormation(f, e)}
@@ -433,6 +642,7 @@ export const FormationSwitcherModal: React.FC<FormationSwitcherModalProps> = ({
                 );
               })
             )}
+            </div>
           </div>
 
           {/* RIGHT PREVIEW */}

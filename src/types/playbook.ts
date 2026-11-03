@@ -86,12 +86,16 @@ export type CanvasMode = 'select' | 'draw_route' | 'draw_block' | 'draw_motion' 
 export type AppMode = 'build' | 'view';
 export type Theme = 'dark' | 'light';
 
+export type FormationStyle = 'pro_style' | 'spread' | 'old_school' | 'odd_front' | 'even_front' | 'heavy_front' | 'hybrid' | string;
+
 // 7. Base Formation Template Definition
 export interface Formation {
   id: string;
   name: string;
   side: Side | 'both';
   personnel?: string;
+  style?: FormationStyle;
+  labels?: string[];
   description?: string;
   players: Player[];
   createdAt?: string;

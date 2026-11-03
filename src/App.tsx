@@ -20,7 +20,7 @@ import {
   parseAndValidateImport 
 } from './utils/storage';
 import { ChalkboardCanvas } from './components/ChalkboardCanvas';
-import { Toolbar, type CloudSyncStatus } from './components/Toolbar';
+import { Toolbar, type CloudSyncStatus, type CloudSaveTarget } from './components/Toolbar';
 import { ModeSwitcher } from './components/ModeSwitcher';
 import { InspectorPanel } from './components/InspectorPanel';
 import { SituationMatrixModal } from './components/SituationMatrixModal';
@@ -357,10 +357,85 @@ export const App: React.FC = () => {
   };
 
   // Save active play to Cloud Firestore
-  const handleSaveToCloud = async () => {
+  const handleSaveToCloud = async (target: CloudSaveTarget = 'play') => {
     setCloudSyncStatus('saving');
     try {
-      await savePlay(currentPlay);
+      if (target === 'play') {
+        if (isFirebaseConfigured) {
+          await savePlay(currentPlay);
+        }
+        } else if (target === 'offense') {
+        const offPlayers = currentPlay.players.filter(p => p.side === 'offense');
+        if (offPlayers.length === 0) {
+          throw new Error('No offensive players found on canvas to save as formation.');
+        }
+        const existing = formations.find(
+          f => (f.side === 'offense' || f.side === 'both') &&
+               (f.name.toLowerCase() === currentPlay.formationOffense.toLowerCase() || f.id === currentPlay.formationOffense)
+        );
+        const formationId = existing ? existing.id : `formation-${currentPlay.formationOffense.toLowerCase().replace(/[^a-z0-9]+/g, '-')}-${Date.now().toString().slice(-4)}`;
+        const savedFormation: Formation = {
+          id: formationId,
+          name: currentPlay.formationOffense || 'Custom Offensive Formation',
+          side: 'offense',
+          personnel: existing?.personnel || '11 Personnel',
+          description: existing?.description || `Offensive formation saved from play "${currentPlay.name}"`,
+          style: existing?.style || (currentPlay.tags?.includes('spread') ? 'spread' : currentPlay.tags?.includes('old_school') ? 'old_school' : 'pro_style'),
+          labels: existing?.labels || ['Offense', 'Custom'],
+          players: offPlayers,
+          updatedAt: new Date().toISOString()
+        };
+        if (isFirebaseConfigured) {
+          await saveFormation(savedFormation);
+        }
+        setFormations(prev => {
+          const found = prev.some(f => f.id === savedFormation.id);
+          return found ? prev.map(f => (f.id === savedFormation.id ? savedFormation : f)) : [...prev, savedFormation];
+        });
+        showNotification(`Saved Offensive Formation "${savedFormation.name}" to Cloud!`, 'success');
+      } else if (target === 'defense') {
+        const defPlayers = currentPlay.players.filter(p => p.side === 'defense');
+        if (defPlayers.length === 0) {
+          throw new Error('No defensive players found on canvas to save as front.');
+        }
+        const structure = analyzeOffense(currentPlay.players);
+        const enrichedDefenders = defPlayers.map(p => ({
+          ...p,
+          technique: p.technique || inferDefenderTechnique(p, structure)
+        }));
+        const existing = formations.find(
+          f => (f.side === 'defense' || f.side === 'both') &&
+               (f.name.toLowerCase() === currentPlay.frontDefense.toLowerCase() || f.id === currentPlay.frontDefense)
+        );
+        const frontId = existing ? existing.id : `front-${currentPlay.frontDefense.toLowerCase().replace(/[^a-z0-9]+/g, '-')}-${Date.now().toString().slice(-4)}`;
+        const dlCount = enrichedDefenders.filter(d => ['NT', 'DT', 'DE', 'E'].includes(d.label)).length;
+        const savedFront: Formation = {
+          id: frontId,
+          name: currentPlay.frontDefense || 'Custom Defensive Front',
+          side: 'defense',
+          personnel: existing?.personnel || 'Base Defense',
+          description: existing?.description || `Defensive front saved from play "${currentPlay.name}"`,
+          style: existing?.style || (dlCount >= 4 ? 'even_front' : 'odd_front'),
+          labels: existing?.labels || ['Defense Front', 'Custom'],
+          players: enrichedDefenders,
+          updatedAt: new Date().toISOString()
+        };
+        if (isFirebaseConfigured) {
+          await saveFormation(savedFront);
+        }
+        setFormations(prev => {
+          const found = prev.some(f => f.id === savedFront.id);
+          return found ? prev.map(f => (f.id === savedFront.id ? savedFront : f)) : [...prev, savedFront];
+        });
+        showNotification(`Saved Defensive Front "${savedFront.name}" to Cloud!`, 'success');
+      } else if (target === 'playbook') {
+        if (isFirebaseConfigured) {
+          for (const p of playbook.plays) {
+            await savePlay(p);
+          }
+        }
+        showNotification(`Saved all ${playbook.plays.length} plays in Playbook to Cloud!`, 'success');
+      }
       setCloudSyncStatus('saved');
       showNotification(`Saved "${currentPlay.name}" to Cloud Firestore!`, 'success');
       setTimeout(() => {
@@ -635,7 +710,8 @@ export const App: React.FC = () => {
         onOpenPlayLibrary={() => setIsLibraryModalOpen(true)}
         onOpenFormations={() => setIsFormationsModalOpen(true)}
         onOpenDefense={() => setIsDefenseModalOpen(true)}
-        onSaveToCloud={handleSaveToCloud}
+        onSaveToCloud={() => handleSaveToCloud('play')}
+        onSaveToCloudOption={handleSaveToCloud}
         cloudSyncStatus={cloudSyncStatus}
       />
 
@@ -667,6 +743,9 @@ export const App: React.FC = () => {
             onShiftDefense={handleShiftDefense}
             onRealignDefense={handleRealignDefense}
             formations={formations}
+            allPlays={playbook.plays}
+            activePlayId={currentPlay.id}
+            onSelectPlay={handleSelectPlay}
             activeOffenseFormation={currentPlay.formationOffense}
             activeDefenseFront={currentPlay.frontDefense}
             onSelectOffenseFormation={handleSelectOffenseFormation}

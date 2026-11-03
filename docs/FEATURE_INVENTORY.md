@@ -169,3 +169,24 @@ Comprehensive catalog of capabilities and features supported in the Football Pla
       - 1-Click "Update" buttons integrated directly on the Chalkboard Canvas top HUD bar for active offensive formations and active defensive fronts. Saves adjusted positions and techniques directly back to the formation template in Firestore and local state.
       - "Update with Current Canvas" action within `FormationSwitcherModal.tsx` allowing coaches to overwrite existing templates with updated chalkboard positioning.
 
+- **Multi-Target Cloud Save, Scheme Style Categorization & Hierarchical Play-Front Picker**:
+  - Multi-Target Cloud Save Engine (`Toolbar.tsx` & `App.tsx`):
+    - Split-button dropdown menu with 4 dedicated cloud persistence targets:
+      1. 🏈 **Save Active Play**: Persists complete play concept (player positions, Catmull-Rom routes, blocking schemes, QB reads, and notes) to Firestore `plays`.
+      2. ⚡ **Save Offensive Formation**: Extracts the 11 offensive positions & assignments from the chalkboard, applies style and labels, and persists to Firestore `formations`.
+      3. 🛡️ **Save Defensive Front**: Extracts the 11 defensive positions & alignment techniques from the chalkboard, derives scheme styles, and persists to Firestore `formations`.
+      4. 📚 **Save Entire Playbook**: Batch synchronizes all plays in the active playbook to Firebase Firestore.
+  - Formation Scheme Style Classification & Optgroup Sorting:
+    - Supported offensive styles: `pro_style` (Pro Style / Under Center / Heavy 21P/12P), `spread` (Spread 10P/11P / Doubles / Trips / Bunch / Quads), `old_school` (Triple Option / Wishbone / Diamond 20P).
+    - Supported defensive front styles: `even_front` (4-Down Linemen: 4-3 Over, 4-3 Under, 4-2-5 Nickel), `odd_front` (3-Down Linemen: 3-4 Over, 3-5 Odd Stack, Mint/Tite), `heavy_front` (Goal Line / 46 Bear).
+    - Chalkboard Canvas Dropdown Optgroups: Both Offense and Defense dropdown pickers organize formations into structured `<optgroup>` sections for rapid schematic navigation.
+    - Formation Switcher Modal Filter Tabs (`FormationSwitcherModal.tsx`): Scope tabs (`All`, `Offense`, `Defense`) and style filter pills (`Pro Style`, `Spread`, `Old School` or `Even`, `Odd`, `Heavy`) with real-time counters, colored style badges, and customizable labels on new templates.
+  - Hierarchical Game-Planning Concept Flow (`ChalkboardCanvas.tsx`):
+    - Integrated 3-step hierarchy on the Chalkboard Canvas top HUD bar:
+      1. `Offense Formation` (e.g. Pro-I 21 Pers)
+      2. `Play / Concept` (e.g. Pro-I - Veer Option vs 3-5 Odd)
+      3. `Target Defensive Front` (e.g. 3-5 Odd, switchable to 4-3 Over, 4-2-5 Nickel, Bear 46)
+    - Automatically filters and highlights plays belonging to the selected offensive formation, while still granting instant access to other playbook plays.
+    - Allows coaches to instantly stress-test any play concept against any defensive front with automated dynamic gap realignment.
+
+

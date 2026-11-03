@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
-import type { Player, PathAction, CanvasMode, Point, AppMode, Theme, Formation } from '../types/playbook';
+import type { Player, PathAction, CanvasMode, Point, AppMode, Theme, Formation, Play } from '../types/playbook';
 import { generatePathString, getSvgCoordinates, clampFieldCoordinates, getDistance, insertPointIntoAction } from '../utils/geometry';
 import { isLightColor } from '../utils/colors';
 import { Shield, ChevronLeft, ChevronRight, RotateCcw, Save } from 'lucide-react';
@@ -19,6 +19,9 @@ interface ChalkboardCanvasProps {
   formations?: Formation[];
   activeOffenseFormation?: string;
   activeDefenseFront?: string;
+  allPlays?: Play[];
+  activePlayId?: string;
+  onSelectPlay?: (playId: string) => void;
   onSelectOffenseFormation?: (formationId: string) => void;
   onSelectDefenseFront?: (formationId: string) => void;
   onUpdateOffenseFormation?: () => void;
@@ -51,6 +54,9 @@ export const ChalkboardCanvas: React.FC<ChalkboardCanvasProps> = ({
   formations = [],
   activeOffenseFormation,
   activeDefenseFront,
+  allPlays,
+  activePlayId,
+  onSelectPlay,
   onSelectOffenseFormation,
   onSelectDefenseFront,
   onUpdateOffenseFormation,
@@ -96,6 +102,37 @@ export const ChalkboardCanvas: React.FC<ChalkboardCanvasProps> = ({
       (activeDefenseFront && activeDefenseFront.toLowerCase().includes(f.name.toLowerCase()))
     )
   )?.id || '';
+
+  // Group offensive formations by style (Pro Style, Spread, Old School)
+  const proStyleFormations = offensiveFormations.filter(f => f.style === 'pro_style');
+  const spreadFormations = offensiveFormations.filter(f => f.style === 'spread');
+  const oldSchoolFormations = offensiveFormations.filter(f => f.style === 'old_school');
+  const otherOffenseFormations = offensiveFormations.filter(
+    f => !f.style || !['pro_style', 'spread', 'old_school'].includes(f.style)
+  );
+
+  // Group defensive fronts by style (Even Fronts, Odd Fronts, Heavy / Bear)
+  const evenFronts = defensiveFormations.filter(f => f.style === 'even_front');
+  const oddFronts = defensiveFormations.filter(f => f.style === 'odd_front');
+  const heavyFronts = defensiveFormations.filter(f => f.style === 'heavy_front');
+  const otherDefenseFronts = defensiveFormations.filter(
+    f => !f.style || !['even_front', 'odd_front', 'heavy_front'].includes(f.style)
+  );
+
+  // Filter plays belonging to active offensive formation for hierarchical game-planning
+  const playsForFormation = (allPlays || []).filter(p => {
+    if (!activeOffenseFormation && !activeOffenseId) return false;
+    const matchName = activeOffenseFormation && p.formationOffense?.toLowerCase() === activeOffenseFormation.toLowerCase();
+    const activeObj = formations.find(f => f.id === activeOffenseId);
+    const matchObjName = activeObj && p.formationOffense?.toLowerCase() === activeObj.name.toLowerCase();
+    const partialMatch = activeOffenseFormation && (
+      p.formationOffense?.toLowerCase().includes(activeOffenseFormation.toLowerCase()) ||
+      activeOffenseFormation.toLowerCase().includes(p.formationOffense?.toLowerCase() || '')
+    );
+    return Boolean(matchName || matchObjName || partialMatch);
+  });
+
+  const otherPlays = (allPlays || []).filter(p => !playsForFormation.some(pf => pf.id === p.id));
 
   // Dragging state
   const [draggingPlayerId, setDraggingPlayerId] = useState<string | null>(null);
@@ -1135,11 +1172,42 @@ export const ChalkboardCanvas: React.FC<ChalkboardCanvasProps> = ({
                 title="Select offensive formation template"
               >
                 {!activeOffenseId && <option value="" disabled>Select Offense Formation...</option>}
-                {offensiveFormations.map(f => (
-                  <option key={f.id} value={f.id} className={isLight ? 'bg-white text-slate-900' : 'bg-slate-900 text-slate-100'}>
-                    {f.name} {f.personnel ? `(${f.personnel})` : ''}
-                  </option>
-                ))}
+                {proStyleFormations.length > 0 && (
+                  <optgroup label="Pro Style (Under Center & Heavy)">
+                    {proStyleFormations.map(f => (
+                      <option key={f.id} value={f.id} className={isLight ? 'bg-white text-slate-900' : 'bg-slate-900 text-slate-100'}>
+                        {f.name} {f.personnel ? `(${f.personnel})` : ''}
+                      </option>
+                    ))}
+                  </optgroup>
+                )}
+                {spreadFormations.length > 0 && (
+                  <optgroup label="Spread (10 & 11 Personnel)">
+                    {spreadFormations.map(f => (
+                      <option key={f.id} value={f.id} className={isLight ? 'bg-white text-slate-900' : 'bg-slate-900 text-slate-100'}>
+                        {f.name} {f.personnel ? `(${f.personnel})` : ''}
+                      </option>
+                    ))}
+                  </optgroup>
+                )}
+                {oldSchoolFormations.length > 0 && (
+                  <optgroup label="Old School (Option & Multi-Back)">
+                    {oldSchoolFormations.map(f => (
+                      <option key={f.id} value={f.id} className={isLight ? 'bg-white text-slate-900' : 'bg-slate-900 text-slate-100'}>
+                        {f.name} {f.personnel ? `(${f.personnel})` : ''}
+                      </option>
+                    ))}
+                  </optgroup>
+                )}
+                {otherOffenseFormations.length > 0 && (
+                  <optgroup label="Other Formations">
+                    {otherOffenseFormations.map(f => (
+                      <option key={f.id} value={f.id} className={isLight ? 'bg-white text-slate-900' : 'bg-slate-900 text-slate-100'}>
+                        {f.name} {f.personnel ? `(${f.personnel})` : ''}
+                      </option>
+                    ))}
+                  </optgroup>
+                )}
               </select>
               {onUpdateOffenseFormation && activeOffenseId && (
                 <button
@@ -1157,6 +1225,51 @@ export const ChalkboardCanvas: React.FC<ChalkboardCanvasProps> = ({
                 </button>
               )}
             </div>
+
+            {/* PLAY / CONCEPT PICKER (Hierarchical flow: Formation ➔ Play ➔ Defense) */}
+            {allPlays && onSelectPlay && (
+              <>
+                <div className={`h-4 w-[1px] ${isLight ? 'bg-slate-300' : 'bg-slate-700'}`} />
+                <div className="flex items-center gap-1.5">
+                  <span className="text-xs select-none" role="img" aria-label="play">📋</span>
+                  <label htmlFor="play-concept-select" className={`text-[11px] font-bold ${
+                    isLight ? 'text-slate-700' : 'text-slate-300'
+                  }`}>
+                    Play:
+                  </label>
+                  <select
+                    id="play-concept-select"
+                    value={activePlayId || ''}
+                    onChange={(e) => onSelectPlay(e.target.value)}
+                    className={`text-[11px] font-medium rounded px-2 py-1 border transition-colors cursor-pointer outline-none focus:ring-1 focus:ring-sky-500 max-w-[210px] truncate ${
+                      isLight
+                        ? 'bg-slate-100 hover:bg-slate-200 text-slate-900 border-slate-300'
+                        : 'bg-slate-800 hover:bg-slate-700 text-slate-100 border-slate-700'
+                    }`}
+                    title="Select play / concept belonging to this formation or test across playbook"
+                  >
+                    {playsForFormation.length > 0 && (
+                      <optgroup label={`Plays for this Formation (${playsForFormation.length})`}>
+                        {playsForFormation.map(p => (
+                          <option key={p.id} value={p.id} className={isLight ? 'bg-white text-slate-900' : 'bg-slate-900 text-slate-100'}>
+                            🏈 {p.name}
+                          </option>
+                        ))}
+                      </optgroup>
+                    )}
+                    {otherPlays.length > 0 && (
+                      <optgroup label={`Other Playbook Plays (${otherPlays.length})`}>
+                        {otherPlays.map(p => (
+                          <option key={p.id} value={p.id} className={isLight ? 'bg-white text-slate-900' : 'bg-slate-900 text-slate-100'}>
+                            {p.name}
+                          </option>
+                        ))}
+                      </optgroup>
+                    )}
+                  </select>
+                </div>
+              </>
+            )}
 
             <div className={`h-4 w-[1px] ${isLight ? 'bg-slate-300' : 'bg-slate-700'}`} />
 
@@ -1180,11 +1293,42 @@ export const ChalkboardCanvas: React.FC<ChalkboardCanvasProps> = ({
                 title="Select defensive front (pre-aligns automatically to offensive gaps)"
               >
                 {!activeDefenseId && <option value="" disabled>Select Defensive Front...</option>}
-                {defensiveFormations.map(f => (
-                  <option key={f.id} value={f.id} className={isLight ? 'bg-white text-slate-900' : 'bg-slate-900 text-slate-100'}>
-                    {f.name} {f.personnel ? `(${f.personnel})` : ''}
-                  </option>
-                ))}
+                {evenFronts.length > 0 && (
+                  <optgroup label="Even Fronts (4-Down Linemen)">
+                    {evenFronts.map(f => (
+                      <option key={f.id} value={f.id} className={isLight ? 'bg-white text-slate-900' : 'bg-slate-900 text-slate-100'}>
+                        {f.name} {f.personnel ? `(${f.personnel})` : ''}
+                      </option>
+                    ))}
+                  </optgroup>
+                )}
+                {oddFronts.length > 0 && (
+                  <optgroup label="Odd Fronts (3-Down Linemen)">
+                    {oddFronts.map(f => (
+                      <option key={f.id} value={f.id} className={isLight ? 'bg-white text-slate-900' : 'bg-slate-900 text-slate-100'}>
+                        {f.name} {f.personnel ? `(${f.personnel})` : ''}
+                      </option>
+                    ))}
+                  </optgroup>
+                )}
+                {heavyFronts.length > 0 && (
+                  <optgroup label="Heavy / Bear Fronts">
+                    {heavyFronts.map(f => (
+                      <option key={f.id} value={f.id} className={isLight ? 'bg-white text-slate-900' : 'bg-slate-900 text-slate-100'}>
+                        {f.name} {f.personnel ? `(${f.personnel})` : ''}
+                      </option>
+                    ))}
+                  </optgroup>
+                )}
+                {otherDefenseFronts.length > 0 && (
+                  <optgroup label="Other Fronts">
+                    {otherDefenseFronts.map(f => (
+                      <option key={f.id} value={f.id} className={isLight ? 'bg-white text-slate-900' : 'bg-slate-900 text-slate-100'}>
+                        {f.name} {f.personnel ? `(${f.personnel})` : ''}
+                      </option>
+                    ))}
+                  </optgroup>
+                )}
               </select>
               {onUpdateDefenseFront && activeDefenseId && (
                 <button
