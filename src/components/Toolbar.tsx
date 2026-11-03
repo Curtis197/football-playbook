@@ -15,6 +15,7 @@ import {
   RefreshCw,
   AlertCircle,
   Users,
+  Shield,
   Eye,
   PenTool,
   Sun,
@@ -43,6 +44,7 @@ interface ToolbarProps {
   onOpenSituationMatrix: () => void;
   onOpenPlayLibrary?: () => void;
   onOpenFormations?: () => void;
+  onOpenDefense?: () => void;
   onSaveToCloud?: () => void;
   cloudSyncStatus?: CloudSyncStatus;
 }
@@ -67,6 +69,7 @@ export const Toolbar: React.FC<ToolbarProps> = ({
   onOpenSituationMatrix,
   onOpenPlayLibrary,
   onOpenFormations,
+  onOpenDefense,
   onSaveToCloud,
   cloudSyncStatus = 'idle'
 }) => {
@@ -206,6 +209,22 @@ export const Toolbar: React.FC<ToolbarProps> = ({
           >
             <Users className="w-3.5 h-3.5 text-amber-500" />
             <span>Formations</span>
+          </button>
+        )}
+
+        {/* DEFENSIVE PRE-ALIGN & FRONTS MODAL TRIGGER BUTTON */}
+        {onOpenDefense && (
+          <button
+            onClick={onOpenDefense}
+            className={`flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-semibold ${
+              isLight 
+                ? 'bg-rose-50 hover:bg-rose-100 text-rose-700 border-rose-300' 
+                : 'bg-rose-950/40 hover:bg-rose-900/50 text-rose-300 border-rose-500/40'
+            } border rounded-lg shadow-sm transition-all active:scale-95`}
+            title="Load Defensive Fronts, Pre-Align Gaps & Shift Defense"
+          >
+            <Shield className="w-3.5 h-3.5 text-rose-500" />
+            <span>Defense Fronts</span>
           </button>
         )}
 

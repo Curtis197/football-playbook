@@ -7,7 +7,8 @@ import type {
   CanvasMode, 
   PlayCategory,
   AppMode,
-  Theme
+  Theme,
+  Point
 } from './types/playbook';
 import { DEFAULT_WISHBONE_PLAY } from './data/presets';
 import { 
@@ -24,6 +25,8 @@ import { InspectorPanel } from './components/InspectorPanel';
 import { SituationMatrixModal } from './components/SituationMatrixModal';
 import { PlayLibraryModal } from './components/PlayLibraryModal';
 import { FormationSwitcherModal } from './components/FormationSwitcherModal';
+import { DefenseFrontModal } from './components/DefenseFrontModal';
+import { shiftDefensiveFront, realignAllDefenders, analyzeOffense } from './utils/defensiveAlignment';
 import { savePlay } from './services/playbookDb';
 import { isFirebaseConfigured } from './services/firebase';
 
@@ -41,8 +44,11 @@ export const App: React.FC = () => {
   const [isMatrixModalOpen, setIsMatrixModalOpen] = useState(false);
   const [isLibraryModalOpen, setIsLibraryModalOpen] = useState(false);
   const [isFormationsModalOpen, setIsFormationsModalOpen] = useState(false);
+  const [isDefenseModalOpen, setIsDefenseModalOpen] = useState(false);
+  const [showGaps, setShowGaps] = useState(true);
   const [cloudSyncStatus, setCloudSyncStatus] = useState<CloudSyncStatus>('idle');
   const [notification, setNotification] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);
+  const [restartBlockRequest, setRestartBlockRequest] = useState<{ actionId: string; playerId: string; startPoint: Point } | null>(null);
 
   // Sync theme to document element and LocalStorage
   useEffect(() => {
@@ -365,6 +371,52 @@ export const App: React.FC = () => {
     setSelectedActionId(null);
   };
 
+  // Apply pre-aligned defenders from Defense Fronts
+  const handleApplyDefenders = (updatedDefenders: Player[]) => {
+    updateCurrentPlay(p => {
+      const nonDefenders = p.players.filter(pl => pl.side !== 'defense');
+      return {
+        ...p,
+        players: [...nonDefenders, ...updatedDefenders]
+      };
+    });
+  };
+
+  // Shift defensive front (Left, Right, Over, Under, Pinch, Fan)
+  const handleShiftDefense = (direction: 'left' | 'right' | 'over' | 'under' | 'pinch' | 'fan') => {
+    const structure = analyzeOffense(currentPlay.players);
+    const updated = shiftDefensiveFront(currentPlay.players, structure, direction);
+    updateCurrentPlay(p => ({
+      ...p,
+      players: updated
+    }));
+    const labelMap: Record<string, string> = {
+      left: 'Shifted Front Left',
+      right: 'Shifted Front Right',
+      over: 'Set Front Over (Strongside)',
+      under: 'Set Front Under (Weakside)',
+      pinch: 'Pinched Front (Crashed Inside)',
+      fan: 'Fanned Front (Stemmed Outside)'
+    };
+    showNotification(labelMap[direction] || 'Shifted Defense', 'info');
+  };
+
+  // Re-align all defenders to current offensive positions
+  const handleRealignDefense = () => {
+    const structure = analyzeOffense(currentPlay.players);
+    const updated = realignAllDefenders(currentPlay.players, structure);
+    updateCurrentPlay(p => ({
+      ...p,
+      players: updated
+    }));
+    showNotification('Re-aligned all defenders to offensive positions', 'success');
+  };
+
+  const handleToggleShowGaps = () => {
+    setShowGaps(prev => !prev);
+    showNotification(`Offensive Gaps Overlay ${!showGaps ? 'Enabled' : 'Disabled'}`, 'info');
+  };
+
   // Play Library actions
   const handleSelectPlayFromLibrary = (play: Play) => {
     setPlaybook(prev => {
@@ -423,6 +475,7 @@ export const App: React.FC = () => {
         onOpenSituationMatrix={() => setIsMatrixModalOpen(true)}
         onOpenPlayLibrary={() => setIsLibraryModalOpen(true)}
         onOpenFormations={() => setIsFormationsModalOpen(true)}
+        onOpenDefense={() => setIsDefenseModalOpen(true)}
         onSaveToCloud={handleSaveToCloud}
         cloudSyncStatus={cloudSyncStatus}
       />
@@ -449,6 +502,11 @@ export const App: React.FC = () => {
             mode={mode}
             appMode={appMode}
             theme={theme}
+            showGaps={showGaps}
+            onToggleShowGaps={handleToggleShowGaps}
+            onOpenDefenseModal={() => setIsDefenseModalOpen(true)}
+            onShiftDefense={handleShiftDefense}
+            onRealignDefense={handleRealignDefense}
             selectedPlayerId={selectedPlayerId}
             selectedActionId={selectedActionId}
             onSelectPlayer={setSelectedPlayerId}
@@ -540,6 +598,16 @@ export const App: React.FC = () => {
         currentPlayers={currentPlay.players}
         currentActions={currentPlay.actions}
         onApplyFormation={handleApplyFormation}
+        showNotification={showNotification}
+      />
+
+      {/* DEFENSIVE PRE-ALIGNMENT & FRONTS MODAL */}
+      <DefenseFrontModal
+        isOpen={isDefenseModalOpen}
+        onClose={() => setIsDefenseModalOpen(false)}
+        currentPlayers={currentPlay.players}
+        theme={theme}
+        onApplyDefenders={handleApplyDefenders}
         showNotification={showNotification}
       />
     </div>

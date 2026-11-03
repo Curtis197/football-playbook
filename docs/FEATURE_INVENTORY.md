@@ -113,3 +113,36 @@ Comprehensive catalog of capabilities and features supported in the Football Pla
     - "Save to Cloud" button with multi-state visual feedback (Idle -> Saving -> Saved checkmark -> Error retry)
     - Graceful offline / unconfigured fallback with non-intrusive alert toasts preserving full canvas functionality
 
+- **Defensive Pre-Alignment, Dynamic Gap Snapping, Load Fronts, and Front Shifting Engine**:
+  - Dynamic Offensive Line Structure Analysis (`analyzeOffense`):
+    - Identifies Center (C), Left Guard (LG), Right Guard (RG), Left Tackle (LT), Right Tackle (RT), Tight Ends (inline or wings), slot receivers, and boundary receivers.
+    - Accurately establishes the Line of Scrimmage (LOS) Y coordinate.
+    - Calculates all offensive gaps with exact field X coordinates: Left D, Left C, Left B, Left A, Right A, Right B, Right C, Right D.
+    - Evaluates formation strength (Strong side vs Weak side) based on Tight End alignment and receiver distribution.
+  - Automatic Defensive Parameter Snapping (`calculateDefensiveAlignmentPosition`):
+    - When any defensive player receives a technique/alignment parameter (e.g. `0-Tech`, `1-Tech Weak`, `3-Tech Strong`, `4i-Tech Weak`, `5-Tech Strong`, `7-Tech`, `9-Tech Wide`, `00 Stack`, `10 Stack`, `20 Stack`, `30 Stack`, `40 Stack`, `50 Stack`, `Apex Overhang`, `Press CB`, `Off CB`, `Single-High FS`, `2-High Safety`, `Robber`), the player automatically snaps to their designated coordinate relative to the offense.
+    - Resolves relative alignment descriptors (`Strong`, `Weak`) dynamically against the detected offensive strength.
+    - Inspector Panel Technique Controller: Categorized tabs (1st Level DL, 2nd Level LB, 3rd Level DB) with quick-select chips, individual defender gap shift buttons (`◀ Shift Gap Left`, `Shift Gap Right ▶`), and re-snap trigger.
+  - Load Defense Front Packages (`DefenseFrontModal.tsx`):
+    - Load comprehensive 11-player defensive front schemes pre-aligned directly to the offensive alignment:
+      - 3-4 Over Front
+      - 4-2-5 Nickel Over
+      - 3-5 Odd Front (3-3-5 Stack)
+      - 4-3 Under Front
+      - Mint / Tite Front (Saban/Smart 3-4 Mint)
+      - Bear / 46 Front (Covered interior with twin edge rushers)
+    - Full breakdown table previewing position, technique, schematic assignment, and calculated (X, Y) coordinates.
+  - Defensive Front Shifting & Stemming:
+    - Shift Left: Slants and slides all front defenders 1 gap to the left.
+    - Shift Right: Slants and slides all front defenders 1 gap to the right.
+    - Set Over: Sets 3-tech and overhang to strong side.
+    - Set Under: Sets 3-tech and will linebacker to weak side.
+    - Pinch: Crashes defensive linemen 1 shade inward towards Center.
+    - Fan: Stems defensive linemen outward into wide rush angles.
+    - Re-align All: Re-computes and snaps every defender to their designated technique based on current offensive positions.
+  - Chalkboard Canvas Gap Overlay & HUD Controls (`ChalkboardCanvas.tsx`):
+    - Visual gap badges along the line of scrimmage: `[ D ] [ C ] [ B ] [ A ] (C) [ A ] [ B ] [ C ] [ D ]` with strongside amber highlighting.
+    - Formation strength direction banner (`STRONG ➜` / `⬅ STRONG`).
+    - Dynamic alignment guidelines connecting selected defenders to their assigned gaps.
+    - On-canvas HUD overlay bar for 1-click Gap toggle, Load Defense modal trigger, quick shift buttons, and re-align action.
+

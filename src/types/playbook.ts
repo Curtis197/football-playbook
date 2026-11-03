@@ -42,6 +42,8 @@ export interface PathAction {
   endMarker: 'arrow' | 'tbar' | 'dot' | 'none';
   label?: string;          // Optional waypoint cue (e.g., "Break at 10 yds")
   color?: string;          // Custom color override
+  parentActionId?: string; // Optional ID of parent block this action restarted from (double team or option block)
+  branchType?: 'combo' | 'option'; // Optional classification for restarted block
 }
 
 // 4. Complete Play Definition

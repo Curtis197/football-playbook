@@ -2,6 +2,8 @@ import React, { useState, useRef, useEffect, useCallback } from 'react';
 import type { Player, PathAction, CanvasMode, Point, AppMode, Theme } from '../types/playbook';
 import { generatePathString, getSvgCoordinates, clampFieldCoordinates, getDistance, insertPointIntoAction } from '../utils/geometry';
 import { isLightColor } from '../utils/colors';
+import { Shield, ChevronLeft, ChevronRight, RotateCcw } from 'lucide-react';
+import { analyzeOffense, calculateDefensiveAlignmentPosition } from '../utils/defensiveAlignment';
 
 interface ChalkboardCanvasProps {
   players: Player[];
@@ -9,6 +11,11 @@ interface ChalkboardCanvasProps {
   mode: CanvasMode;
   appMode?: AppMode;
   theme?: Theme;
+  showGaps?: boolean;
+  onToggleShowGaps?: () => void;
+  onOpenDefenseModal?: () => void;
+  onShiftDefense?: (direction: 'left' | 'right' | 'over' | 'under' | 'pinch' | 'fan') => void;
+  onRealignDefense?: () => void;
   selectedPlayerId: string | null;
   selectedActionId: string | null;
   onSelectPlayer: (id: string | null) => void;
@@ -18,6 +25,9 @@ interface ChalkboardCanvasProps {
   onUpdateActionPoints: (actionId: string, points: Point[]) => void;
   onAddPlayerAtPoint: (x: number, y: number, side: 'offense' | 'defense') => void;
   onSwitchToBuildMode?: () => void;
+  onSetMode?: (mode: CanvasMode) => void;
+  restartBlockRequest?: { actionId: string; playerId: string; startPoint: Point } | null;
+  onClearRestartBlockRequest?: () => void;
 }
 
 export const ChalkboardCanvas: React.FC<ChalkboardCanvasProps> = ({
@@ -26,6 +36,11 @@ export const ChalkboardCanvas: React.FC<ChalkboardCanvasProps> = ({
   mode,
   appMode = 'build',
   theme = 'dark',
+  showGaps = true,
+  onToggleShowGaps,
+  onOpenDefenseModal,
+  onShiftDefense,
+  onRealignDefense,
   selectedPlayerId,
   selectedActionId,
   onSelectPlayer,
@@ -34,10 +49,16 @@ export const ChalkboardCanvas: React.FC<ChalkboardCanvasProps> = ({
   onAddAction,
   onUpdateActionPoints,
   onAddPlayerAtPoint,
-  onSwitchToBuildMode
+  onSwitchToBuildMode,
+  onSetMode,
+  restartBlockRequest,
+  onClearRestartBlockRequest
 }) => {
   const isLight = theme === 'light';
   const svgRef = useRef<SVGSVGElement | null>(null);
+
+  // Dynamic analysis of offensive positions to derive LOS, gaps, and formation strength
+  const offenseStructure = analyzeOffense(players);
 
   // Dragging state
   const [draggingPlayerId, setDraggingPlayerId] = useState<string | null>(null);
@@ -46,15 +67,26 @@ export const ChalkboardCanvas: React.FC<ChalkboardCanvasProps> = ({
   // Waypoint dragging state
   const [draggingWaypoint, setDraggingWaypoint] = useState<{ actionId: string; pointIndex: number } | null>(null);
 
-  // Drawing state (for Draw Route / Draw Block / Draw Motion)
+  // Drawing state (for Draw Route / Draw Block / Draw Motion / Restart Block)
   const [drawingPoints, setDrawingPoints] = useState<Point[]>([]);
   const [drawingPlayerId, setDrawingPlayerId] = useState<string | null>(null);
+  const [drawingParentActionId, setDrawingParentActionId] = useState<string | null>(null);
   const [cursorPos, setCursorPos] = useState<Point | null>(null);
 
   // Hover state for Thought Partner tooltip (Active only in View Mode)
   const [hoveredPlayerId, setHoveredPlayerId] = useState<string | null>(null);
   const [canvasHoveredPlayerId, setCanvasHoveredPlayerId] = useState<string | null>(null);
   const [tooltipPos, setTooltipPos] = useState<{ x: number; y: number } | null>(null);
+
+  // Handle external restart block request (e.g. from Inspector or on-canvas combo trigger)
+  useEffect(() => {
+    if (restartBlockRequest) {
+      setDrawingPlayerId(restartBlockRequest.playerId);
+      setDrawingParentActionId(restartBlockRequest.actionId);
+      setDrawingPoints([restartBlockRequest.startPoint]);
+      onClearRestartBlockRequest?.();
+    }
+  }, [restartBlockRequest, onClearRestartBlockRequest]);
 
   const activeHoveredPlayer = appMode === 'view' 
     ? players.find(p => p.id === (hoveredPlayerId || selectedPlayerId))
@@ -122,13 +154,18 @@ export const ChalkboardCanvas: React.FC<ChalkboardCanvasProps> = ({
       points: pointsToSave,
       isCurved,
       endMarker,
-      label: actionType === 'pass_route' ? 'Route' : actionType === 'run_block' ? 'Block' : 'Motion'
+      label: drawingParentActionId
+        ? 'Combo Block'
+        : (actionType === 'pass_route' ? 'Route' : actionType === 'run_block' ? 'Block' : 'Motion'),
+      parentActionId: drawingParentActionId || undefined,
+      branchType: drawingParentActionId ? 'combo' : undefined
     };
 
     onAddAction(newAction);
     setDrawingPoints([]);
     setDrawingPlayerId(null);
-  }, [drawingPlayerId, mode, onAddAction]);
+    setDrawingParentActionId(null);
+  }, [drawingPlayerId, drawingParentActionId, mode, onAddAction]);
 
   // Handle SVG background click
   const handleCanvasClick = (e: React.MouseEvent) => {
@@ -229,6 +266,7 @@ export const ChalkboardCanvas: React.FC<ChalkboardCanvasProps> = ({
       if (e.key === 'Escape') {
         setDrawingPoints([]);
         setDrawingPlayerId(null);
+        setDrawingParentActionId(null);
       } else if (e.key === 'Enter' && drawingPoints.length >= 2) {
         finishDrawing(drawingPoints);
       }
@@ -449,12 +487,113 @@ export const ChalkboardCanvas: React.FC<ChalkboardCanvasProps> = ({
             </text>
           </g>
 
+          {/* OFFENSIVE GAPS & ALIGNMENT MARKERS (A, B, C, D Gaps) */}
+          {showGaps && (
+            <g className="gaps-layer pointer-events-none transition-opacity duration-300">
+              {offenseStructure.gaps.map(gap => (
+                <g key={gap.id} className="gap-marker">
+                  <line
+                    x1={gap.x}
+                    y1={offenseStructure.losY - 14}
+                    x2={gap.x}
+                    y2={offenseStructure.losY + 14}
+                    stroke={gap.isStrong ? '#f59e0b' : '#38bdf8'}
+                    strokeWidth="1.5"
+                    strokeDasharray="2 2"
+                    opacity="0.6"
+                  />
+                  <rect
+                    x={gap.x - 9}
+                    y={offenseStructure.losY - 8}
+                    width="18"
+                    height="16"
+                    rx="3"
+                    fill={gap.isStrong ? (isLight ? '#fef3c7' : '#78350f') : (isLight ? '#e0f2fe' : '#0c4a6e')}
+                    stroke={gap.isStrong ? '#f59e0b' : '#38bdf8'}
+                    strokeWidth="1"
+                    opacity="0.9"
+                  />
+                  <text
+                    x={gap.x}
+                    y={offenseStructure.losY + 4}
+                    fill={gap.isStrong ? (isLight ? '#92400e' : '#fde68a') : (isLight ? '#0369a1' : '#bae6fd')}
+                    fontSize="9"
+                    fontWeight="bold"
+                    textAnchor="middle"
+                  >
+                    {gap.label}
+                  </text>
+                </g>
+              ))}
+
+              {/* 0-Tech Head-up Center dot */}
+              <circle
+                cx={offenseStructure.center.x}
+                cy={offenseStructure.losY}
+                r="3.5"
+                fill="#f59e0b"
+                opacity="0.85"
+              />
+
+              {/* Strength direction indicator */}
+              <g className="strength-indicator">
+                <rect
+                  x={offenseStructure.strength === 'right' ? Math.min(880, offenseStructure.center.x + 195) : Math.max(90, offenseStructure.center.x - 250)}
+                  y={offenseStructure.losY - 8}
+                  width="54"
+                  height="16"
+                  rx="4"
+                  fill={isLight ? '#fef3c7' : '#451a03'}
+                  stroke="#f59e0b"
+                  strokeWidth="1"
+                  opacity="0.9"
+                />
+                <text
+                  x={(offenseStructure.strength === 'right' ? Math.min(880, offenseStructure.center.x + 195) : Math.max(90, offenseStructure.center.x - 250)) + 27}
+                  y={offenseStructure.losY + 4}
+                  fill={isLight ? '#b45309' : '#fcd34d'}
+                  fontSize="8"
+                  fontWeight="black"
+                  letterSpacing="0.5"
+                  textAnchor="middle"
+                >
+                  {offenseStructure.strength === 'right' ? 'STRONG ➜' : '⬅ STRONG'}
+                </text>
+              </g>
+            </g>
+          )}
+
+          {/* SELECTED DEFENDER ALIGNMENT GUIDELINE TO GAP */}
+          {(() => {
+            const selectedDef = players.find(p => p.id === selectedPlayerId && p.side === 'defense');
+            if (!selectedDef || !selectedDef.technique) return null;
+            const targetPos = calculateDefensiveAlignmentPosition(selectedDef.technique, offenseStructure);
+            return (
+              <g className="alignment-guideline pointer-events-none">
+                <line
+                  x1={selectedDef.x}
+                  y1={selectedDef.y}
+                  x2={targetPos.x}
+                  y2={targetPos.y}
+                  stroke="#f59e0b"
+                  strokeWidth="1.5"
+                  strokeDasharray="3 3"
+                  opacity="0.75"
+                />
+                <circle cx={targetPos.x} cy={targetPos.y} r="3" fill="#f59e0b" opacity="0.9" />
+              </g>
+            );
+          })()}
+
           {/* RENDER PATH ACTIONS (Routes, Blocks, Motion) */}
           <g className="actions-layer">
             {actions.map(act => {
               const isSelected = selectedActionId === act.id;
               const isPlayerHoveredInView = appMode === 'view' && hoveredPlayerId === act.playerId;
-              const pathD = generatePathString(act.points, act.isCurved ?? false);
+              const pathPlayer = players.find(p => p.id === act.playerId);
+              const isAttachedToNoNodePlayer = !act.parentActionId && pathPlayer && (pathPlayer.shape || 'none') === 'none';
+              const startOffset = isAttachedToNoNodePlayer ? 18 : 0;
+              const pathD = generatePathString(act.points, act.isCurved ?? false, startOffset);
               const strokeColor = getActionStroke(act, isSelected || isPlayerHoveredInView);
 
               let markerEnd = 'none';
@@ -473,15 +612,27 @@ export const ChalkboardCanvas: React.FC<ChalkboardCanvasProps> = ({
 
               return (
                 <g key={act.id} className="cursor-pointer group">
-                  {/* Thick transparent hit area for easy click selection & interactive waypoint decomposition */}
+                  {/* Thick transparent hit area for easy click selection, waypoint decomposition, and block restarting */}
                   <path
                     d={pathD}
                     fill="none"
                     stroke="transparent"
-                    strokeWidth="22"
-                    className={isSelected ? "cursor-copy" : "cursor-pointer"}
+                    strokeWidth="24"
+                    className={mode === 'draw_block' && (act.type === 'run_block' || act.type === 'pull_block') ? "cursor-copy" : isSelected ? "cursor-copy" : "cursor-pointer"}
                     onClick={(e) => {
                       e.stopPropagation();
+                      if (mode === 'draw_block' && (act.type === 'run_block' || act.type === 'pull_block')) {
+                        // Restart a new continuation / combo block from this block!
+                        if (svgRef.current && appMode === 'build') {
+                          const clickPt = getSvgCoordinates(e, svgRef.current);
+                          setDrawingPlayerId(act.playerId);
+                          setDrawingParentActionId(act.id);
+                          setDrawingPoints([{ x: Math.round(clickPt.x), y: Math.round(clickPt.y), isSharp: false }]);
+                          onSelectAction(act.id);
+                          return;
+                        }
+                      }
+
                       if (!isSelected) {
                         onSelectAction(act.id);
                         onSelectPlayer(null);
@@ -494,7 +645,9 @@ export const ChalkboardCanvas: React.FC<ChalkboardCanvasProps> = ({
                     }}
                   >
                     <title>
-                      {isSelected 
+                      {mode === 'draw_block' && (act.type === 'run_block' || act.type === 'pull_block')
+                        ? 'Click anywhere on this block to Restart a Combo / Option Block'
+                        : isSelected 
                         ? `${act.label || 'Vector'}: Click on line to insert/decompose waypoint` 
                         : `Click to select ${act.label || 'vector'}`}
                     </title>
@@ -512,6 +665,14 @@ export const ChalkboardCanvas: React.FC<ChalkboardCanvasProps> = ({
                     filter={isPlayerHoveredInView ? "url(#glow)" : undefined}
                     className="transition-all duration-150 group-hover:brightness-125 pointer-events-none"
                   />
+
+                  {/* Combo Junction Marker for restarted blocks */}
+                  {act.parentActionId && (
+                    <g transform={`translate(${act.points[0].x}, ${act.points[0].y})`} className="pointer-events-none">
+                      <circle r="6" fill="#f59e0b" stroke="#ffffff" strokeWidth="2" filter="drop-shadow(0 1px 3px rgba(0,0,0,0.5))" />
+                      <circle r="2.5" fill="#ffffff" />
+                    </g>
+                  )}
 
                   {/* Waypoint cues / labels */}
                   {act.label && midPt && (
@@ -613,6 +774,45 @@ export const ChalkboardCanvas: React.FC<ChalkboardCanvasProps> = ({
                             CUT
                           </text>
                         )}
+
+                        {/* On-canvas +COMBO trigger at the terminal waypoint of a block */}
+                        {isSelected && (act.type === 'run_block' || act.type === 'pull_block') && idx === act.points.length - 1 && (
+                          <g 
+                            transform={`translate(${pt.x + 12}, ${pt.y - 10})`}
+                            className="cursor-pointer group/combo"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              onSetMode?.('draw_block');
+                              setDrawingPlayerId(act.playerId);
+                              setDrawingParentActionId(act.id);
+                              setDrawingPoints([{ x: pt.x, y: pt.y, isSharp: false }]);
+                            }}
+                          >
+                            <rect
+                              x="0"
+                              y="0"
+                              width="58"
+                              height="20"
+                              rx="10"
+                              fill="#f59e0b"
+                              stroke="#ffffff"
+                              strokeWidth="1.5"
+                              filter="drop-shadow(0 2px 4px rgba(0,0,0,0.4))"
+                              className="group-hover/combo:fill-amber-400 transition-colors"
+                            />
+                            <text
+                              x="29"
+                              y="13"
+                              fill="#0f172a"
+                              fontSize="9"
+                              fontWeight="900"
+                              textAnchor="middle"
+                              className="select-none font-mono"
+                            >
+                              +COMBO
+                            </text>
+                          </g>
+                        )}
                       </g>
                     );
                   })}
@@ -621,44 +821,50 @@ export const ChalkboardCanvas: React.FC<ChalkboardCanvasProps> = ({
             })}
 
             {/* LIVE DRAWING PREVIEW (Catmull-Rom with Sharp Cut Support for Routes, Blocks & Motion) */}
-            {drawingPlayerId && drawingPoints.length > 0 && cursorPos && (
-              <g className="drawing-preview pointer-events-none">
-                <path
-                  d={generatePathString(
-                    [...drawingPoints, { ...cursorPos, isSharp: false }],
-                    true
-                  )}
-                  fill="none"
-                  stroke={mode === 'draw_block' ? '#f59e0b' : mode === 'draw_motion' ? '#c084fc' : '#38bdf8'}
-                  strokeWidth="3"
-                  strokeDasharray={mode === 'draw_motion' ? "6 4" : "4 4"}
-                  markerEnd={mode === 'draw_block' ? 'url(#tbar)' : 'url(#arrow)'}
-                />
-                {drawingPoints.map((pt, i) => (
-                  pt.isSharp ? (
-                    <rect
-                      key={`draft-pt-${i}`}
-                      x={pt.x - 5}
-                      y={pt.y - 5}
-                      width="10"
-                      height="10"
-                      transform={`rotate(45, ${pt.x}, ${pt.y})`}
-                      fill="#f59e0b"
-                      stroke="#ffffff"
-                      strokeWidth="1.5"
-                    />
-                  ) : (
-                    <circle 
-                      key={`draft-pt-${i}`} 
-                      cx={pt.x} 
-                      cy={pt.y} 
-                      r="5" 
-                      fill={mode === 'draw_block' ? '#f59e0b' : mode === 'draw_motion' ? '#c084fc' : '#38bdf8'} 
-                    />
-                  )
-                ))}
-              </g>
-            )}
+            {drawingPlayerId && drawingPoints.length > 0 && cursorPos && (() => {
+              const drawingPlayer = players.find(p => p.id === drawingPlayerId);
+              const isNoNodeStart = !drawingParentActionId && drawingPlayer && (drawingPlayer.shape || 'none') === 'none';
+              const previewOffset = isNoNodeStart ? 18 : 0;
+              const previewPoints = [...drawingPoints, { ...cursorPos, isSharp: false }];
+              const previewPathD = generatePathString(previewPoints, true, previewOffset);
+              const isBlock = mode === 'draw_block' || Boolean(drawingParentActionId);
+
+              return (
+                <g className="drawing-preview pointer-events-none">
+                  <path
+                    d={previewPathD}
+                    fill="none"
+                    stroke={isBlock ? '#f59e0b' : mode === 'draw_motion' ? '#c084fc' : '#38bdf8'}
+                    strokeWidth="3"
+                    strokeDasharray={mode === 'draw_motion' ? "6 4" : "4 4"}
+                    markerEnd={isBlock ? 'url(#tbar)' : 'url(#arrow)'}
+                  />
+                  {drawingPoints.map((pt, i) => (
+                    pt.isSharp ? (
+                      <rect
+                        key={`draft-pt-${i}`}
+                        x={pt.x - 5}
+                        y={pt.y - 5}
+                        width="10"
+                        height="10"
+                        transform={`rotate(45, ${pt.x}, ${pt.y})`}
+                        fill="#f59e0b"
+                        stroke="#ffffff"
+                        strokeWidth="1.5"
+                      />
+                    ) : (
+                      <circle 
+                        key={`draft-pt-${i}`} 
+                        cx={pt.x} 
+                        cy={pt.y} 
+                        r="5" 
+                        fill={isBlock ? '#f59e0b' : mode === 'draw_motion' ? '#c084fc' : '#38bdf8'} 
+                      />
+                    )
+                  ))}
+                </g>
+              );
+            })()}
           </g>
 
           {/* RENDER PLAYERS (Round, Square, or Rounded Square) */}
@@ -816,19 +1022,29 @@ export const ChalkboardCanvas: React.FC<ChalkboardCanvasProps> = ({
                         className="transition-all"
                       />
                     ) : (
-                      // Bare Text ('none')
-                      <rect
-                        x="-14"
-                        y="-14"
-                        width="28"
-                        height="28"
-                        rx="4"
-                        fill="transparent"
-                        stroke={isHovered ? strokeColor : "transparent"}
-                        strokeWidth="1.5"
-                        strokeDasharray="2 2"
-                        className="transition-all"
-                      />
+                      // Bare Text ('none') with subtle clearance buffer so field hash and intersecting lines don't strike through text
+                      <>
+                        <circle
+                          cx="0"
+                          cy="0"
+                          r="15"
+                          fill={isLight ? "#ffffff" : "#1a1f26"}
+                          opacity="0.92"
+                          className="pointer-events-none"
+                        />
+                        <rect
+                          x="-14"
+                          y="-14"
+                          width="28"
+                          height="28"
+                          rx="4"
+                          fill="transparent"
+                          stroke={isHovered ? strokeColor : "transparent"}
+                          strokeWidth="1.5"
+                          strokeDasharray="2 2"
+                          className="transition-all"
+                        />
+                      </>
                     )}
 
                     {/* Player Label */}
@@ -854,6 +1070,99 @@ export const ChalkboardCanvas: React.FC<ChalkboardCanvasProps> = ({
             })}
           </g>
         </svg>
+
+        {/* QUICK DEFENSE SHIFT & GAPS HUD OVERLAY */}
+        <div className={`absolute top-2.5 right-2.5 z-20 flex items-center gap-1.5 ${
+          isLight ? 'bg-white/90 border-slate-300' : 'bg-slate-900/85 border-slate-700/80'
+        } backdrop-blur-md px-2 py-1 rounded-lg border shadow-lg text-xs`}>
+          {onToggleShowGaps && (
+            <button
+              type="button"
+              onClick={onToggleShowGaps}
+              className={`px-2 py-1 rounded text-[11px] font-bold flex items-center gap-1 transition-all cursor-pointer ${
+                showGaps 
+                  ? isLight ? 'bg-amber-100 text-amber-900 border border-amber-300' : 'bg-amber-500/25 text-amber-300 border border-amber-500/50' 
+                  : isLight ? 'bg-slate-100 text-slate-600 border border-slate-200' : 'bg-slate-800 text-slate-400 hover:text-slate-200 border border-slate-700'
+              }`}
+              title="Toggle offensive gap markers (A, B, C, D) on the line of scrimmage"
+            >
+              <span>Gaps</span>
+              <span className={`text-[9px] px-1 py-0.2 rounded font-black ${
+                showGaps ? 'bg-amber-500 text-slate-950' : isLight ? 'bg-slate-200 text-slate-700' : 'bg-slate-700 text-slate-300'
+              }`}>
+                {showGaps ? 'ON' : 'OFF'}
+              </span>
+            </button>
+          )}
+
+          {onOpenDefenseModal && (
+            <button
+              type="button"
+              onClick={onOpenDefenseModal}
+              className={`px-2 py-1 rounded text-[11px] font-bold ${
+                isLight ? 'bg-rose-100 hover:bg-rose-200 text-rose-800 border-rose-300' : 'bg-rose-500/20 hover:bg-rose-500/30 text-rose-300 border-rose-500/40'
+              } border flex items-center gap-1 transition-all active:scale-95 cursor-pointer`}
+              title="Load pre-set defensive fronts (3-4, 4-2-5, 3-5 Odd, Bear, etc.) and auto-align to offense"
+            >
+              <Shield className="w-3.5 h-3.5 text-rose-500" />
+              <span>Load Defense</span>
+            </button>
+          )}
+
+          {onShiftDefense && (
+            <div className="flex items-center gap-0.5">
+              <button
+                type="button"
+                onClick={() => onShiftDefense('left')}
+                className={`px-1.5 py-1 rounded text-[10px] font-bold border transition-all cursor-pointer ${
+                  isLight ? 'bg-slate-100 hover:bg-slate-200 text-slate-700 border-slate-300' : 'bg-slate-800 hover:bg-slate-700 text-slate-300 border-slate-700'
+                }`}
+                title="Shift front 1 gap left"
+              >
+                <ChevronLeft className="w-3 h-3 inline" /> Left
+              </button>
+              <button
+                type="button"
+                onClick={() => onShiftDefense('right')}
+                className={`px-1.5 py-1 rounded text-[10px] font-bold border transition-all cursor-pointer ${
+                  isLight ? 'bg-slate-100 hover:bg-slate-200 text-slate-700 border-slate-300' : 'bg-slate-800 hover:bg-slate-700 text-slate-300 border-slate-700'
+                }`}
+                title="Shift front 1 gap right"
+              >
+                Right <ChevronRight className="w-3 h-3 inline" />
+              </button>
+              <button
+                type="button"
+                onClick={() => onShiftDefense('over')}
+                className="px-1.5 py-1 rounded text-[10px] font-bold bg-sky-500/10 hover:bg-sky-500/20 text-sky-400 border border-sky-500/30 transition-all cursor-pointer"
+                title="Set front to Over (Strongside 3-tech)"
+              >
+                Over
+              </button>
+              <button
+                type="button"
+                onClick={() => onShiftDefense('under')}
+                className="px-1.5 py-1 rounded text-[10px] font-bold bg-purple-500/10 hover:bg-purple-500/20 text-purple-400 border border-purple-500/30 transition-all cursor-pointer"
+                title="Set front to Under (Weakside 3-tech)"
+              >
+                Under
+              </button>
+            </div>
+          )}
+
+          {onRealignDefense && (
+            <button
+              type="button"
+              onClick={onRealignDefense}
+              className={`p-1 rounded text-[10px] font-bold border transition-all cursor-pointer ${
+                isLight ? 'bg-amber-100 hover:bg-amber-200 text-amber-900 border-amber-300' : 'bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 border-amber-500/30'
+              }`}
+              title="Re-align all defenders to current offensive positions"
+            >
+              <RotateCcw className="w-3 h-3 text-amber-500" />
+            </button>
+          )}
+        </div>
 
         {/* THOUGHT PARTNER INTERACTIVE HOVER OVERLAY - ONLY SHOWN IN VIEW MODE (Spec 2.2) */}
         {appMode === 'view' && activeHoveredPlayer && tooltipPos && (

@@ -4,22 +4,52 @@ import { generateRoutePath, getDistance } from './bezier-math';
 export { generateRoutePath, getDistance };
 
 /**
+ * Calculates a point along the vector from p0 to p1 offset by `offsetDistance` from p0.
+ * Used to start vector paths from the perimeter of a blank node rather than intersecting the letter.
+ */
+export function getBlankNodeOffsetPoint(p0: Point, p1: Point, offsetDistance: number = 18): Point {
+  const dx = p1.x - p0.x;
+  const dy = p1.y - p0.y;
+  const dist = Math.sqrt(dx * dx + dy * dy);
+  if (dist <= offsetDistance || dist === 0) {
+    return p0;
+  }
+  const factor = offsetDistance / dist;
+  return {
+    ...p0,
+    x: Math.round((p0.x + dx * factor) * 10) / 10,
+    y: Math.round((p0.y + dy * factor) * 10) / 10
+  };
+}
+
+/**
  * Generate an SVG path data string from an array of Points
  * Supports both straight segmented polylines and smooth Catmull-Rom/cubic Bezier curves with sharp breaks
+ * Also supports startOffset to cleanly emerge from blank nodes without intersecting the letter label.
  */
-export function generatePathString(points: Point[], isCurved: boolean = false): string {
+export function generatePathString(
+  points: Point[],
+  isCurved: boolean = false,
+  startOffset: number = 0
+): string {
   if (!points || points.length === 0) return '';
   if (points.length === 1) return `M ${points[0].x.toFixed(1)} ${points[0].y.toFixed(1)}`;
 
+  let effectivePoints = points;
+  if (startOffset > 0 && points.length >= 2) {
+    const offsetStart = getBlankNodeOffsetPoint(points[0], points[1], startOffset);
+    effectivePoints = [offsetStart, ...points.slice(1)];
+  }
+
   if (!isCurved) {
     // Straight segmented lines: M x0 y0 L x1 y1 L x2 y2 ...
-    return points.reduce((acc, pt, idx) => {
+    return effectivePoints.reduce((acc, pt, idx) => {
       return idx === 0 ? `M ${pt.x.toFixed(1)} ${pt.y.toFixed(1)}` : `${acc} L ${pt.x.toFixed(1)} ${pt.y.toFixed(1)}`;
     }, '');
   }
 
   // Smooth Catmull-Rom cubic Bezier with sharp break support
-  return generateRoutePath(points, 0.5);
+  return generateRoutePath(effectivePoints, 0.5);
 }
 
 /**

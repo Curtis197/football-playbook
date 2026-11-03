@@ -12,9 +12,18 @@ import {
   Trash2,
   Palette,
   Type,
-  RotateCcw
+  RotateCcw,
+  ChevronLeft,
+  ChevronRight,
+  Target
 } from 'lucide-react';
 import { LINE_COLOR_SWATCHES, isLightColor } from '../utils/colors';
+import { 
+  analyzeOffense, 
+  calculateDefensiveAlignmentPosition, 
+  COMMON_DEFENSIVE_TECHNIQUES, 
+  shiftDefensiveFront 
+} from '../utils/defensiveAlignment';
 
 const CORE_PLAYER_SWATCHES = [
   { label: 'Solid Black', color: '#000000' },
@@ -46,6 +55,7 @@ interface InspectorPanelProps {
   onSelectPlayer?: (playerId: string | null) => void;
   onUpdatePlayer: (updated: Player) => void;
   onUpdateAction: (updated: PathAction) => void;
+  onStartRestartBlock?: (fromAction: PathAction) => void;
   onUpdatePlayNotes: (notes: Play['notes']) => void;
   onUpdateStrategyMatrix: (matrix: {
     primaryRunConcept?: string;
@@ -66,6 +76,7 @@ export const InspectorPanel: React.FC<InspectorPanelProps> = ({
   onSelectPlayer,
   onUpdatePlayer,
   onUpdateAction,
+  onStartRestartBlock,
   onUpdatePlayNotes,
   onUpdateStrategyMatrix,
   onUpdatePlayFormations
@@ -76,6 +87,42 @@ export const InspectorPanel: React.FC<InspectorPanelProps> = ({
   const [newTagInput, setNewTagInput] = useState('');
   const [newSituationInput, setNewSituationInput] = useState('');
   const [newCoachingKeyInput, setNewCoachingKeyInput] = useState('');
+  const [techCategoryTab, setTechCategoryTab] = useState<'DL' | 'LB' | 'DB'>('DL');
+
+  // Analyze active offensive formation for dynamic defensive gap pre-alignment
+  const offenseStructure = analyzeOffense(currentPlay.players);
+
+  // Apply defensive alignment parameter and immediately pre-align coordinates
+  const handleApplyDefensiveTechnique = (code: string) => {
+    if (!selectedPlayer) return;
+    const pos = calculateDefensiveAlignmentPosition(code, offenseStructure);
+    onUpdatePlayer({
+      ...selectedPlayer,
+      technique: code,
+      x: pos.x,
+      y: pos.y
+    });
+  };
+
+  // Re-snap defensive player to their declared alignment parameter
+  const handleSnapPlayerToAlignment = () => {
+    if (!selectedPlayer || !selectedPlayer.technique) return;
+    const pos = calculateDefensiveAlignmentPosition(selectedPlayer.technique, offenseStructure);
+    onUpdatePlayer({
+      ...selectedPlayer,
+      x: pos.x,
+      y: pos.y
+    });
+  };
+
+  // Shift individual defender left or right
+  const handleShiftPlayerGap = (dir: 'left' | 'right') => {
+    if (!selectedPlayer) return;
+    const shifted = shiftDefensiveFront([selectedPlayer], offenseStructure, dir);
+    if (shifted[0]) {
+      onUpdatePlayer(shifted[0]);
+    }
+  };
 
   // Automatically switch to annotation form when a player or action is newly selected
   const currentSelectedId = selectedPlayer?.id || selectedAction?.id || null;
@@ -468,24 +515,166 @@ export const InspectorPanel: React.FC<InspectorPanelProps> = ({
                   </div>
                 </div>
 
-                {/* Player Label & Side */}
-                <div className="grid grid-cols-2 gap-2">
-                  <div>
-                    <label className={`text-[11px] ${isLight ? 'text-slate-600' : 'text-slate-400'} block mb-1 font-semibold`}>Position Label</label>
-                    <input
-                      type="text"
-                      value={selectedPlayer.label}
-                      onChange={(e) =>
-                        onUpdatePlayer({ ...selectedPlayer, label: e.target.value })
-                      }
-                      className={`w-full ${isLight ? 'bg-white text-slate-900 border-slate-300' : 'bg-[#161b22] text-white border-slate-700'} text-xs font-bold px-2.5 py-1.5 rounded border focus:border-sky-500 outline-none`}
-                    />
+                {/* Player Label */}
+                <div>
+                  <label className={`text-[11px] ${isLight ? 'text-slate-600' : 'text-slate-400'} block mb-1 font-semibold`}>Position Label</label>
+                  <input
+                    type="text"
+                    value={selectedPlayer.label}
+                    onChange={(e) =>
+                      onUpdatePlayer({ ...selectedPlayer, label: e.target.value })
+                    }
+                    className={`w-full ${isLight ? 'bg-white text-slate-900 border-slate-300' : 'bg-[#161b22] text-white border-slate-700'} text-xs font-bold px-2.5 py-1.5 rounded border focus:border-sky-500 outline-none`}
+                  />
+                </div>
+
+                {/* DEFENSIVE PRE-ALIGNMENT & GAP ENGINE (when side === 'defense') */}
+                {selectedPlayer.side === 'defense' ? (
+                  <div className={`p-3 rounded-xl border ${isLight ? 'bg-rose-50/50 border-rose-200' : 'bg-rose-950/20 border-rose-900/40'} flex flex-col gap-2.5`}>
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-1.5">
+                        <Shield className="w-3.5 h-3.5 text-rose-500" />
+                        <span className="text-[11px] font-bold text-rose-400 uppercase tracking-wider">
+                          Pre-Align to Offense
+                        </span>
+                      </div>
+                      <span className={`text-[10px] font-semibold px-2 py-0.5 rounded ${isLight ? 'bg-amber-100 text-amber-800 border-amber-300' : 'bg-amber-500/10 text-amber-300 border-amber-500/30'} border`}>
+                        Strength: {offenseStructure.strength.toUpperCase()}
+                      </span>
+                    </div>
+
+                    {/* Active Alignment Status Pill */}
+                    {selectedPlayer.technique && (
+                      <div className={`px-2.5 py-1.5 rounded-lg border text-xs flex items-center justify-between gap-2 ${
+                        isLight ? 'bg-white border-rose-200 text-slate-800' : 'bg-[#161c26] border-rose-500/30 text-slate-200'
+                      }`}>
+                        <div className="flex items-center gap-1.5 truncate">
+                          <Target className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+                          <span className="font-bold text-amber-400 font-mono text-[11px]">
+                            {selectedPlayer.technique}
+                          </span>
+                          <span className="text-[10px] text-slate-400 truncate">
+                            {calculateDefensiveAlignmentPosition(selectedPlayer.technique, offenseStructure).description}
+                          </span>
+                        </div>
+                        <span className="text-[10px] font-mono text-slate-400 shrink-0">
+                          ({selectedPlayer.x}, {selectedPlayer.y})
+                        </span>
+                      </div>
+                    )}
+
+                    {/* Single-Player Gap Shifting Controls */}
+                    <div className="flex items-center gap-1.5">
+                      <button
+                        type="button"
+                        onClick={() => handleShiftPlayerGap('left')}
+                        className={`flex-1 py-1 px-2 rounded border text-[10px] font-bold flex items-center justify-center gap-1 transition-all ${
+                          isLight ? 'bg-white hover:bg-slate-100 border-slate-300 text-slate-700' : 'bg-[#181f2a] hover:bg-[#202938] border-slate-700 text-slate-200'
+                        }`}
+                        title="Shift this defender 1 gap to the left"
+                      >
+                        <ChevronLeft className="w-3 h-3" /> Shift Gap Left
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={handleSnapPlayerToAlignment}
+                        className={`py-1 px-2.5 rounded border text-[10px] font-bold flex items-center justify-center gap-1 transition-all ${
+                          isLight ? 'bg-amber-50 hover:bg-amber-100 border-amber-300 text-amber-900' : 'bg-amber-500/15 hover:bg-amber-500/25 border-amber-500/40 text-amber-300'
+                        }`}
+                        title="Re-snap to calculated coordinates for current technique"
+                      >
+                        <RotateCcw className="w-3 h-3 text-amber-400" /> Re-Snap
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => handleShiftPlayerGap('right')}
+                        className={`flex-1 py-1 px-2 rounded border text-[10px] font-bold flex items-center justify-center gap-1 transition-all ${
+                          isLight ? 'bg-white hover:bg-slate-100 border-slate-300 text-slate-700' : 'bg-[#181f2a] hover:bg-[#202938] border-slate-700 text-slate-200'
+                        }`}
+                        title="Shift this defender 1 gap to the right"
+                      >
+                        Shift Gap Right <ChevronRight className="w-3 h-3" />
+                      </button>
+                    </div>
+
+                    {/* Technique Level Selector Tabs */}
+                    <div className="flex items-center gap-1 border-b border-slate-700/40 pb-1">
+                      {(['DL', 'LB', 'DB'] as const).map(tab => (
+                        <button
+                          key={tab}
+                          type="button"
+                          onClick={() => setTechCategoryTab(tab)}
+                          className={`flex-1 py-1 rounded text-[10px] font-bold uppercase transition-all ${
+                            techCategoryTab === tab
+                              ? isLight ? 'bg-rose-500 text-white shadow-sm' : 'bg-rose-600 text-white shadow-sm'
+                              : isLight ? 'text-slate-500 hover:text-slate-800' : 'text-slate-400 hover:text-slate-200'
+                          }`}
+                        >
+                          {tab === 'DL' ? '1st Level (DL)' : tab === 'LB' ? '2nd Level (LB)' : '3rd Level (DB)'}
+                        </button>
+                      ))}
+                    </div>
+
+                    {/* Quick Technique / Gap Chips Grid */}
+                    <div className="flex flex-wrap gap-1 max-h-36 overflow-y-auto pr-1">
+                      {COMMON_DEFENSIVE_TECHNIQUES.filter(t => t.category === techCategoryTab).map(tech => {
+                        const isMatch = selectedPlayer.technique === tech.code;
+                        return (
+                          <button
+                            key={tech.code}
+                            type="button"
+                            onClick={() => handleApplyDefensiveTechnique(tech.code)}
+                            className={`px-2 py-1 rounded border text-[10px] font-semibold transition-all cursor-pointer flex items-center gap-1 ${
+                              isMatch
+                                ? 'bg-amber-500 text-slate-950 border-amber-400 font-bold shadow-sm'
+                                : isLight
+                                  ? 'bg-white hover:bg-slate-100 border-slate-300 text-slate-700'
+                                  : 'bg-[#181f2a] hover:bg-[#222b3a] border-slate-700/70 text-slate-300'
+                            }`}
+                            title={tech.gapDesc || tech.label}
+                          >
+                            <span>{tech.code}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
+
+                    {/* Custom Technique / Alignment Input & Snap */}
+                    <div className="flex items-center gap-1.5 pt-1">
+                      <input
+                        type="text"
+                        placeholder="Custom technique (e.g. 4i-Tech Weak, Apex Strong)"
+                        value={selectedPlayer.technique || ''}
+                        onChange={(e) => onUpdatePlayer({ ...selectedPlayer, technique: e.target.value })}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') {
+                            e.preventDefault();
+                            handleSnapPlayerToAlignment();
+                          }
+                        }}
+                        className={`flex-1 ${isLight ? 'bg-white text-slate-800 border-slate-300' : 'bg-[#161b22] text-amber-300 border-slate-700'} text-xs px-2 py-1 rounded border focus:border-amber-500 outline-none`}
+                      />
+                      <button
+                        type="button"
+                        onClick={handleSnapPlayerToAlignment}
+                        className="px-2.5 py-1 rounded bg-amber-600 hover:bg-amber-500 text-white text-[11px] font-bold shadow transition-all active:scale-95"
+                        title="Snap player coordinate to this alignment parameter"
+                      >
+                        Snap
+                      </button>
+                    </div>
                   </div>
+                ) : (
+                  /* Offensive Technique / Assignment */
                   <div>
-                    <label className={`text-[11px] ${isLight ? 'text-slate-600' : 'text-slate-400'} block mb-1 font-semibold`}>Technique / Alignment</label>
+                    <label className={`text-[11px] ${isLight ? 'text-slate-600' : 'text-slate-400'} block mb-1 font-semibold`}>
+                      Technique / Assignment
+                    </label>
                     <input
                       type="text"
-                      placeholder="e.g. 0-Tech, 4i, Apex"
+                      placeholder="e.g. Zone Track, Combo 0-Tech"
                       value={selectedPlayer.technique || ''}
                       onChange={(e) =>
                         onUpdatePlayer({ ...selectedPlayer, technique: e.target.value })
@@ -493,7 +682,7 @@ export const InspectorPanel: React.FC<InspectorPanelProps> = ({
                       className={`w-full ${isLight ? 'bg-white text-amber-700 border-slate-300' : 'bg-[#161b22] text-amber-300 border-slate-700'} text-xs px-2.5 py-1.5 rounded border focus:border-amber-500 outline-none`}
                     />
                   </div>
-                </div>
+                )}
 
                 {/* Player Node Shape Selector (Round, Square, Rounded Square, None) */}
                 <div>
@@ -1126,6 +1315,33 @@ export const InspectorPanel: React.FC<InspectorPanelProps> = ({
                     <Plus className="w-3.5 h-3.5" />
                     <span>Decompose Path / Add Waypoint</span>
                   </button>
+
+                  {/* Combo & Option Block (Restart) */}
+                  {(selectedAction.type === 'run_block' || selectedAction.type === 'pull_block') && (
+                    <div className={`mt-3 pt-3 border-t ${isLight ? 'border-slate-200' : 'border-slate-800'}`}>
+                      <div className="flex items-center justify-between mb-1.5">
+                        <label className={`text-[11px] font-bold ${isLight ? 'text-amber-800' : 'text-amber-400'} uppercase tracking-wider flex items-center gap-1`}>
+                          <span>Combo & Option Block</span>
+                        </label>
+                        {selectedAction.parentActionId && (
+                          <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-300 font-mono font-bold border border-amber-500/30">
+                            Combo Branch
+                          </span>
+                        )}
+                      </div>
+                      <p className={`text-[11px] mb-2 leading-relaxed ${isLight ? 'text-slate-600' : 'text-slate-400'}`}>
+                        Restart a second-level continuation block (e.g. double-team release to linebacker, or option read seal) directly from this block's endpoint.
+                      </p>
+                      <button
+                        type="button"
+                        onClick={() => onStartRestartBlock?.(selectedAction)}
+                        className="w-full py-2 px-3 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-bold rounded text-xs flex items-center justify-center gap-2 shadow-md transition-all active:scale-95 cursor-pointer"
+                      >
+                        <Plus className="w-4 h-4 stroke-[2.5]" />
+                        <span>Restart Block from Terminal T-Bar</span>
+                      </button>
+                    </div>
+                  )}
                 </div>
               </div>
             ) : (
