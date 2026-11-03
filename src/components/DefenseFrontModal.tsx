@@ -27,7 +27,7 @@ interface DefenseFrontModalProps {
   onClose: () => void;
   currentPlayers: Player[];
   theme?: Theme;
-  onApplyDefenders: (updatedDefenders: Player[]) => void;
+  onApplyDefenders: (updatedDefenders: Player[], frontName?: string) => void;
   showNotification: (msg: string, type?: 'success' | 'error' | 'info') => void;
 }
 
@@ -51,7 +51,7 @@ export const DefenseFrontModal: React.FC<DefenseFrontModalProps> = ({
   // Handle Loading the selected package
   const handleLoadPackage = (pkg: DefensivePackage) => {
     const updated = loadDefensivePackage(pkg, currentDefenders, offenseStructure);
-    onApplyDefenders(updated);
+    onApplyDefenders(updated, pkg.name);
     showNotification(`Loaded and pre-aligned "${pkg.name}" to offense!`, 'success');
     onClose();
   };

@@ -159,4 +159,8 @@ Comprehensive catalog of capabilities and features supported in the Football Pla
     - Formation strength direction banner (`STRONG ➜` / `⬅ STRONG`).
     - Dynamic alignment guidelines connecting selected defenders to their assigned gaps.
     - On-canvas HUD overlay bar for 1-click Gap toggle, Load Defense modal trigger, quick shift buttons, and re-align action.
+    - Interactive On-Canvas Formation Dropdown Pickers:
+      - 🏈 **Offense Formation Dropdown**: Directly select any offensive formation (e.g. Spread 2x2 Open, Trips Open 3x1, Pro-I 21 Pers, Single Back Ace 12 Pers, Shotgun Bunch 11 Pers, Pistol Diamond 20 Pers, Empty Quads 3x2, Shotgun Wishbone 21 Pers); offensive players instantly update their positions, offensive structure is dynamically re-analyzed, and all existing defensive players automatically re-align to the newly established gaps and strength.
+      - 🛡️ **Defense Front Dropdown**: Directly select any defensive front (e.g. 4-3 Over Front, 4-3 Under Front, 3-4 Over Front, 3-5 Odd Front, 4-2-5 Nickel Over, 3-4 Mint Tite, 46 Bear Front); defensive players immediately snap to their designated alignment techniques mapped dynamically against the active offensive formation.
+      - Seamless two-way integration with Firebase Firestore `formations` collection and offline presets fallback, supporting both dark mode chalkboard and light mode whiteboard styling.
 

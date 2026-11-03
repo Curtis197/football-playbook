@@ -8,9 +8,10 @@ import type {
   PlayCategory,
   AppMode,
   Theme,
-  Point
+  Point,
+  Formation
 } from './types/playbook';
-import { DEFAULT_WISHBONE_PLAY } from './data/presets';
+import { DEFAULT_WISHBONE_PLAY, DEFAULT_FORMATIONS } from './data/presets';
 import { 
   loadPlaybookFromStorage, 
   savePlaybookToStorage, 
@@ -26,8 +27,8 @@ import { SituationMatrixModal } from './components/SituationMatrixModal';
 import { PlayLibraryModal } from './components/PlayLibraryModal';
 import { FormationSwitcherModal } from './components/FormationSwitcherModal';
 import { DefenseFrontModal } from './components/DefenseFrontModal';
-import { shiftDefensiveFront, realignAllDefenders, analyzeOffense } from './utils/defensiveAlignment';
-import { savePlay } from './services/playbookDb';
+import { shiftDefensiveFront, realignAllDefenders, analyzeOffense, calculateDefensiveAlignmentPosition } from './utils/defensiveAlignment';
+import { savePlay, fetchFormations } from './services/playbookDb';
 import { isFirebaseConfigured } from './services/firebase';
 
 export const App: React.FC = () => {
@@ -49,6 +50,31 @@ export const App: React.FC = () => {
   const [cloudSyncStatus, setCloudSyncStatus] = useState<CloudSyncStatus>('idle');
   const [notification, setNotification] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);
   const [restartBlockRequest, setRestartBlockRequest] = useState<{ actionId: string; playerId: string; startPoint: Point } | null>(null);
+  const [formations, setFormations] = useState<Formation[]>(() => DEFAULT_FORMATIONS);
+
+  // Load formations from Firestore (or fallback to DEFAULT_FORMATIONS)
+  useEffect(() => {
+    let isMounted = true;
+    async function loadAllFormations() {
+      try {
+        if (isFirebaseConfigured) {
+          const remote = await fetchFormations();
+          if (remote.length > 0 && isMounted) {
+            const map = new Map<string, Formation>();
+            DEFAULT_FORMATIONS.forEach(f => map.set(f.id, f));
+            remote.forEach(f => map.set(f.id, f));
+            setFormations(Array.from(map.values()));
+          }
+        }
+      } catch (e) {
+        console.warn('Could not load remote formations, using offline presets:', e);
+      }
+    }
+    loadAllFormations();
+    return () => {
+      isMounted = false;
+    };
+  }, []);
 
   // Sync theme to document element and LocalStorage
   useEffect(() => {
@@ -387,11 +413,12 @@ export const App: React.FC = () => {
   };
 
   // Apply pre-aligned defenders from Defense Fronts
-  const handleApplyDefenders = (updatedDefenders: Player[]) => {
+  const handleApplyDefenders = (updatedDefenders: Player[], frontName?: string) => {
     updateCurrentPlay(p => {
       const nonDefenders = p.players.filter(pl => pl.side !== 'defense');
       return {
         ...p,
+        frontDefense: frontName || p.frontDefense,
         players: [...nonDefenders, ...updatedDefenders]
       };
     });
@@ -425,6 +452,78 @@ export const App: React.FC = () => {
       players: updated
     }));
     showNotification('Re-aligned all defenders to offensive positions', 'success');
+  };
+
+  // Select and apply an Offensive Formation from dropdown
+  const handleSelectOffenseFormation = (formationId: string) => {
+    const formation = formations.find(f => f.id === formationId || f.name === formationId);
+    if (!formation) return;
+    const offPlayers = formation.players.filter(p => p.side === 'offense' || formation.side === 'offense');
+    if (offPlayers.length === 0) return;
+
+    const newStructure = analyzeOffense(offPlayers);
+
+    updateCurrentPlay(p => {
+      // Re-anchor existing routes whose playerId matches
+      const playerMap = new Map(offPlayers.map(pl => [pl.id, pl]));
+      const nextActions = p.actions.map(action => {
+        const player = playerMap.get(action.playerId);
+        if (player && action.points.length > 0) {
+          return {
+            ...action,
+            points: [
+              { ...action.points[0], x: player.x, y: player.y },
+              ...action.points.slice(1)
+            ]
+          };
+        }
+        return action;
+      });
+
+      // Automatically re-align all defensive players to the new offensive structure
+      const currentDefenders = p.players.filter(pl => pl.side === 'defense');
+      const realignedDefenders = realignAllDefenders(currentDefenders, newStructure);
+
+      return {
+        ...p,
+        formationOffense: formation.name,
+        actions: nextActions,
+        players: [...offPlayers, ...realignedDefenders]
+      };
+    });
+
+    setSelectedPlayerId(null);
+    setSelectedActionId(null);
+    showNotification(`Switched Offense to "${formation.name}" & re-aligned defense!`, 'success');
+  };
+
+  // Select and apply a Defensive Front from dropdown
+  const handleSelectDefenseFront = (formationId: string) => {
+    const formation = formations.find(f => f.id === formationId || f.name === formationId);
+    if (!formation) return;
+    const defPlayers = formation.players.filter(p => p.side === 'defense' || formation.side === 'defense');
+    if (defPlayers.length === 0) return;
+
+    const structure = analyzeOffense(currentPlay.players);
+    // Pre-align new defensive players dynamically according to active offensive structure
+    const realignedDefenders = defPlayers.map(p => {
+      if (!p.technique) return p;
+      const pos = calculateDefensiveAlignmentPosition(p.technique, structure);
+      return { ...p, x: pos.x, y: pos.y };
+    });
+
+    updateCurrentPlay(p => {
+      const nonDefenders = p.players.filter(pl => pl.side !== 'defense');
+      return {
+        ...p,
+        frontDefense: formation.name,
+        players: [...nonDefenders, ...realignedDefenders]
+      };
+    });
+
+    setSelectedPlayerId(null);
+    setSelectedActionId(null);
+    showNotification(`Loaded Defensive Front: "${formation.name}"`, 'success');
   };
 
   const handleToggleShowGaps = () => {
@@ -522,6 +621,11 @@ export const App: React.FC = () => {
             onOpenDefenseModal={() => setIsDefenseModalOpen(true)}
             onShiftDefense={handleShiftDefense}
             onRealignDefense={handleRealignDefense}
+            formations={formations}
+            activeOffenseFormation={currentPlay.formationOffense}
+            activeDefenseFront={currentPlay.frontDefense}
+            onSelectOffenseFormation={handleSelectOffenseFormation}
+            onSelectDefenseFront={handleSelectDefenseFront}
             selectedPlayerId={selectedPlayerId}
             selectedActionId={selectedActionId}
             onSelectPlayer={setSelectedPlayerId}

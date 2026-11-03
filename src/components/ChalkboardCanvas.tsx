@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
-import type { Player, PathAction, CanvasMode, Point, AppMode, Theme } from '../types/playbook';
+import type { Player, PathAction, CanvasMode, Point, AppMode, Theme, Formation } from '../types/playbook';
 import { generatePathString, getSvgCoordinates, clampFieldCoordinates, getDistance, insertPointIntoAction } from '../utils/geometry';
 import { isLightColor } from '../utils/colors';
 import { Shield, ChevronLeft, ChevronRight, RotateCcw } from 'lucide-react';
@@ -16,6 +16,11 @@ interface ChalkboardCanvasProps {
   onOpenDefenseModal?: () => void;
   onShiftDefense?: (direction: 'left' | 'right' | 'over' | 'under' | 'pinch' | 'fan') => void;
   onRealignDefense?: () => void;
+  formations?: Formation[];
+  activeOffenseFormation?: string;
+  activeDefenseFront?: string;
+  onSelectOffenseFormation?: (formationId: string) => void;
+  onSelectDefenseFront?: (formationId: string) => void;
   selectedPlayerId: string | null;
   selectedActionId: string | null;
   onSelectPlayer: (id: string | null) => void;
@@ -41,6 +46,11 @@ export const ChalkboardCanvas: React.FC<ChalkboardCanvasProps> = ({
   onOpenDefenseModal,
   onShiftDefense,
   onRealignDefense,
+  formations = [],
+  activeOffenseFormation,
+  activeDefenseFront,
+  onSelectOffenseFormation,
+  onSelectDefenseFront,
   selectedPlayerId,
   selectedActionId,
   onSelectPlayer,
@@ -59,6 +69,29 @@ export const ChalkboardCanvas: React.FC<ChalkboardCanvasProps> = ({
 
   // Dynamic analysis of offensive positions to derive LOS, gaps, and formation strength
   const offenseStructure = analyzeOffense(players);
+
+  // Split formations into offensive and defensive groups
+  const offensiveFormations = formations.filter(f => f.side === 'offense' || f.side === 'both');
+  const defensiveFormations = formations.filter(f => f.side === 'defense' || f.side === 'both');
+
+  // Match active selection by id or name
+  const activeOffenseId = formations.find(
+    f => (f.side === 'offense' || f.side === 'both') && (
+      f.id === activeOffenseFormation ||
+      f.name.toLowerCase() === activeOffenseFormation?.toLowerCase() ||
+      (activeOffenseFormation && f.name.toLowerCase().includes(activeOffenseFormation.toLowerCase())) ||
+      (activeOffenseFormation && activeOffenseFormation.toLowerCase().includes(f.name.toLowerCase()))
+    )
+  )?.id || '';
+
+  const activeDefenseId = formations.find(
+    f => (f.side === 'defense' || f.side === 'both') && (
+      f.id === activeDefenseFront ||
+      f.name.toLowerCase() === activeDefenseFront?.toLowerCase() ||
+      (activeDefenseFront && f.name.toLowerCase().includes(activeDefenseFront.toLowerCase())) ||
+      (activeDefenseFront && activeDefenseFront.toLowerCase().includes(f.name.toLowerCase()))
+    )
+  )?.id || '';
 
   // Dragging state
   const [draggingPlayerId, setDraggingPlayerId] = useState<string | null>(null);
@@ -1072,97 +1105,161 @@ export const ChalkboardCanvas: React.FC<ChalkboardCanvasProps> = ({
           </g>
         </svg>
 
-        {/* QUICK DEFENSE SHIFT & GAPS HUD OVERLAY */}
-        <div className={`absolute top-2.5 right-2.5 z-20 flex items-center gap-1.5 ${
-          isLight ? 'bg-white/90 border-slate-300' : 'bg-slate-900/85 border-slate-700/80'
-        } backdrop-blur-md px-2 py-1 rounded-lg border shadow-lg text-xs`}>
-          {onToggleShowGaps && (
-            <button
-              type="button"
-              onClick={onToggleShowGaps}
-              className={`px-2 py-1 rounded text-[11px] font-bold flex items-center gap-1 transition-all cursor-pointer ${
-                showGaps 
-                  ? isLight ? 'bg-amber-100 text-amber-900 border border-amber-300' : 'bg-amber-500/25 text-amber-300 border border-amber-500/50' 
-                  : isLight ? 'bg-slate-100 text-slate-600 border border-slate-200' : 'bg-slate-800 text-slate-400 hover:text-slate-200 border border-slate-700'
-              }`}
-              title="Toggle offensive gap markers (A, B, C, D) on the line of scrimmage"
-            >
-              <span>Gaps</span>
-              <span className={`text-[9px] px-1 py-0.2 rounded font-black ${
-                showGaps ? 'bg-amber-500 text-slate-950' : isLight ? 'bg-slate-200 text-slate-700' : 'bg-slate-700 text-slate-300'
+        {/* TOP HUD: OFFENSE & DEFENSE FORMATION PICKERS + DEFENSE SHIFT & GAPS */}
+        <div className={`absolute top-2.5 left-2.5 right-2.5 z-20 flex flex-wrap items-center justify-between gap-2 ${
+          isLight ? 'bg-white/95 border-slate-300' : 'bg-slate-900/90 border-slate-700/80'
+        } backdrop-blur-md px-3 py-1.5 rounded-lg border shadow-lg text-xs pointer-events-auto`}>
+          {/* LEFT: FORMATION PICKERS */}
+          <div className="flex items-center gap-3 flex-wrap">
+            {/* OFFENSE FORMATION PICKER */}
+            <div className="flex items-center gap-1.5">
+              <span className="text-base select-none" role="img" aria-label="football">🏈</span>
+              <label htmlFor="offense-formation-select" className={`text-[11px] font-bold ${
+                isLight ? 'text-slate-700' : 'text-slate-300'
               }`}>
-                {showGaps ? 'ON' : 'OFF'}
-              </span>
-            </button>
-          )}
-
-          {onOpenDefenseModal && (
-            <button
-              type="button"
-              onClick={onOpenDefenseModal}
-              className={`px-2 py-1 rounded text-[11px] font-bold ${
-                isLight ? 'bg-rose-100 hover:bg-rose-200 text-rose-800 border-rose-300' : 'bg-rose-500/20 hover:bg-rose-500/30 text-rose-300 border-rose-500/40'
-              } border flex items-center gap-1 transition-all active:scale-95 cursor-pointer`}
-              title="Load pre-set defensive fronts (3-4, 4-2-5, 3-5 Odd, Bear, etc.) and auto-align to offense"
-            >
-              <Shield className="w-3.5 h-3.5 text-rose-500" />
-              <span>Load Defense</span>
-            </button>
-          )}
-
-          {onShiftDefense && (
-            <div className="flex items-center gap-0.5">
-              <button
-                type="button"
-                onClick={() => onShiftDefense('left')}
-                className={`px-1.5 py-1 rounded text-[10px] font-bold border transition-all cursor-pointer ${
-                  isLight ? 'bg-slate-100 hover:bg-slate-200 text-slate-700 border-slate-300' : 'bg-slate-800 hover:bg-slate-700 text-slate-300 border-slate-700'
+                Offense:
+              </label>
+              <select
+                id="offense-formation-select"
+                value={activeOffenseId}
+                onChange={(e) => onSelectOffenseFormation?.(e.target.value)}
+                className={`text-[11px] font-medium rounded px-2 py-1 border transition-colors cursor-pointer outline-none focus:ring-1 focus:ring-amber-500 max-w-[210px] truncate ${
+                  isLight
+                    ? 'bg-slate-100 hover:bg-slate-200 text-slate-900 border-slate-300'
+                    : 'bg-slate-800 hover:bg-slate-700 text-slate-100 border-slate-700'
                 }`}
-                title="Shift front 1 gap left"
+                title="Select offensive formation template"
               >
-                <ChevronLeft className="w-3 h-3 inline" /> Left
-              </button>
-              <button
-                type="button"
-                onClick={() => onShiftDefense('right')}
-                className={`px-1.5 py-1 rounded text-[10px] font-bold border transition-all cursor-pointer ${
-                  isLight ? 'bg-slate-100 hover:bg-slate-200 text-slate-700 border-slate-300' : 'bg-slate-800 hover:bg-slate-700 text-slate-300 border-slate-700'
-                }`}
-                title="Shift front 1 gap right"
-              >
-                Right <ChevronRight className="w-3 h-3 inline" />
-              </button>
-              <button
-                type="button"
-                onClick={() => onShiftDefense('over')}
-                className="px-1.5 py-1 rounded text-[10px] font-bold bg-sky-500/10 hover:bg-sky-500/20 text-sky-400 border border-sky-500/30 transition-all cursor-pointer"
-                title="Set front to Over (Strongside 3-tech)"
-              >
-                Over
-              </button>
-              <button
-                type="button"
-                onClick={() => onShiftDefense('under')}
-                className="px-1.5 py-1 rounded text-[10px] font-bold bg-purple-500/10 hover:bg-purple-500/20 text-purple-400 border border-purple-500/30 transition-all cursor-pointer"
-                title="Set front to Under (Weakside 3-tech)"
-              >
-                Under
-              </button>
+                {!activeOffenseId && <option value="" disabled>Select Offense Formation...</option>}
+                {offensiveFormations.map(f => (
+                  <option key={f.id} value={f.id} className={isLight ? 'bg-white text-slate-900' : 'bg-slate-900 text-slate-100'}>
+                    {f.name} {f.personnel ? `(${f.personnel})` : ''}
+                  </option>
+                ))}
+              </select>
             </div>
-          )}
 
-          {onRealignDefense && (
-            <button
-              type="button"
-              onClick={onRealignDefense}
-              className={`p-1 rounded text-[10px] font-bold border transition-all cursor-pointer ${
-                isLight ? 'bg-amber-100 hover:bg-amber-200 text-amber-900 border-amber-300' : 'bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 border-amber-500/30'
-              }`}
-              title="Re-align all defenders to current offensive positions"
-            >
-              <RotateCcw className="w-3 h-3 text-amber-500" />
-            </button>
-          )}
+            <div className={`h-4 w-[1px] ${isLight ? 'bg-slate-300' : 'bg-slate-700'}`} />
+
+            {/* DEFENSE FRONT PICKER */}
+            <div className="flex items-center gap-1.5">
+              <Shield className="w-3.5 h-3.5 text-rose-500 flex-shrink-0" />
+              <label htmlFor="defense-front-select" className={`text-[11px] font-bold ${
+                isLight ? 'text-slate-700' : 'text-slate-300'
+              }`}>
+                Defense:
+              </label>
+              <select
+                id="defense-front-select"
+                value={activeDefenseId}
+                onChange={(e) => onSelectDefenseFront?.(e.target.value)}
+                className={`text-[11px] font-medium rounded px-2 py-1 border transition-colors cursor-pointer outline-none focus:ring-1 focus:ring-rose-500 max-w-[210px] truncate ${
+                  isLight
+                    ? 'bg-slate-100 hover:bg-slate-200 text-slate-900 border-slate-300'
+                    : 'bg-slate-800 hover:bg-slate-700 text-slate-100 border-slate-700'
+                }`}
+                title="Select defensive front (pre-aligns automatically to offensive gaps)"
+              >
+                {!activeDefenseId && <option value="" disabled>Select Defensive Front...</option>}
+                {defensiveFormations.map(f => (
+                  <option key={f.id} value={f.id} className={isLight ? 'bg-white text-slate-900' : 'bg-slate-900 text-slate-100'}>
+                    {f.name} {f.personnel ? `(${f.personnel})` : ''}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          {/* RIGHT: GAPS TOGGLE + SHIFT CONTROLS + MODAL TRIGGER */}
+          <div className="flex items-center gap-1.5 flex-wrap">
+            {onToggleShowGaps && (
+              <button
+                type="button"
+                onClick={onToggleShowGaps}
+                className={`px-2 py-1 rounded text-[11px] font-bold flex items-center gap-1 transition-all cursor-pointer ${
+                  showGaps 
+                    ? isLight ? 'bg-amber-100 text-amber-900 border border-amber-300' : 'bg-amber-500/25 text-amber-300 border border-amber-500/50' 
+                    : isLight ? 'bg-slate-100 text-slate-600 border border-slate-200' : 'bg-slate-800 text-slate-400 hover:text-slate-200 border border-slate-700'
+                }`}
+                title="Toggle offensive gap markers (A, B, C, D) on the line of scrimmage"
+              >
+                <span>Gaps</span>
+                <span className={`text-[9px] px-1 py-0.2 rounded font-black ${
+                  showGaps ? 'bg-amber-500 text-slate-950' : isLight ? 'bg-slate-200 text-slate-700' : 'bg-slate-700 text-slate-300'
+                }`}>
+                  {showGaps ? 'ON' : 'OFF'}
+                </span>
+              </button>
+            )}
+
+            {onShiftDefense && (
+              <div className="flex items-center gap-0.5">
+                <button
+                  type="button"
+                  onClick={() => onShiftDefense('left')}
+                  className={`px-1.5 py-1 rounded text-[10px] font-bold border transition-all cursor-pointer ${
+                    isLight ? 'bg-slate-100 hover:bg-slate-200 text-slate-700 border-slate-300' : 'bg-slate-800 hover:bg-slate-700 text-slate-300 border-slate-700'
+                  }`}
+                  title="Shift front 1 gap left"
+                >
+                  <ChevronLeft className="w-3 h-3 inline" /> Left
+                </button>
+                <button
+                  type="button"
+                  onClick={() => onShiftDefense('right')}
+                  className={`px-1.5 py-1 rounded text-[10px] font-bold border transition-all cursor-pointer ${
+                    isLight ? 'bg-slate-100 hover:bg-slate-200 text-slate-700 border-slate-300' : 'bg-slate-800 hover:bg-slate-700 text-slate-300 border-slate-700'
+                  }`}
+                  title="Shift front 1 gap right"
+                >
+                  Right <ChevronRight className="w-3 h-3 inline" />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => onShiftDefense('over')}
+                  className="px-1.5 py-1 rounded text-[10px] font-bold bg-sky-500/10 hover:bg-sky-500/20 text-sky-400 border border-sky-500/30 transition-all cursor-pointer"
+                  title="Set front to Over (Strongside 3-tech)"
+                >
+                  Over
+                </button>
+                <button
+                  type="button"
+                  onClick={() => onShiftDefense('under')}
+                  className="px-1.5 py-1 rounded text-[10px] font-bold bg-purple-500/10 hover:bg-purple-500/20 text-purple-400 border border-purple-500/30 transition-all cursor-pointer"
+                  title="Set front to Under (Weakside 3-tech)"
+                >
+                  Under
+                </button>
+              </div>
+            )}
+
+            {onRealignDefense && (
+              <button
+                type="button"
+                onClick={onRealignDefense}
+                className={`p-1 rounded text-[10px] font-bold border transition-all cursor-pointer ${
+                  isLight ? 'bg-amber-100 hover:bg-amber-200 text-amber-900 border-amber-300' : 'bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 border-amber-500/30'
+                }`}
+                title="Re-align all defenders to current offensive positions"
+              >
+                <RotateCcw className="w-3 h-3 text-amber-500" />
+              </button>
+            )}
+
+            {onOpenDefenseModal && (
+              <button
+                type="button"
+                onClick={onOpenDefenseModal}
+                className={`px-2 py-1 rounded text-[11px] font-bold ${
+                  isLight ? 'bg-rose-100 hover:bg-rose-200 text-rose-800 border-rose-300' : 'bg-rose-500/20 hover:bg-rose-500/30 text-rose-300 border-rose-500/40'
+                } border flex items-center gap-1 transition-all active:scale-95 cursor-pointer`}
+                title="Open detailed Defensive Fronts modal with techniques & assignments"
+              >
+                <Shield className="w-3.5 h-3.5 text-rose-500" />
+                <span>Fronts Modal</span>
+              </button>
+            )}
+          </div>
         </div>
 
         {/* THOUGHT PARTNER INTERACTIVE HOVER OVERLAY - ONLY SHOWN IN VIEW MODE (Spec 2.2) */}
