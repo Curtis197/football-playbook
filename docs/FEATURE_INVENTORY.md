@@ -6,7 +6,7 @@ Comprehensive catalog of capabilities and features supported in the Football Pla
 
 - **Architecture & Data Schema (Spec 1)**:
   - Normalized 0-1000 x 700 field coordinate system
-  - Type-safe Player schema with customizable shape (`round`, `square`, `rounded_square`), labels, assignments, coaching keys
+  - Type-safe Player schema with customizable shape (`round`, `square`, `rounded_square`, `none` / bare text), labels, assignments, coaching keys
   - PathAction vector engine schema (pass_route, run_block, motion, pull_block, curved/segmented points, markers)
   - Play model with formationOffense, frontDefense, category, tags, situation, notes (qbRead, lineBlocking, philosophyReason)
   - PlaybookFile collection model (v1.0.0) with philosophy summaries

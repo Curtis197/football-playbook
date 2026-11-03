@@ -690,11 +690,13 @@ export const ChalkboardCanvas: React.FC<ChalkboardCanvasProps> = ({
                 haloStroke = isOffense ? (isLight ? "#0284c7" : "#38bdf8") : (isLight ? "#e11d48" : "#f43f5e");
               }
 
-              const textFill = customColor
-                ? (isLightColor(customColor) ? '#0f172a' : '#ffffff')
-                : (isSelected
-                  ? '#ffffff'
-                  : (isLight ? (isOffense ? '#0284c7' : '#e11d48') : '#ffffff'));
+              const textFill = shape === 'none'
+                ? (customColor || (isLight ? (isOffense ? '#0284c7' : '#e11d48') : (isOffense ? '#38bdf8' : '#f43f5e')))
+                : (customColor
+                  ? (isLightColor(customColor) ? '#0f172a' : '#ffffff')
+                  : (isSelected
+                    ? '#ffffff'
+                    : (isLight ? (isOffense ? '#0284c7' : '#e11d48') : '#ffffff')));
 
               const glowFilter = isSelected
                 ? (isOffense ? "url(#glow)" : "url(#defense-glow)")
@@ -750,7 +752,7 @@ export const ChalkboardCanvas: React.FC<ChalkboardCanvasProps> = ({
                           strokeWidth="2"
                           strokeDasharray="4 2"
                         />
-                      ) : (
+                      ) : shape === 'rounded_square' ? (
                         <rect
                           x="-18"
                           y="-18"
@@ -762,10 +764,22 @@ export const ChalkboardCanvas: React.FC<ChalkboardCanvasProps> = ({
                           strokeWidth="2"
                           strokeDasharray="4 2"
                         />
+                      ) : (
+                        <rect
+                          x="-18"
+                          y="-15"
+                          width="36"
+                          height="30"
+                          rx="5"
+                          fill="none"
+                          stroke={haloStroke}
+                          strokeWidth="1.5"
+                          strokeDasharray="4 2"
+                        />
                       )
                     )}
 
-                    {/* Main Node Body (Round, Square, or Rounded Square) */}
+                    {/* Main Node Body (Round, Square, Rounded Square, or Bare Text) */}
                     {shape === 'round' ? (
                       <circle
                         cx="0"
@@ -788,7 +802,7 @@ export const ChalkboardCanvas: React.FC<ChalkboardCanvasProps> = ({
                         strokeWidth={isHovered ? "3" : "2.2"}
                         className="transition-all"
                       />
-                    ) : (
+                    ) : shape === 'rounded_square' ? (
                       <rect
                         x={isHovered ? "-15" : "-14"}
                         y={isHovered ? "-15" : "-14"}
@@ -800,6 +814,20 @@ export const ChalkboardCanvas: React.FC<ChalkboardCanvasProps> = ({
                         strokeWidth={isHovered ? "3" : "2.2"}
                         className="transition-all"
                       />
+                    ) : (
+                      // Bare Text ('none')
+                      <rect
+                        x="-14"
+                        y="-14"
+                        width="28"
+                        height="28"
+                        rx="4"
+                        fill="transparent"
+                        stroke={isHovered ? strokeColor : "transparent"}
+                        strokeWidth="1.5"
+                        strokeDasharray="2 2"
+                        className="transition-all"
+                      />
                     )}
 
                     {/* Player Label */}
@@ -807,8 +835,8 @@ export const ChalkboardCanvas: React.FC<ChalkboardCanvasProps> = ({
                       x="0"
                       y="1"
                       fill={textFill}
-                      fontSize={player.label.length > 2 ? "10" : "11"}
-                      fontWeight="bold"
+                      fontSize={shape === 'none' ? (player.label.length > 2 ? "12" : "14") : (player.label.length > 2 ? "10" : "11")}
+                      fontWeight={shape === 'none' ? "900" : "bold"}
                       fontFamily="sans-serif"
                       textAnchor="middle"
                       alignmentBaseline="middle"
@@ -839,9 +867,13 @@ export const ChalkboardCanvas: React.FC<ChalkboardCanvasProps> = ({
                     ? 'rounded-full'
                     : (activeHoveredPlayer.shape || (activeHoveredPlayer.side === 'offense' ? 'round' : 'square')) === 'rounded_square'
                     ? 'rounded'
-                    : 'rounded-none'
+                    : (activeHoveredPlayer.shape || (activeHoveredPlayer.side === 'offense' ? 'round' : 'square')) === 'square'
+                    ? 'rounded-none'
+                    : 'rounded border border-dashed'
                 } ${
-                  activeHoveredPlayer.side === 'offense' ? 'bg-sky-600 text-white' : 'bg-rose-600 text-white'
+                  activeHoveredPlayer.shape === 'none'
+                    ? (activeHoveredPlayer.side === 'offense' ? 'text-sky-400 border-sky-400 bg-transparent' : 'text-rose-400 border-rose-400 bg-transparent')
+                    : (activeHoveredPlayer.side === 'offense' ? 'bg-sky-600 text-white' : 'bg-rose-600 text-white')
                 }`}>
                   {activeHoveredPlayer.label}
                 </span>

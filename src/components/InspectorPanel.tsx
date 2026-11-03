@@ -10,7 +10,8 @@ import {
   FileEdit,
   Sliders,
   Trash2,
-  Palette
+  Palette,
+  Type
 } from 'lucide-react';
 import { PLAYER_COLOR_SWATCHES, LINE_COLOR_SWATCHES, isLightColor } from '../utils/colors';
 
@@ -377,11 +378,16 @@ export const InspectorPanel: React.FC<InspectorPanelProps> = ({
                           ? 'rounded-full'
                           : (selectedPlayer.shape || (selectedPlayer.side === 'offense' ? 'round' : 'square')) === 'rounded_square'
                           ? 'rounded-md'
-                          : 'rounded-none'
+                          : (selectedPlayer.shape || (selectedPlayer.side === 'offense' ? 'round' : 'square')) === 'square'
+                          ? 'rounded-none'
+                          : 'rounded-md border-2 border-dashed'
                       }`}
                       style={{
-                        backgroundColor: selectedPlayer.color || (selectedPlayer.side === 'offense' ? '#0284c7' : '#e11d48'),
-                        color: isLightColor(selectedPlayer.color || (selectedPlayer.side === 'offense' ? '#0284c7' : '#e11d48')) ? '#0f172a' : '#ffffff'
+                        backgroundColor: selectedPlayer.shape === 'none' ? 'transparent' : (selectedPlayer.color || (selectedPlayer.side === 'offense' ? '#0284c7' : '#e11d48')),
+                        borderColor: selectedPlayer.shape === 'none' ? (selectedPlayer.color || (selectedPlayer.side === 'offense' ? '#0284c7' : '#e11d48')) : undefined,
+                        color: selectedPlayer.shape === 'none'
+                          ? (selectedPlayer.color || (selectedPlayer.side === 'offense' ? '#0284c7' : '#e11d48'))
+                          : (isLightColor(selectedPlayer.color || (selectedPlayer.side === 'offense' ? '#0284c7' : '#e11d48')) ? '#0f172a' : '#ffffff')
                       }}
                     >
                       {selectedPlayer.label}
@@ -435,16 +441,16 @@ export const InspectorPanel: React.FC<InspectorPanelProps> = ({
                   </div>
                 </div>
 
-                {/* Player Node Shape Selector (Round, Square, Rounded Square) */}
+                {/* Player Node Shape Selector (Round, Square, Rounded Square, None) */}
                 <div>
                   <label className={`text-[11px] ${isLight ? 'text-slate-600' : 'text-slate-400'} block mb-1 font-semibold`}>
                     Player Node Shape
                   </label>
-                  <div className="grid grid-cols-3 gap-1.5">
+                  <div className="grid grid-cols-4 gap-1.5">
                     <button
                       type="button"
                       onClick={() => onUpdatePlayer({ ...selectedPlayer, shape: 'round' })}
-                      className={`flex items-center justify-center gap-1.5 py-1.5 px-2 rounded border text-xs font-semibold transition-all cursor-pointer ${
+                      className={`flex flex-col items-center justify-center gap-1 py-1.5 px-1 rounded border text-[11px] font-semibold transition-all cursor-pointer ${
                         (selectedPlayer.shape || (selectedPlayer.side === 'offense' ? 'round' : 'square')) === 'round'
                           ? isLight ? 'bg-sky-100 border-sky-400 text-sky-800 shadow-sm' : 'bg-sky-600/30 border-sky-400 text-sky-200 shadow-sm'
                           : isLight ? 'bg-white border-slate-300 text-slate-600 hover:bg-slate-100' : 'bg-[#161b22] border-slate-700 text-slate-400 hover:text-slate-200 hover:bg-slate-800'
@@ -458,7 +464,7 @@ export const InspectorPanel: React.FC<InspectorPanelProps> = ({
                     <button
                       type="button"
                       onClick={() => onUpdatePlayer({ ...selectedPlayer, shape: 'square' })}
-                      className={`flex items-center justify-center gap-1.5 py-1.5 px-2 rounded border text-xs font-semibold transition-all cursor-pointer ${
+                      className={`flex flex-col items-center justify-center gap-1 py-1.5 px-1 rounded border text-[11px] font-semibold transition-all cursor-pointer ${
                         (selectedPlayer.shape || (selectedPlayer.side === 'offense' ? 'round' : 'square')) === 'square'
                           ? isLight ? 'bg-sky-100 border-sky-400 text-sky-800 shadow-sm' : 'bg-sky-600/30 border-sky-400 text-sky-200 shadow-sm'
                           : isLight ? 'bg-white border-slate-300 text-slate-600 hover:bg-slate-100' : 'bg-[#161b22] border-slate-700 text-slate-400 hover:text-slate-200 hover:bg-slate-800'
@@ -472,15 +478,29 @@ export const InspectorPanel: React.FC<InspectorPanelProps> = ({
                     <button
                       type="button"
                       onClick={() => onUpdatePlayer({ ...selectedPlayer, shape: 'rounded_square' })}
-                      className={`flex items-center justify-center gap-1.5 py-1.5 px-2 rounded border text-xs font-semibold transition-all cursor-pointer ${
-                        (selectedPlayer.shape || (selectedPlayer.side === 'offense' ? 'round' : 'square')) === 'rounded_square'
+                      className={`flex flex-col items-center justify-center gap-1 py-1.5 px-1 rounded border text-[11px] font-semibold transition-all cursor-pointer ${
+                        selectedPlayer.shape === 'rounded_square'
                           ? isLight ? 'bg-sky-100 border-sky-400 text-sky-800 shadow-sm' : 'bg-sky-600/30 border-sky-400 text-sky-200 shadow-sm'
                           : isLight ? 'bg-white border-slate-300 text-slate-600 hover:bg-slate-100' : 'bg-[#161b22] border-slate-700 text-slate-400 hover:text-slate-200 hover:bg-slate-800'
                       }`}
                       title="Rounded Square: Squircle node with rounded corners"
                     >
                       <span className="w-3.5 h-3.5 rounded-md border-2 border-current inline-block shrink-0"></span>
-                      <span>Rounded Sq</span>
+                      <span>Rounded</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => onUpdatePlayer({ ...selectedPlayer, shape: 'none' })}
+                      className={`flex flex-col items-center justify-center gap-1 py-1.5 px-1 rounded border text-[11px] font-semibold transition-all cursor-pointer ${
+                        selectedPlayer.shape === 'none'
+                          ? isLight ? 'bg-sky-100 border-sky-400 text-sky-800 shadow-sm' : 'bg-sky-600/30 border-sky-400 text-sky-200 shadow-sm'
+                          : isLight ? 'bg-white border-slate-300 text-slate-600 hover:bg-slate-100' : 'bg-[#161b22] border-slate-700 text-slate-400 hover:text-slate-200 hover:bg-slate-800'
+                      }`}
+                      title="None: Bare text label with no enclosing round or square shape"
+                    >
+                      <Type className="w-3.5 h-3.5 shrink-0" />
+                      <span>None</span>
                     </button>
                   </div>
                 </div>
@@ -892,9 +912,15 @@ export const InspectorPanel: React.FC<InspectorPanelProps> = ({
                                 ? 'rounded-full'
                                 : (player.shape || (player.side === 'offense' ? 'round' : 'square')) === 'rounded_square'
                                 ? 'rounded-sm'
-                                : 'rounded-none'
+                                : (player.shape || (player.side === 'offense' ? 'round' : 'square')) === 'square'
+                                ? 'rounded-none'
+                                : 'rounded-sm border border-dashed'
                             }`}
-                            style={{ backgroundColor: playerColor, color: textColor }}
+                            style={{
+                              backgroundColor: player.shape === 'none' ? 'transparent' : playerColor,
+                              borderColor: player.shape === 'none' ? playerColor : undefined,
+                              color: player.shape === 'none' ? playerColor : textColor
+                            }}
                           >
                             {player.label}
                           </span>
@@ -941,9 +967,15 @@ export const InspectorPanel: React.FC<InspectorPanelProps> = ({
                                 ? 'rounded-full'
                                 : (player.shape || (player.side === 'offense' ? 'round' : 'square')) === 'rounded_square'
                                 ? 'rounded-sm'
-                                : 'rounded-none'
+                                : (player.shape || (player.side === 'offense' ? 'round' : 'square')) === 'square'
+                                ? 'rounded-none'
+                                : 'rounded-sm border border-dashed'
                             }`}
-                            style={{ backgroundColor: playerColor, color: textColor }}
+                            style={{
+                              backgroundColor: player.shape === 'none' ? 'transparent' : playerColor,
+                              borderColor: player.shape === 'none' ? playerColor : undefined,
+                              color: player.shape === 'none' ? playerColor : textColor
+                            }}
                           >
                             {player.label}
                           </span>

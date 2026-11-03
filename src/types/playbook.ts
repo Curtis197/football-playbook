@@ -10,13 +10,13 @@ export interface Point {
 export type RoutePoint = Point;
 
 // 2. Player Entity
-export type PlayerShape = 'round' | 'square' | 'rounded_square';
+export type PlayerShape = 'round' | 'square' | 'rounded_square' | 'none';
 
 export interface Player {
   id: string;              // e.g. "off_y", "def_w"
   label: string;           // "Y", "H", "Z", "W", "M", "NT"
   side: Side;
-  shape?: PlayerShape;     // 'round', 'square', or 'rounded_square'
+  shape?: PlayerShape;     // 'round', 'square', 'rounded_square', or 'none' (bare text)
   color?: string;          // Custom hex color (e.g. '#0284c7', '#e11d48')
   x: number;               // Normalized X coordinate
   y: number;               // Normalized Y coordinate
