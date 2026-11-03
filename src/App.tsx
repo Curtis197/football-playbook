@@ -31,8 +31,9 @@ import { DefenseFrontModal } from './components/DefenseFrontModal';
 import { shiftDefensiveFront, realignAllDefenders, analyzeOffense, calculateDefensiveAlignmentPosition, inferDefenderTechnique } from './utils/defensiveAlignment';
 import { adaptRoutesToNewFormation } from './utils/routeAdaptation';
 import { morphBackfieldAlignment, detectCurrentQBPosition, type SnapAlignment } from './utils/formationBackfield';
-import { savePlay, fetchFormations, saveFormation } from './services/playbookDb';
+import { savePlay, fetchFormations, saveFormation, fetchAllPlays } from './services/playbookDb';
 import { isFirebaseConfigured } from './services/firebase';
+import { INITIAL_PLAYBOOK } from './data/presets';
 
 export const App: React.FC = () => {
   const [playbook, setPlaybook] = useState<PlaybookFile>(() => loadPlaybookFromStorage());
@@ -56,25 +57,62 @@ export const App: React.FC = () => {
   const [formations, setFormations] = useState<Formation[]>(() => DEFAULT_FORMATIONS);
   const [routeAdaptationMode, setRouteAdaptationMode] = useState<RouteAdaptationMode>('player_relative');
 
-  // Load formations from Firestore (or fallback to DEFAULT_FORMATIONS)
+  // Refresh all plays from Cloud Firestore (or fallback to presets & localStorage)
+  const refreshCloudPlays = useCallback(async () => {
+    if (!isFirebaseConfigured) return;
+    try {
+      const remotePlays = await fetchAllPlays();
+      if (remotePlays.length > 0) {
+        setPlaybook(prev => {
+          const map = new Map<string, Play>();
+          INITIAL_PLAYBOOK.plays.forEach(p => map.set(p.id, p));
+          prev.plays.forEach(p => map.set(p.id, p));
+          remotePlays.forEach(p => map.set(p.id, p));
+          return {
+            ...prev,
+            plays: Array.from(map.values())
+          };
+        });
+      }
+    } catch (e) {
+      console.warn('Could not refresh cloud plays:', e);
+    }
+  }, []);
+
+  // Load all formations and plays from Firestore on startup so all cloud items are immediately visible
   useEffect(() => {
     let isMounted = true;
-    async function loadAllFormations() {
+    async function loadCloudData() {
+      if (!isFirebaseConfigured) return;
       try {
-        if (isFirebaseConfigured) {
-          const remote = await fetchFormations();
-          if (remote.length > 0 && isMounted) {
-            const map = new Map<string, Formation>();
-            DEFAULT_FORMATIONS.forEach(f => map.set(f.id, f));
-            remote.forEach(f => map.set(f.id, f));
-            setFormations(Array.from(map.values()));
-          }
+        // 1. Fetch Formations from Cloud
+        const remoteFormations = await fetchFormations();
+        if (remoteFormations.length > 0 && isMounted) {
+          const map = new Map<string, Formation>();
+          DEFAULT_FORMATIONS.forEach(f => map.set(f.id, f));
+          remoteFormations.forEach(f => map.set(f.id, f));
+          setFormations(Array.from(map.values()));
+        }
+
+        // 2. Fetch Plays from Cloud
+        const remotePlays = await fetchAllPlays();
+        if (remotePlays.length > 0 && isMounted) {
+          setPlaybook(prev => {
+            const map = new Map<string, Play>();
+            INITIAL_PLAYBOOK.plays.forEach(p => map.set(p.id, p));
+            prev.plays.forEach(p => map.set(p.id, p));
+            remotePlays.forEach(p => map.set(p.id, p));
+            return {
+              ...prev,
+              plays: Array.from(map.values())
+            };
+          });
         }
       } catch (e) {
-        console.warn('Could not load remote formations, using offline presets:', e);
+        console.warn('Could not load remote cloud data, using offline presets:', e);
       }
     }
-    loadAllFormations();
+    void loadCloudData();
     return () => {
       isMounted = false;
     };
@@ -441,6 +479,7 @@ export const App: React.FC = () => {
         showNotification(`Saved all ${playbook.plays.length} plays in Playbook to Cloud!`, 'success');
       }
       setCloudSyncStatus('saved');
+      void refreshCloudPlays();
       showNotification(`Saved "${currentPlay.name}" to Cloud Firestore!`, 'success');
       setTimeout(() => {
         setCloudSyncStatus('idle');
@@ -868,6 +907,7 @@ export const App: React.FC = () => {
         onDuplicatePlay={handleDuplicatePlayFromLibrary}
         onDeletePlay={handleDeletePlayFromLibrary}
         localPlays={playbook.plays}
+        onPlayListChanged={refreshCloudPlays}
         showNotification={showNotification}
       />
 

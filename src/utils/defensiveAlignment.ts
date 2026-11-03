@@ -327,7 +327,7 @@ export function calculateDefensiveAlignmentPosition(
   structure: OffensiveStructure
 ): { x: number; y: number; matched: boolean; description: string } {
   if (!techniqueStr || !techniqueStr.trim()) {
-    return { x: 480, y: structure.losY - 80, matched: false, description: 'Default LB position' };
+    return { x: 480, y: structure.losY - 115, matched: false, description: 'Default LB position' };
   }
 
   const raw = techniqueStr.trim().toLowerCase();
@@ -347,15 +347,15 @@ export function calculateDefensiveAlignmentPosition(
   const slotLX = leftSlots[0] ? leftSlots[0].x : Math.round((ltX + wrLX) / 2);
   const slotRX = rightSlots[0] ? rightSlots[0].x : Math.round((rtX + wrRX) / 2);
 
-  // Depth offsets
-  const dlY = losY - 32;       // Down lineman on LOS
-  const lbY = losY - 85;       // 2nd level box linebacker
-  const apexY = losY - 60;     // Walked-out apex overhang / nickel
-  const pressY = losY - 45;    // Press cornerback
-  const offCbY = losY - 105;   // Off cornerback (7-8 yds)
-  const robberY = losY - 145;  // Intermediate down safety / robber
-  const twoHighY = losY - 185; // 2-high safety
-  const singleHighY = losY - 225; // 1-high free safety (middle 1/3)
+  // Depth offsets (comfortably spaced from LOS for clear blocking tracks, pull angles, and combo releases)
+  const dlY = losY - 55;       // Down lineman on LOS (~5.5 yds off offensive ball spot)
+  const lbY = losY - 115;      // 2nd level box linebacker (60px behind DL, plenty of combo room)
+  const apexY = losY - 80;     // Walked-out apex overhang / nickel
+  const pressY = losY - 65;    // Press cornerback
+  const offCbY = losY - 140;   // Off cornerback (7-8 yds cushion)
+  const robberY = losY - 185;  // Intermediate down safety / robber
+  const twoHighY = losY - 235; // 2-high safety
+  const singleHighY = losY - 275; // 1-high free safety (middle 1/3)
 
   // Resolve 'strong' and 'weak' tags to 'left' or 'right'
   const isTargetStrong = raw.includes('strong');

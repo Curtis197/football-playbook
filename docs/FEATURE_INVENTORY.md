@@ -250,6 +250,13 @@ Comprehensive catalog of capabilities and features supported in the Football Pla
     - Interactive "Backfield Snap: [ Under Center | Pistol | Shotgun ]" modifier in the right preview panel, allowing coaches to preview and apply any formation (such as Ace or Deuce) in their preferred snap alignment.
 
 - **Passing Concepts Library & Multi-Dimensional Separation (Stick, Snag, Mesh, Shallow Cross)**:
+  - Full Cloud Sync on Startup (`src/App.tsx`):
+    - App initialization automatically fetches all cloud formations (`fetchFormations`) and plays (`fetchAllPlays`) from Firestore, merging them with local presets into authoritative state.
+    - All cloud formations and plays appear immediately in top HUD selectors and modal drawers without requiring manual load steps.
+  - Streamlined Formation Drawer (`src/components/FormationSwitcherModal.tsx`):
+    - Replaced multi-row redundant facet filter container with a clean, responsive layout featuring global search and side tabs (`All`, `Offense`, `Defense`), providing full vertical space for formation cards.
+  - Unified Play Library Drawer (`src/components/PlayLibraryModal.tsx`):
+    - Merges remote cloud plays and local plays by ID to guarantee every cloud item is visible, with quick search and clean category filters.
   - Foundational Passing Schemes (`src/data/passingConcepts.ts`):
     - **Y-Stick Concept** (`Gun 11P Trips - Y-Stick vs 4-3 Over`):
       - 11 Personnel (1 RB, 1 TE, 3 WRs), 3x1 Trips Open receiver alignment.
@@ -275,6 +282,15 @@ Comprehensive catalog of capabilities and features supported in the Football Pla
     - 1-Click "Reset All Filters" when any multidimensional filter is engaged.
   - Concept-Organized Play Picker on Chalkboard Canvas (`src/components/ChalkboardCanvas.tsx`):
     - Hierarchical optgroup breakdown: `Plays for this Formation`, `Passing Concepts (Stick, Snag, Mesh, Shallow)`, `Run & Option Schemes`, `RPO & Play-Action`, and `Other Playbook Plays`.
+
+- **Cloud Visibility Guarantee & Streamlined Formation/Play Navigation**:
+  - Full Cloud Sync on Startup (`src/App.tsx`):
+    - App initialization automatically fetches all cloud formations (`fetchFormations`) and plays (`fetchAllPlays`) from Firestore, merging them with local presets into authoritative state.
+    - All cloud formations and plays appear immediately in top HUD selectors and modal drawers without requiring manual load steps.
+  - Streamlined Formation Drawer (`src/components/FormationSwitcherModal.tsx`):
+    - Replaced multi-row redundant facet filter container with a clean, responsive layout featuring global search and side tabs (`All`, `Offense`, `Defense`), providing full vertical space for formation cards.
+  - Unified Play Library Drawer (`src/components/PlayLibraryModal.tsx`):
+    - Merges remote cloud plays and local plays by ID to guarantee every cloud item is visible, with quick search and clean category filters.
 
 
 

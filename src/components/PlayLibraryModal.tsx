@@ -4,9 +4,7 @@ import {
   fetchAllPlays, 
   deletePlay, 
   savePlay, 
-  seedDefaultPresets,
-  fetchPlaysByTag,
-  fetchPlaysByCategory
+  seedDefaultPresets
 } from '../services/playbookDb';
 import { isFirebaseConfigured } from '../services/firebase';
 import { 
@@ -60,37 +58,15 @@ export const PlayLibraryModal: React.FC<PlayLibraryModalProps> = ({
   const [cloudError, setCloudError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<PlayCategory | 'all'>('all');
-  const [selectedConcept, setSelectedConcept] = useState<string>('all');
-  const [selectedPersonnel, setSelectedPersonnel] = useState<string>('all');
-  const [selectedAlignment, setSelectedAlignment] = useState<string>('all');
   const [selectedTag, setSelectedTag] = useState<string | null>(null);
 
-  // Load plays from Firestore (or fallback to local)
+  // Load all plays from Firestore (or fallback to local)
   const loadPlays = useCallback(async () => {
     setIsLoading(true);
     setCloudError(null);
     try {
-      if (selectedTag) {
-        try {
-          const taggedPlays = await fetchPlaysByTag(selectedTag);
-          setRemotePlays(taggedPlays);
-        } catch {
-          // If Firestore query fails, filter local plays by tag
-          const filtered = localPlays.filter(p => p.tags?.includes(selectedTag));
-          setRemotePlays(filtered);
-        }
-      } else if (selectedCategory !== 'all') {
-        try {
-          const catPlays = await fetchPlaysByCategory(selectedCategory);
-          setRemotePlays(catPlays);
-        } catch {
-          const filtered = localPlays.filter(p => p.category === selectedCategory);
-          setRemotePlays(filtered);
-        }
-      } else {
-        const plays = await fetchAllPlays();
-        setRemotePlays(plays);
-      }
+      const plays = await fetchAllPlays();
+      setRemotePlays(plays);
     } catch (err: unknown) {
       const errorMsg = err instanceof Error ? err.message : 'Failed to query remote database';
       console.warn('[PlayLibraryModal] Cloud fetch error:', errorMsg);
@@ -104,7 +80,7 @@ export const PlayLibraryModal: React.FC<PlayLibraryModalProps> = ({
     } finally {
       setIsLoading(false);
     }
-  }, [selectedTag, selectedCategory, localPlays]);
+  }, [localPlays]);
 
   useEffect(() => {
     if (isOpen) {
@@ -115,46 +91,23 @@ export const PlayLibraryModal: React.FC<PlayLibraryModalProps> = ({
     }
   }, [isOpen, loadPlays]);
 
-
-  // Combine and deduplicate plays: favor remote if available, else local
+  // Combine all plays: merge all remote cloud plays and local plays so all cloud plays are visible
   const displayPlays = useMemo(() => {
-    const list = remotePlays.length > 0 ? remotePlays : localPlays;
+    const map = new Map<string, Play>();
+    localPlays.forEach(p => map.set(p.id, p));
+    remotePlays.forEach(p => map.set(p.id, p));
+    const list = Array.from(map.values());
+
     return list.filter(play => {
       // Category filter
       if (selectedCategory !== 'all' && play.category !== selectedCategory) {
         return false;
       }
-      // Passing Concept filter (e.g. stick, snag, mesh, shallow_cross)
-      if (selectedConcept !== 'all') {
-        const matchesConcept = play.primaryPassConcept === selectedConcept ||
-          play.tags?.includes(selectedConcept) ||
-          play.tags?.includes(selectedConcept.replace('_', '-')) ||
-          play.name.toLowerCase().includes(selectedConcept.replace('_', ' '));
-        if (!matchesConcept) return false;
-      }
-      // Personnel filter (e.g. 21, 22, 12, 11, 20)
-      if (selectedPersonnel !== 'all') {
-        const matchesPersonnel = play.personnel === selectedPersonnel ||
-          play.tags?.includes(`${selectedPersonnel}-personnel`) ||
-          play.tags?.includes(`${selectedPersonnel}p`) ||
-          play.name.toLowerCase().includes(`${selectedPersonnel}p`) ||
-          play.formationOffense?.toLowerCase().includes(`${selectedPersonnel} pers`) ||
-          play.formationOffense?.toLowerCase().includes(`${selectedPersonnel}p`);
-        if (!matchesPersonnel) return false;
-      }
-      // Receiver Alignment filter (e.g. 2x2, 3x1, bunch, 2x1, empty)
-      if (selectedAlignment !== 'all') {
-        const matchesAlignment = play.receiverAlignment === selectedAlignment ||
-          play.tags?.includes(selectedAlignment) ||
-          play.name.toLowerCase().includes(selectedAlignment.toLowerCase()) ||
-          play.formationOffense?.toLowerCase().includes(selectedAlignment.toLowerCase());
-        if (!matchesAlignment) return false;
-      }
       // Tag filter
       if (selectedTag && !play.tags?.includes(selectedTag)) {
         return false;
       }
-      // Search query (name, tags, concepts, personnel, alignment)
+      // Search query (name, tags, concepts, personnel, alignment, scheme)
       if (searchQuery.trim()) {
         const query = searchQuery.toLowerCase();
         const matchesName = play.name.toLowerCase().includes(query);
@@ -170,11 +123,14 @@ export const PlayLibraryModal: React.FC<PlayLibraryModalProps> = ({
       }
       return true;
     });
-  }, [remotePlays, localPlays, selectedCategory, selectedConcept, selectedPersonnel, selectedAlignment, selectedTag, searchQuery]);
+  }, [remotePlays, localPlays, selectedCategory, selectedTag, searchQuery]);
 
   // Extract all unique tags across all available plays
   const allUniqueTags = useMemo(() => {
-    const pool = remotePlays.length > 0 ? remotePlays : localPlays;
+    const map = new Map<string, Play>();
+    localPlays.forEach(p => map.set(p.id, p));
+    remotePlays.forEach(p => map.set(p.id, p));
+    const pool = Array.from(map.values());
     const tagsSet = new Set<string>();
     pool.forEach(p => p.tags?.forEach(t => tagsSet.add(t)));
     return Array.from(tagsSet);
@@ -360,115 +316,20 @@ export const PlayLibraryModal: React.FC<PlayLibraryModalProps> = ({
                 {cat === 'all' ? 'All' : cat === 'pass_dropback' ? 'Pass' : cat.replace('_', ' ')}
               </button>
             ))}
+
+            {(selectedCategory !== 'all' || selectedTag || searchQuery) && (
+              <button
+                onClick={() => {
+                  setSelectedCategory('all');
+                  setSelectedTag(null);
+                  setSearchQuery('');
+                }}
+                className="text-[11px] text-rose-400 hover:text-rose-200 underline font-semibold ml-2 transition-colors whitespace-nowrap"
+              >
+                Reset Filters ✕
+              </button>
+            )}
           </div>
-        </div>
-
-        {/* MULTI-DIMENSIONAL CONCEPT & PERSONNEL FILTER BAR */}
-        <div className="px-6 py-2.5 border-b border-[#2d333b] bg-[#11151d] flex flex-wrap items-center justify-between gap-3 text-xs">
-          <div className="flex flex-wrap items-center gap-4">
-            {/* Concept Family Filter */}
-            <div className="flex items-center gap-1.5">
-              <span className="text-[11px] font-bold text-indigo-400 flex items-center gap-1">
-                <Target className="w-3 h-3 text-indigo-400" /> Concept:
-              </span>
-              <div className="flex items-center gap-1">
-                {[
-                  { id: 'all', label: 'All' },
-                  { id: 'stick', label: 'Stick' },
-                  { id: 'snag', label: 'Snag' },
-                  { id: 'mesh', label: 'Mesh' },
-                  { id: 'shallow_cross', label: 'Shallow' }
-                ].map(c => (
-                  <button
-                    key={c.id}
-                    onClick={() => setSelectedConcept(c.id)}
-                    className={`px-2 py-0.5 text-[11px] font-semibold rounded-md border transition-all ${
-                      selectedConcept === c.id
-                        ? 'bg-indigo-600 border-indigo-400 text-white shadow-xs'
-                        : 'bg-slate-800/80 border-slate-700 text-slate-300 hover:bg-slate-700 hover:text-white'
-                    }`}
-                  >
-                    {c.label}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {/* Personnel / Backfield Filter */}
-            <div className="flex items-center gap-1.5">
-              <span className="text-[11px] font-bold text-blue-400 flex items-center gap-1">
-                <Users className="w-3 h-3 text-blue-400" /> Personnel:
-              </span>
-              <div className="flex items-center gap-1">
-                {[
-                  { id: 'all', label: 'All' },
-                  { id: '11', label: '11P' },
-                  { id: '12', label: '12P' },
-                  { id: '20', label: '20P' },
-                  { id: '21', label: '21P' },
-                  { id: '22', label: '22P' }
-                ].map(p => (
-                  <button
-                    key={p.id}
-                    onClick={() => setSelectedPersonnel(p.id)}
-                    className={`px-2 py-0.5 text-[11px] font-semibold rounded-md border transition-all ${
-                      selectedPersonnel === p.id
-                        ? 'bg-blue-600 border-blue-400 text-white shadow-xs'
-                        : 'bg-slate-800/80 border-slate-700 text-slate-300 hover:bg-slate-700 hover:text-white'
-                    }`}
-                  >
-                    {p.label}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {/* Receiver Alignment Filter */}
-            <div className="flex items-center gap-1.5">
-              <span className="text-[11px] font-bold text-emerald-400 flex items-center gap-1">
-                <Layers className="w-3 h-3 text-emerald-400" /> Alignment:
-              </span>
-              <div className="flex items-center gap-1">
-                {[
-                  { id: 'all', label: 'All' },
-                  { id: '3x1', label: '3x1' },
-                  { id: '2x2', label: '2x2' },
-                  { id: '2x1', label: '2x1' },
-                  { id: 'bunch', label: 'Bunch' },
-                  { id: 'empty', label: 'Empty' }
-                ].map(a => (
-                  <button
-                    key={a.id}
-                    onClick={() => setSelectedAlignment(a.id)}
-                    className={`px-2 py-0.5 text-[11px] font-semibold rounded-md border transition-all ${
-                      selectedAlignment === a.id
-                        ? 'bg-emerald-600 border-emerald-400 text-white shadow-xs'
-                        : 'bg-slate-800/80 border-slate-700 text-slate-300 hover:bg-slate-700 hover:text-white'
-                    }`}
-                  >
-                    {a.label}
-                  </button>
-                ))}
-              </div>
-            </div>
-          </div>
-
-          {/* Reset Filters button if any active */}
-          {(selectedConcept !== 'all' || selectedPersonnel !== 'all' || selectedAlignment !== 'all' || selectedCategory !== 'all' || selectedTag) && (
-            <button
-              onClick={() => {
-                setSelectedConcept('all');
-                setSelectedPersonnel('all');
-                setSelectedAlignment('all');
-                setSelectedCategory('all');
-                setSelectedTag(null);
-                setSearchQuery('');
-              }}
-              className="text-[11px] text-rose-400 hover:text-rose-200 underline font-semibold transition-colors"
-            >
-              Reset All Filters ✕
-            </button>
-          )}
         </div>
 
         {/* TAGS FILTER BAR */}

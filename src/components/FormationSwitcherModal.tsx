@@ -20,10 +20,7 @@ import {
   Save,
   Cloud,
   Search,
-  RotateCcw,
-  Zap,
-  Filter,
-  Layers
+  Zap
 } from 'lucide-react';
 
 interface FormationSwitcherModalProps {
@@ -66,14 +63,9 @@ export const FormationSwitcherModal: React.FC<FormationSwitcherModalProps> = ({
   const [newFormationStyle, setNewFormationStyle] = useState<string>('spread');
   const [newFormationLabels, setNewFormationLabels] = useState('');
 
-  // Enhanced Filter States
+  // Filter States
   const [searchQuery, setSearchQuery] = useState('');
-  const [sideFilter, setSideFilter] = useState<'all' | 'offense' | 'defense'>('offense');
-  const [personnelFilter, setPersonnelFilter] = useState<string>('all');
-  const [qbFilter, setQbFilter] = useState<string>('all');
-  const [alignFilter, setAlignFilter] = useState<string>('all');
-  const [bunchFilter, setBunchFilter] = useState<'all' | 'bunch' | 'non_bunch'>('all');
-  const [styleFilter, setStyleFilter] = useState<string>('all');
+  const [sideFilter, setSideFilter] = useState<'all' | 'offense' | 'defense'>('all');
   const [previewBackfield, setPreviewBackfield] = useState<SnapAlignment | null>(null);
 
   const [confirmApplyModal, setConfirmApplyModal] = useState<Formation | null>(null);
@@ -124,86 +116,36 @@ export const FormationSwitcherModal: React.FC<FormationSwitcherModalProps> = ({
     }
   };
 
-  // Reset all filters helper
+  // Reset filters helper
   const handleResetFilters = () => {
     setSearchQuery('');
-    setPersonnelFilter('all');
-    setQbFilter('all');
-    setAlignFilter('all');
-    setBunchFilter('all');
-    setStyleFilter('all');
+    setSideFilter('all');
   };
 
-  // Count active filters
-  const activeFilterCount = useMemo(() => {
-    let count = 0;
-    if (searchQuery.trim()) count++;
-    if (personnelFilter !== 'all') count++;
-    if (qbFilter !== 'all') count++;
-    if (alignFilter !== 'all') count++;
-    if (bunchFilter !== 'all') count++;
-    if (styleFilter !== 'all') count++;
-    return count;
-  }, [searchQuery, personnelFilter, qbFilter, alignFilter, bunchFilter, styleFilter]);
-
-  // Multi-facet filtering logic
+  // Formations filtering logic (simple side filter + comprehensive search)
   const filteredFormations = useMemo(() => {
     return formations.filter(f => {
       // 1. Side filter
       if (sideFilter === 'offense' && f.side !== 'offense' && f.side !== 'both') return false;
       if (sideFilter === 'defense' && f.side !== 'defense' && f.side !== 'both') return false;
 
-      // 2. Search query (matches name, description, personnel, tags, labels)
+      // 2. Search query (matches name, description, personnel, tags, labels, qb, align, style)
       if (searchQuery.trim()) {
         const q = searchQuery.toLowerCase().trim();
         const matchesName = f.name.toLowerCase().includes(q);
         const matchesDesc = f.description?.toLowerCase().includes(q) ?? false;
         const matchesPersonnel = f.personnel?.toLowerCase().includes(q) ?? false;
+        const matchesQB = f.qbPosition?.toLowerCase().includes(q) ?? false;
+        const matchesAlign = f.receiverAlignment?.toLowerCase().includes(q) ?? false;
+        const matchesStyle = f.style?.toLowerCase().includes(q) ?? false;
         const matchesTags = f.tags?.some(t => t.toLowerCase().includes(q)) ?? false;
         const matchesLabels = f.labels?.some(l => l.toLowerCase().includes(q)) ?? false;
-        if (!matchesName && !matchesDesc && !matchesPersonnel && !matchesTags && !matchesLabels) {
-          return false;
-        }
-      }
-
-      // 3. Style filter
-      if (styleFilter !== 'all' && f.style !== styleFilter) return false;
-
-      // 4. Offensive-specific facets (Personnel, QB, Alignment, Bunch)
-      if (f.side === 'offense' || f.side === 'both') {
-        // Backfield Personnel filter
-        if (personnelFilter !== 'all') {
-          if (personnelFilter === 'empty') {
-            if (f.personnel !== '01' && f.personnel !== '00' && !f.personnel?.includes('Empty')) {
-              return false;
-            }
-          } else {
-            if (f.personnel !== personnelFilter && !f.personnel?.includes(personnelFilter)) {
-              return false;
-            }
-          }
-        }
-
-        // QB Position filter
-        if (qbFilter !== 'all') {
-          if (f.qbPosition !== qbFilter) return false;
-        }
-
-        // Receiver Alignment filter
-        if (alignFilter !== 'all') {
-          if (f.receiverAlignment !== alignFilter && !f.receiverAlignment?.includes(alignFilter)) {
-            return false;
-          }
-        }
-
-        // Bunch filter
-        if (bunchFilter === 'bunch' && !f.isBunch) return false;
-        if (bunchFilter === 'non_bunch' && f.isBunch) return false;
+        return matchesName || matchesDesc || matchesPersonnel || matchesQB || matchesAlign || matchesStyle || matchesTags || matchesLabels;
       }
 
       return true;
     });
-  }, [formations, sideFilter, searchQuery, styleFilter, personnelFilter, qbFilter, alignFilter, bunchFilter]);
+  }, [formations, sideFilter, searchQuery]);
 
   // Base selected formation template
   const baseSelectedFormation = formations.find(f => f.id === selectedFormationId) || filteredFormations[0] || formations[0];
@@ -655,9 +597,8 @@ export const FormationSwitcherModal: React.FC<FormationSwitcherModalProps> = ({
           {/* LEFT LIST */}
           <div className="w-1/2 border-r border-[#30363d] flex flex-col bg-[#0c1017] overflow-hidden">
             
-            {/* MULTI-FACET FILTER BAR */}
+            {/* SEARCH & SIDE TABS BAR */}
             <div className="p-3 border-b border-[#222834] bg-[#11151e] space-y-2 flex-shrink-0">
-              
               {/* SEARCH INPUT */}
               <div className="relative">
                 <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2" />
@@ -709,199 +650,6 @@ export const FormationSwitcherModal: React.FC<FormationSwitcherModalProps> = ({
                   Defense ({formations.filter(f => f.side === 'defense' || f.side === 'both').length})
                 </button>
               </div>
-
-              {/* OFFENSIVE FACET ROWS */}
-              {sideFilter !== 'defense' && (
-                <div className="space-y-1.5 text-[10px]">
-                  {/* PERSONNEL ROW */}
-                  <div className="flex items-center gap-1 overflow-x-auto py-0.5 no-scrollbar">
-                    <span className="text-[9px] uppercase font-bold text-slate-500 mr-1 flex items-center gap-0.5">
-                      <Layers className="w-2.5 h-2.5" />
-                      Pers:
-                    </span>
-                    {['all', '31', '30', '22', '21', '20', '12', '11', '10', 'empty'].map(p => (
-                      <button
-                        key={p}
-                        type="button"
-                        onClick={() => setPersonnelFilter(p)}
-                        className={`px-2 py-0.5 rounded-full font-bold font-mono transition-all flex-shrink-0 cursor-pointer ${
-                          personnelFilter === p
-                            ? 'bg-amber-500 text-black shadow-sm'
-                            : 'bg-[#181d28] text-slate-400 hover:text-slate-200 border border-[#252c3c]'
-                        }`}
-                      >
-                        {p === 'all' ? 'All' : p === 'empty' ? '00/01' : p}
-                      </button>
-                    ))}
-                  </div>
-
-                  {/* QB ALIGNMENT & BUNCH ROW */}
-                  <div className="flex items-center gap-1 overflow-x-auto py-0.5 no-scrollbar">
-                    <span className="text-[9px] uppercase font-bold text-slate-500 mr-1">QB:</span>
-                    {[
-                      { id: 'all', label: 'All' },
-                      { id: 'shotgun', label: 'Gun' },
-                      { id: 'pistol', label: 'Pistol' },
-                      { id: 'down_center', label: 'Center' }
-                    ].map(item => (
-                      <button
-                        key={item.id}
-                        type="button"
-                        onClick={() => setQbFilter(item.id)}
-                        className={`px-2 py-0.5 rounded-full font-bold transition-all flex-shrink-0 cursor-pointer ${
-                          qbFilter === item.id
-                            ? 'bg-sky-500 text-slate-950 shadow-sm'
-                            : 'bg-[#181d28] text-slate-400 hover:text-slate-200 border border-[#252c3c]'
-                        }`}
-                      >
-                        {item.label}
-                      </button>
-                    ))}
-
-                    <span className="text-slate-600 mx-1">|</span>
-
-                    {/* BUNCH TOGGLE */}
-                    <button
-                      type="button"
-                      onClick={() => setBunchFilter(bunchFilter === 'bunch' ? 'all' : 'bunch')}
-                      className={`px-2 py-0.5 rounded-full font-bold transition-all flex-shrink-0 cursor-pointer flex items-center gap-1 ${
-                        bunchFilter === 'bunch'
-                          ? 'bg-rose-500 text-white shadow-sm ring-1 ring-rose-400'
-                          : 'bg-[#181d28] text-rose-300 hover:text-rose-200 border border-rose-900/50'
-                      }`}
-                    >
-                      <Zap className="w-2.5 h-2.5" />
-                      <span>Bunch</span>
-                    </button>
-                  </div>
-
-                  {/* RECEIVER ALIGNMENT ROW */}
-                  <div className="flex items-center gap-1 overflow-x-auto py-0.5 no-scrollbar">
-                    <span className="text-[9px] uppercase font-bold text-slate-500 mr-1">Align:</span>
-                    {['all', '2x2', '3x1', '2x1', '3x2', '4x1', '1x1'].map(a => (
-                      <button
-                        key={a}
-                        type="button"
-                        onClick={() => setAlignFilter(a)}
-                        className={`px-2 py-0.5 rounded-full font-bold font-mono transition-all flex-shrink-0 cursor-pointer ${
-                          alignFilter === a
-                            ? 'bg-purple-500 text-white shadow-sm'
-                            : 'bg-[#181d28] text-slate-400 hover:text-slate-200 border border-[#252c3c]'
-                        }`}
-                      >
-                        {a === 'all' ? 'All' : a}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {/* STYLE PILLS ROW */}
-              <div className="flex items-center gap-1 overflow-x-auto py-0.5 text-[10px] no-scrollbar">
-                <span className="text-[9px] uppercase font-bold text-slate-500 mr-1">Style:</span>
-                <button
-                  type="button"
-                  onClick={() => setStyleFilter('all')}
-                  className={`px-2 py-0.5 rounded-full font-bold transition-all flex-shrink-0 cursor-pointer ${
-                    styleFilter === 'all'
-                      ? 'bg-slate-200 text-slate-900 shadow-sm'
-                      : 'bg-slate-800 text-slate-400 hover:text-slate-200'
-                  }`}
-                >
-                  All
-                </button>
-                {sideFilter !== 'defense' ? (
-                  <>
-                    <button
-                      type="button"
-                      onClick={() => setStyleFilter('spread')}
-                      className={`px-2 py-0.5 rounded-full font-bold transition-all flex-shrink-0 cursor-pointer ${
-                        styleFilter === 'spread'
-                          ? 'bg-emerald-600 text-white shadow-sm'
-                          : 'bg-slate-800 text-slate-400 hover:text-slate-200'
-                      }`}
-                    >
-                      Spread
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setStyleFilter('pro_style')}
-                      className={`px-2 py-0.5 rounded-full font-bold transition-all flex-shrink-0 cursor-pointer ${
-                        styleFilter === 'pro_style'
-                          ? 'bg-sky-600 text-white shadow-sm'
-                          : 'bg-slate-800 text-slate-400 hover:text-slate-200'
-                      }`}
-                    >
-                      Pro Style
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setStyleFilter('old_school')}
-                      className={`px-2 py-0.5 rounded-full font-bold transition-all flex-shrink-0 cursor-pointer ${
-                        styleFilter === 'old_school'
-                          ? 'bg-amber-600 text-white shadow-sm'
-                          : 'bg-slate-800 text-slate-400 hover:text-slate-200'
-                      }`}
-                    >
-                      Old School
-                    </button>
-                  </>
-                ) : (
-                  <>
-                    <button
-                      type="button"
-                      onClick={() => setStyleFilter('even_front')}
-                      className={`px-2 py-0.5 rounded-full font-bold transition-all flex-shrink-0 cursor-pointer ${
-                        styleFilter === 'even_front'
-                          ? 'bg-blue-600 text-white shadow-sm'
-                          : 'bg-slate-800 text-slate-400 hover:text-slate-200'
-                      }`}
-                    >
-                      Even (4-Down)
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setStyleFilter('odd_front')}
-                      className={`px-2 py-0.5 rounded-full font-bold transition-all flex-shrink-0 cursor-pointer ${
-                        styleFilter === 'odd_front'
-                          ? 'bg-purple-600 text-white shadow-sm'
-                          : 'bg-slate-800 text-slate-400 hover:text-slate-200'
-                      }`}
-                    >
-                      Odd (3-Down)
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setStyleFilter('heavy_front')}
-                      className={`px-2 py-0.5 rounded-full font-bold transition-all flex-shrink-0 cursor-pointer ${
-                        styleFilter === 'heavy_front'
-                          ? 'bg-rose-600 text-white shadow-sm'
-                          : 'bg-slate-800 text-slate-400 hover:text-slate-200'
-                      }`}
-                    >
-                      Heavy / Bear
-                    </button>
-                  </>
-                )}
-              </div>
-
-              {/* ACTIVE FILTER SUMMARY & RESET */}
-              {activeFilterCount > 0 && (
-                <div className="flex items-center justify-between text-[11px] text-sky-400 pt-1 border-t border-[#222834]/60">
-                  <span className="flex items-center gap-1 font-semibold">
-                    <Filter className="w-3 h-3 text-sky-400" />
-                    <span>{filteredFormations.length} matched ({activeFilterCount} active filters)</span>
-                  </span>
-                  <button
-                    type="button"
-                    onClick={handleResetFilters}
-                    className="flex items-center gap-1 text-[10px] text-slate-400 hover:text-sky-300 font-bold transition-colors cursor-pointer"
-                  >
-                    <RotateCcw className="w-3 h-3" />
-                    <span>Reset Filters</span>
-                  </button>
-                </div>
-              )}
             </div>
 
             {/* FORMATION CARDS LIST */}
