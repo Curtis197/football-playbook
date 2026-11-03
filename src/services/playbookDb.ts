@@ -190,6 +190,22 @@ export async function deletePlay(id: string): Promise<void> {
 // ==========================================
 
 /**
+ * Seed or update all mapped formation templates in Firestore
+ */
+export async function seedAllFormations(formationsList?: Formation[]): Promise<{ count: number }> {
+  try {
+    const list = formationsList && formationsList.length > 0 ? formationsList : DEFAULT_FORMATIONS;
+    for (const formation of list) {
+      await saveFormation(formation);
+    }
+    return { count: list.length };
+  } catch (error) {
+    console.error('[playbookDb] Error syncing formations to Firestore:', error);
+    throw error;
+  }
+}
+
+/**
  * Seed Firestore with default preset plays and base formations
  */
 export async function seedDefaultPresets(): Promise<{ playsCount: number; formationsCount: number }> {
@@ -199,13 +215,11 @@ export async function seedDefaultPresets(): Promise<{ playsCount: number; format
       await savePlay(play);
     }
 
-    for (const formation of DEFAULT_FORMATIONS) {
-      await saveFormation(formation);
-    }
+    const { count } = await seedAllFormations(DEFAULT_FORMATIONS);
 
     return {
       playsCount: presetPlays.length,
-      formationsCount: DEFAULT_FORMATIONS.length
+      formationsCount: count
     };
   } catch (error) {
     console.error('[playbookDb] Error seeding default presets:', error);

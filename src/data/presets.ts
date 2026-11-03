@@ -1,4 +1,5 @@
 import type { Play, PlaybookFile, Formation } from '../types/playbook';
+import { MATRIX_OFFENSIVE_FORMATIONS } from './offensiveFormationsMatrix';
 
 export const DEFAULT_WISHBONE_PLAY: Play = {
   id: "play-wishbone-zone-glance",
@@ -241,7 +242,11 @@ export const DEFAULT_FORMATIONS: Formation[] = [
     "id": "formation-spread-2x2",
     "name": "Spread 2x2 Open (Doubles)",
     "side": "offense",
-    "personnel": "10/11 Personnel",
+    "personnel": "11",
+    "qbPosition": "shotgun",
+    "receiverAlignment": "2x2",
+    "isBunch": false,
+    "tags": ["11", "shotgun", "2x2", "spread", "doubles"],
     "description": "Balanced 4-wide spread formation with twin receivers to both boundary and field, opening up the box for interior zone and quick RPO glance/bubbles.",
     "players": [
       {
@@ -400,7 +405,11 @@ export const DEFAULT_FORMATIONS: Formation[] = [
     "id": "formation-spread-trips-3x1",
     "name": "Spread 3x1 Trips Open",
     "side": "offense",
-    "personnel": "11 Personnel",
+    "personnel": "11",
+    "qbPosition": "shotgun",
+    "receiverAlignment": "3x1",
+    "isBunch": false,
+    "tags": ["11", "shotgun", "3x1", "spread", "trips"],
     "description": "Unbalanced spread formation creating a 3-receiver triangle flood to the field side with single isolated receiver to the boundary.",
     "players": [
       {
@@ -559,7 +568,11 @@ export const DEFAULT_FORMATIONS: Formation[] = [
     "id": "formation-pro-i-21",
     "name": "Pro-I Formation",
     "side": "offense",
-    "personnel": "21 Personnel",
+    "personnel": "21",
+    "qbPosition": "down_center",
+    "receiverAlignment": "2x1",
+    "isBunch": false,
+    "tags": ["21", "down_center", "2x1", "pro_style", "i_form"],
     "description": "Classic downhill power run formation under center with attached Tight End (Y) on the right, Fullback (FB) and Tailback (TB) aligned in an I-formation stack.",
     "players": [
       {
@@ -718,7 +731,11 @@ export const DEFAULT_FORMATIONS: Formation[] = [
     "id": "formation-single-back-ace",
     "name": "Single-Back Ace (12 Personnel)",
     "side": "offense",
-    "personnel": "12 Personnel",
+    "personnel": "12",
+    "qbPosition": "down_center",
+    "receiverAlignment": "2x2",
+    "isBunch": false,
+    "tags": ["12", "down_center", "2x2", "pro_style", "ace", "double_tight"],
     "description": "Balanced two tight-end formation with dual attached TEs (Y right, H left) creating an 8-man box front for dual-sided zone, pin & pull, and play-action seams.",
     "players": [
       {
@@ -876,7 +893,11 @@ export const DEFAULT_FORMATIONS: Formation[] = [
     "id": "formation-shotgun-bunch-11",
     "name": "Shotgun Bunch Right",
     "side": "offense",
-    "personnel": "11 Personnel",
+    "personnel": "11",
+    "qbPosition": "shotgun",
+    "receiverAlignment": "3x1",
+    "isBunch": true,
+    "tags": ["11", "shotgun", "3x1", "spread", "bunch"],
     "description": "Compressed 3-man bunch triangle on the strong side to defeat press man coverage through natural picks, rub routes, and sprint-out concepts.",
     "players": [
       {
@@ -1035,7 +1056,11 @@ export const DEFAULT_FORMATIONS: Formation[] = [
     "id": "formation-pistol-diamond-20",
     "name": "Pistol Diamond (20 Personnel)",
     "side": "offense",
-    "personnel": "20 Personnel",
+    "personnel": "20",
+    "qbPosition": "pistol",
+    "receiverAlignment": "1x2",
+    "isBunch": false,
+    "tags": ["20", "pistol", "1x2", "spread", "diamond"],
     "description": "Triple-option inverted diamond formation with 3 backs surrounding the Pistol QB for downhill power read, triple option, and misdirection counter sweeps.",
     "players": [
       {
@@ -1194,7 +1219,11 @@ export const DEFAULT_FORMATIONS: Formation[] = [
     "id": "formation-empty-3x2",
     "name": "Empty 3x2 (Quads Spread)",
     "side": "offense",
-    "personnel": "10 Personnel",
+    "personnel": "01",
+    "qbPosition": "shotgun",
+    "receiverAlignment": "3x2",
+    "isBunch": false,
+    "tags": ["01", "shotgun", "3x2", "spread", "empty"],
     "description": "Empty backfield with 5 receivers spread across the formation, stretching the defense horizontally and creating clear blitz windows for quick passing.",
     "players": [
       {
@@ -1353,7 +1382,11 @@ export const DEFAULT_FORMATIONS: Formation[] = [
     "id": "formation-wishbone-21",
     "name": "Shotgun Wishbone 21 Pers",
     "side": "offense",
-    "personnel": "21 Personnel",
+    "personnel": "21",
+    "qbPosition": "shotgun",
+    "receiverAlignment": "2x1",
+    "isBunch": false,
+    "tags": ["21", "shotgun", "2x1", "old_school", "wishbone"],
     "description": "Heavy backfield with H & Z flankers flanking QB in gun; Y tight wing.",
     "players": [
       {
@@ -1537,6 +1570,7 @@ export const DEFAULT_FORMATIONS: Formation[] = [
     ],
     "updatedAt": "2026-11-03T14:52:50.216Z"
   },
+  ...MATRIX_OFFENSIVE_FORMATIONS,
   {
     "id": "front-4-3-over",
     "name": "4-3 Over Front",

@@ -9,7 +9,8 @@ import type {
   AppMode,
   Theme,
   Point,
-  Formation
+  Formation,
+  RouteAdaptationMode
 } from './types/playbook';
 import { DEFAULT_WISHBONE_PLAY, DEFAULT_FORMATIONS } from './data/presets';
 import { 
@@ -28,6 +29,7 @@ import { PlayLibraryModal } from './components/PlayLibraryModal';
 import { FormationSwitcherModal } from './components/FormationSwitcherModal';
 import { DefenseFrontModal } from './components/DefenseFrontModal';
 import { shiftDefensiveFront, realignAllDefenders, analyzeOffense, calculateDefensiveAlignmentPosition, inferDefenderTechnique } from './utils/defensiveAlignment';
+import { adaptRoutesToNewFormation } from './utils/routeAdaptation';
 import { savePlay, fetchFormations, saveFormation } from './services/playbookDb';
 import { isFirebaseConfigured } from './services/firebase';
 
@@ -51,6 +53,7 @@ export const App: React.FC = () => {
   const [notification, setNotification] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);
   const [restartBlockRequest, setRestartBlockRequest] = useState<{ actionId: string; playerId: string; startPoint: Point } | null>(null);
   const [formations, setFormations] = useState<Formation[]>(() => DEFAULT_FORMATIONS);
+  const [routeAdaptationMode, setRouteAdaptationMode] = useState<RouteAdaptationMode>('player_relative');
 
   // Load formations from Firestore (or fallback to DEFAULT_FORMATIONS)
   useEffect(() => {
@@ -458,24 +461,13 @@ export const App: React.FC = () => {
   };
 
   // Apply Formation Template to current play
-  const handleApplyFormation = (newPlayers: Player[], keepActions: boolean) => {
+  const handleApplyFormation = (newPlayers: Player[], keepActions: boolean, customMode?: RouteAdaptationMode) => {
     updateCurrentPlay(p => {
-      let nextActions = keepActions ? [...p.actions] : [];
-      if (keepActions) {
-        // Keep existing route assignments aligned to the players
-        const playerMap = new Map(newPlayers.map(pl => [pl.id, pl]));
-        nextActions = nextActions.map(action => {
-          const player = playerMap.get(action.playerId);
-          if (player && action.points.length > 0) {
-            const updatedPoints = [
-              { ...action.points[0], x: player.x, y: player.y },
-              ...action.points.slice(1)
-            ];
-            return { ...action, points: updatedPoints };
-          }
-          return action;
-        });
-      }
+      const modeToUse = customMode || routeAdaptationMode;
+      const offPlayers = newPlayers.filter(pl => pl.side === 'offense');
+      const nextActions = keepActions 
+        ? adaptRoutesToNewFormation(p.actions, p.players, offPlayers, modeToUse) 
+        : [];
 
       return {
         ...p,
@@ -539,21 +531,13 @@ export const App: React.FC = () => {
     const newStructure = analyzeOffense(offPlayers);
 
     updateCurrentPlay(p => {
-      // Re-anchor existing routes whose playerId matches
-      const playerMap = new Map(offPlayers.map(pl => [pl.id, pl]));
-      const nextActions = p.actions.map(action => {
-        const player = playerMap.get(action.playerId);
-        if (player && action.points.length > 0) {
-          return {
-            ...action,
-            points: [
-              { ...action.points[0], x: player.x, y: player.y },
-              ...action.points.slice(1)
-            ]
-          };
-        }
-        return action;
-      });
+      // Adapt existing routes relative to players or according to #1/#2/#3 outside concept
+      const nextActions = adaptRoutesToNewFormation(
+        p.actions,
+        p.players,
+        offPlayers,
+        routeAdaptationMode
+      );
 
       // Automatically re-align all defensive players to the new offensive structure
       const currentDefenders = p.players.filter(pl => pl.side === 'defense');
@@ -569,7 +553,7 @@ export const App: React.FC = () => {
 
     setSelectedPlayerId(null);
     setSelectedActionId(null);
-    showNotification(`Switched Offense to "${formation.name}" & re-aligned defense!`, 'success');
+    showNotification(`Switched Offense to "${formation.name}" (Routes: ${routeAdaptationMode === 'player_relative' ? 'Player-Relative' : '#1/#2/#3 Concept'}) & re-aligned defense!`, 'success');
   };
 
   // Select and apply a Defensive Front from dropdown
@@ -750,6 +734,18 @@ export const App: React.FC = () => {
             activeDefenseFront={currentPlay.frontDefense}
             onSelectOffenseFormation={handleSelectOffenseFormation}
             onSelectDefenseFront={handleSelectDefenseFront}
+            routeAdaptationMode={routeAdaptationMode}
+            onToggleRouteAdaptationMode={() => {
+              setRouteAdaptationMode(prev => {
+                const next = prev === 'player_relative' ? 'concept_numbered' : 'player_relative';
+                showNotification(`Route Adaptation: ${next === 'player_relative' ? 'Relative to Player' : '#1/#2/#3 Concept Outside'}`, 'info');
+                return next;
+              });
+            }}
+            onSetRouteAdaptationMode={(mode) => {
+              setRouteAdaptationMode(mode);
+              showNotification(`Route Adaptation: ${mode === 'player_relative' ? 'Relative to Player' : '#1/#2/#3 Concept Outside'}`, 'info');
+            }}
             onUpdateOffenseFormation={() => {
               const f = formations.find(fm => (fm.side === 'offense' || fm.side === 'both') && (fm.id === currentPlay.formationOffense || fm.name === currentPlay.formationOffense));
               if (f) handleUpdateFormation(f.id, 'offense');
@@ -856,6 +852,8 @@ export const App: React.FC = () => {
         currentActions={currentPlay.actions}
         onApplyFormation={handleApplyFormation}
         onUpdateFormation={handleUpdateFormation}
+        routeAdaptationMode={routeAdaptationMode}
+        onSetRouteAdaptationMode={setRouteAdaptationMode}
         showNotification={showNotification}
       />
 

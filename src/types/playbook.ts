@@ -85,17 +85,39 @@ export interface PlaybookFile {
 export type CanvasMode = 'select' | 'draw_route' | 'draw_block' | 'draw_motion' | 'add_offense' | 'add_defense';
 export type AppMode = 'build' | 'view';
 export type Theme = 'dark' | 'light';
+export type RouteAdaptationMode = 'player_relative' | 'concept_numbered';
 
-export type FormationStyle = 'pro_style' | 'spread' | 'old_school' | 'odd_front' | 'even_front' | 'heavy_front' | 'hybrid' | string;
+export type FormationStyle = 'pro_style' | 'spread' | 'old_school' | 'even_front' | 'odd_front' | 'heavy_front' | 'hybrid' | string;
+
+export type QBPosition = 'shotgun' | 'pistol' | 'down_center' | string;
+
+export type ReceiverAlignment = 
+  | '1x1' 
+  | '2x1' 
+  | '1x2' 
+  | '2x2' 
+  | '3x1' 
+  | '1x3' 
+  | '3x2' 
+  | '2x3' 
+  | '4x1' 
+  | '1x4' 
+  | 'bunch' 
+  | 'tight' 
+  | string;
 
 // 7. Base Formation Template Definition
 export interface Formation {
   id: string;
   name: string;
   side: Side | 'both';
-  personnel?: string;
-  style?: FormationStyle;
+  personnel?: string;                  // e.g. "21", "31", "30", "20", "11", "12", "10", "01", "00", "22", "32"
+  qbPosition?: QBPosition;             // "shotgun" | "pistol" | "down_center"
+  receiverAlignment?: ReceiverAlignment; // "2x2", "3x1", "2x1", "3x2", "1x1", "4x1"
+  style?: FormationStyle;              // "pro_style" | "spread" | "old_school" | "even_front" | ...
+  isBunch?: boolean;                   // Flag indicating clustered/bunch receiver alignment
   labels?: string[];
+  tags?: string[];
   description?: string;
   players: Player[];
   createdAt?: string;

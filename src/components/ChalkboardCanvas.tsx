@@ -1,9 +1,10 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
-import type { Player, PathAction, CanvasMode, Point, AppMode, Theme, Formation, Play } from '../types/playbook';
+import type { Player, PathAction, CanvasMode, Point, AppMode, Theme, Formation, Play, RouteAdaptationMode } from '../types/playbook';
 import { generatePathString, getSvgCoordinates, clampFieldCoordinates, getDistance, insertPointIntoAction } from '../utils/geometry';
 import { isLightColor } from '../utils/colors';
 import { Shield, ChevronLeft, ChevronRight, RotateCcw, Save } from 'lucide-react';
 import { analyzeOffense, calculateDefensiveAlignmentPosition } from '../utils/defensiveAlignment';
+import { translateActionPoints } from '../utils/routeAdaptation';
 
 interface ChalkboardCanvasProps {
   players: Player[];
@@ -24,6 +25,9 @@ interface ChalkboardCanvasProps {
   onSelectPlay?: (playId: string) => void;
   onSelectOffenseFormation?: (formationId: string) => void;
   onSelectDefenseFront?: (formationId: string) => void;
+  routeAdaptationMode?: RouteAdaptationMode;
+  onToggleRouteAdaptationMode?: () => void;
+  onSetRouteAdaptationMode?: (mode: RouteAdaptationMode) => void;
   onUpdateOffenseFormation?: () => void;
   onUpdateDefenseFront?: () => void;
   selectedPlayerId: string | null;
@@ -59,6 +63,9 @@ export const ChalkboardCanvas: React.FC<ChalkboardCanvasProps> = ({
   onSelectPlay,
   onSelectOffenseFormation,
   onSelectDefenseFront,
+  routeAdaptationMode = 'player_relative',
+  onToggleRouteAdaptationMode,
+  onSetRouteAdaptationMode: _onSetRouteAdaptationMode,
   onUpdateOffenseFormation,
   onUpdateDefenseFront,
   selectedPlayerId,
@@ -305,16 +312,22 @@ export const ChalkboardCanvas: React.FC<ChalkboardCanvasProps> = ({
       const newX = pt.x - dragOffset.x;
       const newY = pt.y - dragOffset.y;
       const clamped = clampFieldCoordinates({ x: newX, y: newY });
+      const currentPlayer = players.find(p => p.id === draggingPlayerId);
+      const dx = clamped.x - (currentPlayer?.x ?? clamped.x);
+      const dy = clamped.y - (currentPlayer?.y ?? clamped.y);
+
       onUpdatePlayerPosition(draggingPlayerId, clamped.x, clamped.y);
 
-      // Also dynamically update any actions that start at this player
-      const playerActions = actions.filter(a => a.playerId === draggingPlayerId);
-      playerActions.forEach(act => {
-        if (act.points.length > 0) {
-          const updatedPoints = [{ ...act.points[0], x: clamped.x, y: clamped.y }, ...act.points.slice(1)];
-          onUpdateActionPoints(act.id, updatedPoints);
-        }
-      });
+      // Dynamically translate all points in any actions that belong to this player so the route moves relative to the player
+      if (dx !== 0 || dy !== 0) {
+        const playerActions = actions.filter(a => a.playerId === draggingPlayerId);
+        playerActions.forEach(act => {
+          if (act.points.length > 0) {
+            const updatedPoints = translateActionPoints(act.points, dx, dy);
+            onUpdateActionPoints(act.id, updatedPoints);
+          }
+        });
+      }
     } else if (draggingWaypoint) {
       const act = actions.find(a => a.id === draggingWaypoint.actionId);
       if (act) {
@@ -1222,6 +1235,38 @@ export const ChalkboardCanvas: React.FC<ChalkboardCanvasProps> = ({
                 >
                   <Save className="w-3 h-3 text-amber-500" />
                   <span>Update</span>
+                </button>
+              )}
+
+              {/* ROUTE ADAPTATION MODE TOGGLE */}
+              {onToggleRouteAdaptationMode && (
+                <button
+                  type="button"
+                  onClick={onToggleRouteAdaptationMode}
+                  className={`px-2 py-1 rounded text-[10px] font-bold border transition-all cursor-pointer flex items-center gap-1 active:scale-95 shadow-sm ${
+                    routeAdaptationMode === 'concept_numbered'
+                      ? isLight
+                        ? 'bg-purple-100 hover:bg-purple-200 text-purple-900 border-purple-300'
+                        : 'bg-purple-900/50 hover:bg-purple-800/60 text-purple-200 border-purple-500/50'
+                      : isLight
+                        ? 'bg-sky-100 hover:bg-sky-200 text-sky-900 border-sky-300'
+                        : 'bg-sky-900/50 hover:bg-sky-800/60 text-sky-200 border-sky-500/50'
+                  }`}
+                  title={`Route adaptation when changing offensive formation:\n• Player-Relative: Translates full vector (stem, breaks, cuts) relative to each player\n• Concept (#1/#2/#3): Maps routes to #1, #2, #3 receivers from outside in\n\nClick to toggle (Currently: ${
+                    routeAdaptationMode === 'concept_numbered' ? '#1/#2/#3 Concept Outside' : 'Relative to Player'
+                  })`}
+                >
+                  {routeAdaptationMode === 'concept_numbered' ? (
+                    <>
+                      <span className="font-mono text-purple-400 font-extrabold text-[11px]">#123</span>
+                      <span>Concept</span>
+                    </>
+                  ) : (
+                    <>
+                      <span>🎯</span>
+                      <span>Player-Rel</span>
+                    </>
+                  )}
                 </button>
               )}
             </div>

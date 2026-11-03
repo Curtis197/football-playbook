@@ -189,4 +189,20 @@ Comprehensive catalog of capabilities and features supported in the Football Pla
     - Automatically filters and highlights plays belonging to the selected offensive formation, while still granting instant access to other playbook plays.
     - Allows coaches to instantly stress-test any play concept against any defensive front with automated dynamic gap realignment.
 
+- **Route Adaptation & Vector Relative Translation Engine (`routeAdaptation.ts`)**:
+  - Full Vector Relative Translation:
+    - When an offensive formation changes, vector routes, block tracks, and motion paths dynamically translate relative to the player ($\Delta x = \text{newX} - \text{oldX}, \Delta y = \text{newY} - \text{oldY}$), moving all waypoints, cut breaks, and terminal markers intact instead of freezing them at initial field coordinates.
+    - Prevents vector distortion and preserves authentic route depth, stem angle, and cut geometry across different offensive personnel packages.
+    - Dragging a player in select/build mode translates all vector actions belonging to that player smoothly with the drag movement.
+  - Receiver Distribution Concept Mapping (#1/#2/#3 Outside):
+    - Categorizes offensive skill receivers from the sideline inward:
+      - Left of Center: Left #1 (outermost), Left #2 (slot), Left #3 (inner/wing).
+      - Right of Center: Right #1 (outermost), Right #2 (slot), Right #3 (inner/wing).
+    - When `concept_numbered` mode is chosen, passing routes adapt to the outside-in receiver hierarchy so concepts like Smash, Flood, Mesh, and Dagger map to the corresponding outside and slot receivers of the new formation automatically.
+    - Linemen (pass pro, run blocks, pull traps) and backfield players maintain player-relative positional translation.
+  - Coach-Controlled Adaptation Mode Switcher:
+    - 1-Click HUD Toggle on Chalkboard Canvas top bar: `[🎯 Player-Rel]` vs `[🔢 #123 Concept]`.
+    - Enhanced confirmation prompt in `FormationSwitcherModal.tsx`: Allows choosing between `🎯 Keep: Relative to Player`, `🔢 Keep: Concept (#1/#2/#3 Outside)`, or clearing routes.
+
+
 
