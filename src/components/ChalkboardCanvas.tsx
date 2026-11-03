@@ -1,0 +1,683 @@
+import React, { useState, useRef, useEffect, useCallback } from 'react';
+import type { Player, PathAction, CanvasMode, Point } from '../types/playbook';
+import { generatePathString, getSvgCoordinates, clampFieldCoordinates } from '../utils/geometry';
+
+interface ChalkboardCanvasProps {
+  players: Player[];
+  actions: PathAction[];
+  mode: CanvasMode;
+  selectedPlayerId: string | null;
+  selectedActionId: string | null;
+  onSelectPlayer: (id: string | null) => void;
+  onSelectAction: (id: string | null) => void;
+  onUpdatePlayerPosition: (id: string, x: number, y: number) => void;
+  onAddAction: (action: PathAction) => void;
+  onUpdateActionPoints: (actionId: string, points: Point[]) => void;
+  onAddPlayerAtPoint: (x: number, y: number, side: 'offense' | 'defense') => void;
+}
+
+export const ChalkboardCanvas: React.FC<ChalkboardCanvasProps> = ({
+  players,
+  actions,
+  mode,
+  selectedPlayerId,
+  selectedActionId,
+  onSelectPlayer,
+  onSelectAction,
+  onUpdatePlayerPosition,
+  onAddAction,
+  onUpdateActionPoints,
+  onAddPlayerAtPoint
+}) => {
+  const svgRef = useRef<SVGSVGElement | null>(null);
+
+  // Dragging state
+  const [draggingPlayerId, setDraggingPlayerId] = useState<string | null>(null);
+  const [dragOffset, setDragOffset] = useState<Point>({ x: 0, y: 0 });
+
+  // Waypoint dragging state
+  const [draggingWaypoint, setDraggingWaypoint] = useState<{ actionId: string; pointIndex: number } | null>(null);
+
+  // Drawing state (for Draw Route / Draw Block / Draw Motion)
+  const [drawingPoints, setDrawingPoints] = useState<Point[]>([]);
+  const [drawingPlayerId, setDrawingPlayerId] = useState<string | null>(null);
+  const [cursorPos, setCursorPos] = useState<Point | null>(null);
+
+  // Hover state for Thought Partner tooltip
+  const [hoveredPlayerId, setHoveredPlayerId] = useState<string | null>(null);
+  const [tooltipPos, setTooltipPos] = useState<{ x: number; y: number } | null>(null);
+
+  const activeHoveredPlayer = players.find(p => p.id === (hoveredPlayerId || selectedPlayerId));
+
+  // Handle pointer down on player
+  const handlePlayerPointerDown = (e: React.PointerEvent, player: Player) => {
+    e.stopPropagation();
+    if (mode === 'select') {
+      onSelectPlayer(player.id);
+      onSelectAction(null);
+      if (svgRef.current) {
+        const svgCoords = getSvgCoordinates(e, svgRef.current);
+        setDraggingPlayerId(player.id);
+        setDragOffset({
+          x: svgCoords.x - player.x,
+          y: svgCoords.y - player.y
+        });
+      }
+    } else if (mode === 'draw_route' || mode === 'draw_block' || mode === 'draw_motion') {
+      // Start drawing from this player
+      setDrawingPlayerId(player.id);
+      setDrawingPoints([{ x: player.x, y: player.y }]);
+      onSelectPlayer(player.id);
+    }
+  };
+
+  // Complete drawing an action
+  const finishDrawing = useCallback((pointsToSave: Point[]) => {
+    if (!drawingPlayerId || pointsToSave.length < 2) {
+      setDrawingPoints([]);
+      setDrawingPlayerId(null);
+      return;
+    }
+
+    let actionType: PathAction['type'] = 'pass_route';
+    let endMarker: PathAction['endMarker'] = 'arrow';
+    let isCurved = false;
+
+    if (mode === 'draw_block') {
+      actionType = 'run_block';
+      endMarker = 'tbar';
+    } else if (mode === 'draw_motion') {
+      actionType = 'motion';
+      endMarker = 'arrow';
+      isCurved = true;
+    } else {
+      actionType = 'pass_route';
+      endMarker = 'arrow';
+      isCurved = pointsToSave.length > 2;
+    }
+
+    const newAction: PathAction = {
+      id: `act_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+      playerId: drawingPlayerId,
+      type: actionType,
+      points: pointsToSave,
+      isCurved,
+      endMarker,
+      label: actionType === 'pass_route' ? 'Route' : actionType === 'run_block' ? 'Block' : 'Motion'
+    };
+
+    onAddAction(newAction);
+    setDrawingPoints([]);
+    setDrawingPlayerId(null);
+  }, [drawingPlayerId, mode, onAddAction]);
+
+  // Handle SVG background click
+  const handleCanvasClick = (e: React.MouseEvent) => {
+    if (!svgRef.current) return;
+    const pt = getSvgCoordinates(e, svgRef.current);
+
+    if (mode === 'add_offense') {
+      onAddPlayerAtPoint(pt.x, pt.y, 'offense');
+      return;
+    }
+    if (mode === 'add_defense') {
+      onAddPlayerAtPoint(pt.x, pt.y, 'defense');
+      return;
+    }
+
+    if (drawingPlayerId && (mode === 'draw_route' || mode === 'draw_block' || mode === 'draw_motion')) {
+      // Add waypoint
+      const newPts = [...drawingPoints, pt];
+      if (mode === 'draw_block' && newPts.length >= 2) {
+        // Block only needs 2 points
+        finishDrawing(newPts);
+      } else {
+        setDrawingPoints(newPts);
+      }
+      return;
+    }
+
+    // Otherwise deselect if clicked empty field
+    if (mode === 'select') {
+      onSelectPlayer(null);
+      onSelectAction(null);
+    }
+  };
+
+  // Double click finishes route drawing
+  const handleDoubleClick = () => {
+    if (drawingPoints.length >= 2) {
+      finishDrawing(drawingPoints);
+    }
+  };
+
+  // Pointer move across SVG canvas
+  const handlePointerMove = (e: React.PointerEvent) => {
+    if (!svgRef.current) return;
+    const pt = getSvgCoordinates(e, svgRef.current);
+    setCursorPos(pt);
+
+    if (draggingPlayerId) {
+      const newX = pt.x - dragOffset.x;
+      const newY = pt.y - dragOffset.y;
+      const clamped = clampFieldCoordinates({ x: newX, y: newY });
+      onUpdatePlayerPosition(draggingPlayerId, clamped.x, clamped.y);
+
+      // Also dynamically update any actions that start at this player
+      const playerActions = actions.filter(a => a.playerId === draggingPlayerId);
+      playerActions.forEach(act => {
+        if (act.points.length > 0) {
+          const updatedPoints = [{ x: clamped.x, y: clamped.y }, ...act.points.slice(1)];
+          onUpdateActionPoints(act.id, updatedPoints);
+        }
+      });
+    } else if (draggingWaypoint) {
+      const act = actions.find(a => a.id === draggingWaypoint.actionId);
+      if (act) {
+        const updatedPoints = [...act.points];
+        updatedPoints[draggingWaypoint.pointIndex] = pt;
+        onUpdateActionPoints(act.id, updatedPoints);
+      }
+    }
+  };
+
+  // Pointer up clears drag states
+  const handlePointerUp = () => {
+    setDraggingPlayerId(null);
+    setDraggingWaypoint(null);
+  };
+
+  // Cancel drawing on Escape key
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setDrawingPoints([]);
+        setDrawingPlayerId(null);
+      } else if (e.key === 'Enter' && drawingPoints.length >= 2) {
+        finishDrawing(drawingPoints);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [drawingPoints, finishDrawing]);
+
+  // Determine line styling
+  const getActionStroke = (action: PathAction, isSelected: boolean) => {
+    if (isSelected) return '#38bdf8';
+    if (action.color) return action.color;
+    switch (action.type) {
+      case 'pass_route':
+        return '#38bdf8'; // Sky blue
+      case 'run_block':
+        return '#f59e0b'; // Amber
+      case 'pull_block':
+        return '#ec4899'; // Hot pink / violet
+      case 'motion':
+        return '#c084fc'; // Purple
+      default:
+        return '#38bdf8';
+    }
+  };
+
+  return (
+    <div className="relative w-full h-full flex flex-col items-center justify-center bg-[#10141a] p-2 select-none overflow-hidden">
+      {/* Field container with blackboard border */}
+      <div className="relative w-full max-w-[1100px] aspect-[1000/700] rounded-xl shadow-2xl border-4 border-[#2b3544] overflow-hidden bg-[#161c24]">
+        <svg
+          ref={svgRef}
+          viewBox="0 0 1000 700"
+          className="w-full h-full chalkboard-bg cursor-crosshair touch-none"
+          onPointerDown={(e) => {
+            if (e.target === svgRef.current) {
+              handleCanvasClick(e);
+            }
+          }}
+          onPointerMove={handlePointerMove}
+          onPointerUp={handlePointerUp}
+          onDoubleClick={handleDoubleClick}
+        >
+          <defs>
+            {/* Standard Pass Route Arrowhead */}
+            <marker
+              id="arrow"
+              viewBox="0 0 10 10"
+              refX="8"
+              refY="5"
+              markerWidth="6"
+              markerHeight="6"
+              orient="auto-start-reverse"
+            >
+              <path d="M 0 1 L 10 5 L 0 9 z" fill="#38bdf8" />
+            </marker>
+
+            {/* Run Block T-Bar */}
+            <marker
+              id="tbar"
+              viewBox="0 0 10 10"
+              refX="5"
+              refY="5"
+              markerWidth="6"
+              markerHeight="6"
+              orient="auto"
+            >
+              <path d="M 5 0 L 5 10 M 2 5 L 8 5" stroke="#f59e0b" strokeWidth="2.5" strokeLinecap="square" />
+            </marker>
+
+            {/* Pull Block Pink T-Bar */}
+            <marker
+              id="pull-tbar"
+              viewBox="0 0 10 10"
+              refX="5"
+              refY="5"
+              markerWidth="6"
+              markerHeight="6"
+              orient="auto"
+            >
+              <path d="M 5 0 L 5 10 M 2 5 L 8 5" stroke="#ec4899" strokeWidth="2.5" strokeLinecap="square" />
+            </marker>
+
+            {/* Motion Purple Arrow */}
+            <marker
+              id="motion-arrow"
+              viewBox="0 0 10 10"
+              refX="8"
+              refY="5"
+              markerWidth="6"
+              markerHeight="6"
+              orient="auto-start-reverse"
+            >
+              <path d="M 0 1 L 10 5 L 0 9 z" fill="#c084fc" />
+            </marker>
+
+            {/* Dot marker */}
+            <marker id="dot" viewBox="0 0 10 10" refX="5" refY="5" markerWidth="5" markerHeight="5">
+              <circle cx="5" cy="5" r="3.5" fill="#38bdf8" />
+            </marker>
+
+            {/* Player Glow filter */}
+            <filter id="glow" x="-20%" y="-20%" width="140%" height="140%">
+              <feDropShadow dx="0" dy="0" stdDeviation="3" floodColor="#38bdf8" floodOpacity="0.6" />
+            </filter>
+            <filter id="defense-glow" x="-20%" y="-20%" width="140%" height="140%">
+              <feDropShadow dx="0" dy="0" stdDeviation="3" floodColor="#f43f5e" floodOpacity="0.6" />
+            </filter>
+          </defs>
+
+          {/* FIELD GRID & MARKINGS */}
+          <g className="field-grid pointer-events-none opacity-40">
+            {/* Yard lines: horizontal every 50 units (representing 5 yards) */}
+            {[100, 150, 200, 250, 300, 350, 400, 450, 500, 550, 600, 650].map(y => (
+              <g key={`yardline-${y}`}>
+                <line
+                  x1="30"
+                  y1={y}
+                  x2="970"
+                  y2={y}
+                  stroke={y % 100 === 0 ? "rgba(255, 255, 255, 0.25)" : "rgba(255, 255, 255, 0.1)"}
+                  strokeWidth={y % 100 === 0 ? "1.5" : "0.75"}
+                />
+                {/* Yard numbers along sidelines */}
+                {y % 100 === 0 && (
+                  <>
+                    <text x="50" y={y + 4} fill="#64748b" fontSize="11" fontFamily="monospace" textAnchor="middle">
+                      {Math.abs(50 - Math.round((y - 100) / 10))}
+                    </text>
+                    <text x="950" y={y + 4} fill="#64748b" fontSize="11" fontFamily="monospace" textAnchor="middle">
+                      {Math.abs(50 - Math.round((y - 100) / 10))}
+                    </text>
+                  </>
+                )}
+              </g>
+            ))}
+
+            {/* College & Pro Hash Marks */}
+            {[100, 150, 200, 250, 300, 350, 400, 450, 500, 550, 600].map(y => (
+              <g key={`hash-${y}`}>
+                {/* Left Hash */}
+                <line x1="420" y1={y - 5} x2="420" y2={y + 5} stroke="rgba(255,255,255,0.2)" strokeWidth="1.5" />
+                {/* Right Hash */}
+                <line x1="580" y1={y - 5} x2="580" y2={y + 5} stroke="rgba(255,255,255,0.2)" strokeWidth="1.5" />
+              </g>
+            ))}
+          </g>
+
+          {/* LINE OF SCRIMMAGE (LOS) at Y = 380 */}
+          <g className="los-group pointer-events-none">
+            <line
+              x1="30"
+              y1="380"
+              x2="970"
+              y2="380"
+              stroke="#06b6d4"
+              strokeWidth="2"
+              strokeDasharray="8 6"
+              opacity="0.85"
+            />
+            {/* First Down line at Y = 330 */}
+            <line
+              x1="30"
+              y1="330"
+              x2="970"
+              y2="330"
+              stroke="#eab308"
+              strokeWidth="1.5"
+              strokeDasharray="4 4"
+              opacity="0.65"
+            />
+            <rect x="35" y="368" width="56" height="16" rx="4" fill="#0e7490" opacity="0.9" />
+            <text x="63" y="380" fill="#ffffff" fontSize="9" fontWeight="bold" textAnchor="middle">
+              L.O.S.
+            </text>
+            <rect x="35" y="322" width="62" height="16" rx="4" fill="#854d0e" opacity="0.9" />
+            <text x="66" y="334" fill="#ffffff" fontSize="9" fontWeight="bold" textAnchor="middle">
+              1ST DOWN
+            </text>
+          </g>
+
+          {/* RENDER PATH ACTIONS (Routes, Blocks, Motion) */}
+          <g className="actions-layer">
+            {actions.map(act => {
+              const isSelected = selectedActionId === act.id;
+              const pathD = generatePathString(act.points, act.isCurved ?? false);
+              const strokeColor = getActionStroke(act, isSelected);
+
+              let markerEnd = 'none';
+              if (act.endMarker === 'arrow') {
+                markerEnd = act.type === 'motion' ? 'url(#motion-arrow)' : 'url(#arrow)';
+              } else if (act.endMarker === 'tbar') {
+                markerEnd = act.type === 'pull_block' ? 'url(#pull-tbar)' : 'url(#tbar)';
+              } else if (act.endMarker === 'dot') {
+                markerEnd = 'url(#dot)';
+              }
+
+              // Compute mid-label location
+              const midPt = act.points.length >= 2 
+                ? act.points[Math.floor(act.points.length / 2)] 
+                : null;
+
+              return (
+                <g key={act.id} className="cursor-pointer group" onClick={(e) => {
+                  e.stopPropagation();
+                  onSelectAction(act.id);
+                  onSelectPlayer(null);
+                }}>
+                  {/* Thick transparent hit area for easy click selection */}
+                  <path
+                    d={pathD}
+                    fill="none"
+                    stroke="transparent"
+                    strokeWidth="18"
+                  />
+                  {/* Actual visible vector line */}
+                  <path
+                    d={pathD}
+                    fill="none"
+                    stroke={strokeColor}
+                    strokeWidth={isSelected ? "4.5" : "3"}
+                    strokeDasharray={act.type === 'motion' ? "7 5" : undefined}
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    markerEnd={markerEnd}
+                    className="transition-all duration-150 group-hover:brightness-125"
+                  />
+
+                  {/* Waypoint cues / labels */}
+                  {act.label && midPt && (
+                    <g transform={`translate(${midPt.x}, ${midPt.y - 10})`}>
+                      <rect
+                        x="-45"
+                        y="-12"
+                        width="90"
+                        height="16"
+                        rx="3"
+                        fill="#0f172a"
+                        stroke={strokeColor}
+                        strokeWidth="1"
+                        opacity="0.9"
+                      />
+                      <text
+                        x="0"
+                        y="0"
+                        fill="#e2e8f0"
+                        fontSize="9"
+                        fontWeight="600"
+                        textAnchor="middle"
+                        alignmentBaseline="middle"
+                      >
+                        {act.label}
+                      </text>
+                    </g>
+                  )}
+
+                  {/* Waypoint handle dots if selected */}
+                  {isSelected && act.points.map((pt, idx) => (
+                    <circle
+                      key={`handle-${act.id}-${idx}`}
+                      cx={pt.x}
+                      cy={pt.y}
+                      r={idx === 0 ? "5" : "7"}
+                      fill={idx === 0 ? "#64748b" : "#38bdf8"}
+                      stroke="#ffffff"
+                      strokeWidth="2"
+                      className="cursor-move hover:scale-125 transition-transform"
+                      onPointerDown={(e) => {
+                        e.stopPropagation();
+                        setDraggingWaypoint({ actionId: act.id, pointIndex: idx });
+                      }}
+                    />
+                  ))}
+                </g>
+              );
+            })}
+
+            {/* LIVE DRAWING PREVIEW */}
+            {drawingPlayerId && drawingPoints.length > 0 && cursorPos && (
+              <g className="drawing-preview pointer-events-none">
+                <path
+                  d={generatePathString([...drawingPoints, cursorPos], mode === 'draw_motion' || drawingPoints.length > 1)}
+                  fill="none"
+                  stroke={mode === 'draw_block' ? '#f59e0b' : mode === 'draw_motion' ? '#c084fc' : '#38bdf8'}
+                  strokeWidth="3"
+                  strokeDasharray={mode === 'draw_motion' ? "6 4" : "4 4"}
+                  markerEnd={mode === 'draw_block' ? 'url(#tbar)' : 'url(#arrow)'}
+                />
+                {drawingPoints.map((pt, i) => (
+                  <circle key={`draft-pt-${i}`} cx={pt.x} cy={pt.y} r="5" fill="#38bdf8" />
+                ))}
+              </g>
+            )}
+          </g>
+
+          {/* RENDER PLAYERS (Offense Circles & Defense Squares) */}
+          <g className="players-layer">
+            {players.map(player => {
+              const isSelected = selectedPlayerId === player.id;
+              const isHovered = hoveredPlayerId === player.id;
+              const isOffense = player.side === 'offense';
+
+              return (
+                <g
+                  key={player.id}
+                  transform={`translate(${player.x}, ${player.y})`}
+                  className="cursor-grab active:cursor-grabbing transition-transform duration-75"
+                  onPointerDown={(e) => handlePlayerPointerDown(e, player)}
+                  onPointerEnter={() => {
+                    setHoveredPlayerId(player.id);
+                    setTooltipPos({ x: player.x, y: player.y });
+                  }}
+                  onPointerLeave={() => {
+                    setHoveredPlayerId(null);
+                  }}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onSelectPlayer(player.id);
+                    onSelectAction(null);
+                  }}
+                >
+                  {isOffense ? (
+                    // OFFENSE: Circle with ring
+                    <g filter={isSelected ? "url(#glow)" : undefined}>
+                      {/* Outer pulse if selected */}
+                      {isSelected && (
+                        <circle
+                          cx="0"
+                          cy="0"
+                          r="22"
+                          fill="none"
+                          stroke="#38bdf8"
+                          strokeWidth="2"
+                          strokeDasharray="4 2"
+                          className="animate-spin"
+                          style={{ animationDuration: '6s' }}
+                        />
+                      )}
+                      <circle
+                        cx="0"
+                        cy="0"
+                        r={isHovered ? "18" : "16"}
+                        fill={isSelected ? "#0284c7" : "#0f172a"}
+                        stroke={isSelected ? "#38bdf8" : "#0ea5e9"}
+                        strokeWidth={isHovered ? "3" : "2.2"}
+                        className="transition-all"
+                      />
+                      <text
+                        x="0"
+                        y="1"
+                        fill="#ffffff"
+                        fontSize={player.label.length > 2 ? "10" : "12"}
+                        fontWeight="bold"
+                        fontFamily="sans-serif"
+                        textAnchor="middle"
+                        alignmentBaseline="middle"
+                        pointerEvents="none"
+                      >
+                        {player.label}
+                      </text>
+                    </g>
+                  ) : (
+                    // DEFENSE: Square/Diamond with crimson border
+                    <g filter={isSelected ? "url(#defense-glow)" : undefined}>
+                      {isSelected && (
+                        <rect
+                          x="-18"
+                          y="-18"
+                          width="36"
+                          height="36"
+                          rx="4"
+                          fill="none"
+                          stroke="#f43f5e"
+                          strokeWidth="2"
+                          strokeDasharray="4 2"
+                        />
+                      )}
+                      <rect
+                        x="-14"
+                        y="-14"
+                        width="28"
+                        height="28"
+                        rx="4"
+                        fill={isSelected ? "#e11d48" : "#1e1b2e"}
+                        stroke={isSelected ? "#fda4af" : "#f43f5e"}
+                        strokeWidth={isHovered ? "3" : "2"}
+                        className="transition-all"
+                      />
+                      <text
+                        x="0"
+                        y="1"
+                        fill="#ffffff"
+                        fontSize={player.label.length > 2 ? "10" : "11"}
+                        fontWeight="bold"
+                        fontFamily="sans-serif"
+                        textAnchor="middle"
+                        alignmentBaseline="middle"
+                        pointerEvents="none"
+                      >
+                        {player.label}
+                      </text>
+                    </g>
+                  )}
+                </g>
+              );
+            })}
+          </g>
+        </svg>
+
+        {/* THOUGHT PARTNER INTERACTIVE HOVER OVERLAY (Spec 2.2) */}
+        {activeHoveredPlayer && tooltipPos && (
+          <div
+            className="absolute z-30 pointer-events-none transition-all duration-150 transform -translate-x-1/2 -translate-y-full mb-3"
+            style={{
+              left: `${(tooltipPos.x / 1000) * 100}%`,
+              top: `${(tooltipPos.y / 700) * 100}%`
+            }}
+          >
+            <div className="bg-[#0f172a]/95 backdrop-blur-md border border-[#38bdf8]/40 text-slate-100 rounded-lg p-3 shadow-2xl min-w-[220px] max-w-[280px] pointer-events-auto">
+              <div className="flex items-center gap-2 mb-1">
+                <span className={`inline-flex items-center justify-center w-6 h-6 text-xs font-bold rounded ${
+                  activeHoveredPlayer.side === 'offense' ? 'bg-sky-600 text-white' : 'bg-rose-600 text-white'
+                }`}>
+                  {activeHoveredPlayer.label}
+                </span>
+                <span className="font-semibold text-xs tracking-wider uppercase text-sky-400">
+                  {activeHoveredPlayer.assignmentTitle || 'Unassigned'}
+                </span>
+                {activeHoveredPlayer.technique && (
+                  <span className="ml-auto text-[10px] bg-slate-800 text-amber-400 px-1.5 py-0.5 rounded border border-amber-500/30">
+                    {activeHoveredPlayer.technique}
+                  </span>
+                )}
+              </div>
+              <p className="text-xs text-slate-300 leading-relaxed font-sans mt-1">
+                {activeHoveredPlayer.assignmentNotes || 'No specific assignment notes.'}
+              </p>
+              {activeHoveredPlayer.coachingKeys && activeHoveredPlayer.coachingKeys.length > 0 && (
+                <div className="mt-2 pt-2 border-t border-slate-700/60">
+                  <span className="text-[10px] text-amber-400 font-bold uppercase tracking-wider block mb-0.5">
+                    Coaching Cue:
+                  </span>
+                  <ul className="text-[11px] text-slate-300 list-disc list-inside space-y-0.5">
+                    {activeHoveredPlayer.coachingKeys.map((key, kIdx) => (
+                      <li key={kIdx} className="leading-tight">{key}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+            </div>
+            {/* Small tooltip pointer arrow */}
+            <div className="w-3 h-3 bg-[#0f172a] border-r border-b border-[#38bdf8]/40 transform rotate-45 mx-auto -mt-1.5"></div>
+          </div>
+        )}
+
+        {/* BOTTOM CANVAS STATUS BAR */}
+        <div className="absolute bottom-2 left-3 right-3 flex items-center justify-between text-xs text-slate-400 bg-slate-900/80 backdrop-blur-sm px-3 py-1.5 rounded-md border border-slate-700/50 pointer-events-none">
+          <div className="flex items-center gap-4">
+            <span>
+              Mode: <strong className="text-sky-400 capitalize">{mode.replace('_', ' ')}</strong>
+            </span>
+            {drawingPlayerId && (
+              <span className="text-amber-400 animate-pulse font-medium">
+                Click waypoints on field $\to$ Press Enter or Double-Click to finish
+              </span>
+            )}
+          </div>
+          <div className="flex items-center gap-3">
+            <span className="flex items-center gap-1">
+              <span className="w-2.5 h-2.5 rounded-full bg-sky-400 inline-block"></span> Pass Route
+            </span>
+            <span className="flex items-center gap-1">
+              <span className="w-2.5 h-2.5 rounded-sm bg-amber-400 inline-block"></span> Run Block
+            </span>
+            <span className="flex items-center gap-1">
+              <span className="w-2.5 h-2.5 rounded-full bg-purple-400 inline-block"></span> Motion
+            </span>
+            {cursorPos && (
+              <span className="font-mono text-[11px] text-slate-500 ml-2">
+                X:{Math.round(cursorPos.x)} Y:{Math.round(cursorPos.y)}
+              </span>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
