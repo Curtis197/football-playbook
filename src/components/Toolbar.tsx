@@ -9,8 +9,15 @@ import {
   Layers, 
   FileCode, 
   Image as ImageIcon,
-  BookOpen
+  BookOpen,
+  Cloud,
+  Check,
+  RefreshCw,
+  AlertCircle,
+  Users
 } from 'lucide-react';
+
+export type CloudSyncStatus = 'idle' | 'saving' | 'saved' | 'error';
 
 interface ToolbarProps {
   currentPlay: Play;
@@ -26,6 +33,10 @@ interface ToolbarProps {
   onExportPlaybookJson: () => void;
   onImportJson: (jsonString: string) => void;
   onOpenSituationMatrix: () => void;
+  onOpenPlayLibrary?: () => void;
+  onOpenFormations?: () => void;
+  onSaveToCloud?: () => void;
+  cloudSyncStatus?: CloudSyncStatus;
 }
 
 export const Toolbar: React.FC<ToolbarProps> = ({
@@ -41,7 +52,11 @@ export const Toolbar: React.FC<ToolbarProps> = ({
   onExportPlayJson,
   onExportPlaybookJson,
   onImportJson,
-  onOpenSituationMatrix
+  onOpenSituationMatrix,
+  onOpenPlayLibrary,
+  onOpenFormations,
+  onSaveToCloud,
+  cloudSyncStatus = 'idle'
 }) => {
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
@@ -78,6 +93,58 @@ export const Toolbar: React.FC<ToolbarProps> = ({
     }
   };
 
+  const renderCloudButton = () => {
+    if (!onSaveToCloud) return null;
+
+    switch (cloudSyncStatus) {
+      case 'saving':
+        return (
+          <button
+            disabled
+            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold bg-sky-900/60 text-sky-200 border border-sky-600/50 rounded-lg cursor-wait transition-all"
+            title="Saving to Firestore..."
+          >
+            <RefreshCw className="w-3.5 h-3.5 animate-spin text-sky-400" />
+            <span>Saving...</span>
+          </button>
+        );
+      case 'saved':
+        return (
+          <button
+            onClick={onSaveToCloud}
+            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold bg-emerald-900/70 text-emerald-200 border border-emerald-500/50 rounded-lg shadow-sm transition-all animate-in fade-in"
+            title="Successfully persisted to cloud"
+          >
+            <Check className="w-3.5 h-3.5 text-emerald-400" />
+            <span>Saved to Cloud</span>
+          </button>
+        );
+      case 'error':
+        return (
+          <button
+            onClick={onSaveToCloud}
+            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold bg-rose-950/70 text-rose-200 border border-rose-500/50 rounded-lg hover:bg-rose-900/80 transition-all"
+            title="Cloud write failed (Click to retry)"
+          >
+            <AlertCircle className="w-3.5 h-3.5 text-rose-400" />
+            <span>Sync Error (Retry)</span>
+          </button>
+        );
+      case 'idle':
+      default:
+        return (
+          <button
+            onClick={onSaveToCloud}
+            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold bg-gradient-to-r from-sky-700 to-blue-700 hover:from-sky-600 hover:to-blue-600 text-white rounded-lg shadow-sm transition-all active:scale-95 border border-sky-500/40"
+            title="Save active play to Firebase Firestore"
+          >
+            <Cloud className="w-3.5 h-3.5 text-sky-200" />
+            <span>Save to Cloud</span>
+          </button>
+        );
+    }
+  };
+
   return (
     <header className="w-full bg-[#161b22] border-b border-[#30363d] px-4 py-2.5 flex flex-wrap items-center justify-between gap-3 text-slate-200 shadow-md">
       {/* LEFT SECTION: Brand & Play Selectors */}
@@ -94,13 +161,40 @@ export const Toolbar: React.FC<ToolbarProps> = ({
           </div>
         </div>
 
-        {/* Play Selector Dropdown */}
+        {/* MY PLAYBOOK MODAL TRIGGER BUTTON */}
+        {onOpenPlayLibrary && (
+          <button
+            onClick={onOpenPlayLibrary}
+            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold bg-[#1f2633] hover:bg-[#283244] text-sky-300 border border-sky-500/40 rounded-lg shadow-sm transition-all active:scale-95"
+            title="Open Playbook Library & Cloud Repository"
+          >
+            <Layers className="w-3.5 h-3.5 text-sky-400" />
+            <span>My Playbook</span>
+            <span className="bg-sky-950 text-sky-300 text-[10px] px-1.5 py-0.2 rounded-full border border-sky-600/40">
+              {allPlays.length}
+            </span>
+          </button>
+        )}
+
+        {/* FORMATIONS TEMPLATES MODAL TRIGGER BUTTON */}
+        {onOpenFormations && (
+          <button
+            onClick={onOpenFormations}
+            className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-semibold bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 rounded-lg shadow-sm transition-all active:scale-95"
+            title="Open Base Formation Templates Switcher"
+          >
+            <Users className="w-3.5 h-3.5 text-amber-400" />
+            <span>Formations</span>
+          </button>
+        )}
+
+        {/* Quick Play Selector Dropdown */}
         <div className="flex items-center gap-1.5 bg-[#0d1117] px-2.5 py-1 rounded-lg border border-[#30363d]">
-          <Layers className="w-3.5 h-3.5 text-sky-400" />
           <select
             value={currentPlay.id}
             onChange={(e) => onSelectPlay(e.target.value)}
-            className="bg-transparent text-xs font-semibold text-slate-200 outline-none cursor-pointer pr-1"
+            className="bg-transparent text-xs font-semibold text-slate-200 outline-none cursor-pointer pr-1 max-w-[160px] truncate"
+            title="Active Play"
           >
             {allPlays.map((p) => (
               <option key={p.id} value={p.id} className="bg-[#161b22] text-slate-200">
@@ -116,7 +210,7 @@ export const Toolbar: React.FC<ToolbarProps> = ({
           value={currentPlay.name}
           onChange={(e) => onUpdatePlayName(e.target.value)}
           title="Click to rename play"
-          className="bg-slate-900/80 hover:bg-slate-900 text-xs font-semibold text-slate-100 px-3 py-1.5 rounded-lg border border-slate-700 focus:border-sky-500 focus:ring-1 focus:ring-sky-500 outline-none w-64 transition-all"
+          className="bg-slate-900/80 hover:bg-slate-900 text-xs font-semibold text-slate-100 px-3 py-1.5 rounded-lg border border-slate-700 focus:border-sky-500 focus:ring-1 focus:ring-sky-500 outline-none w-56 transition-all"
         />
 
         {/* Category Selector */}
@@ -135,8 +229,11 @@ export const Toolbar: React.FC<ToolbarProps> = ({
         </select>
       </div>
 
-      {/* RIGHT SECTION: Actions, Export/Import & Game Plan Tools */}
+      {/* RIGHT SECTION: Cloud Sync, Game Plan Tools, Operations & Exports */}
       <div className="flex items-center gap-2">
+        {/* SAVE TO CLOUD BUTTON WITH VISUAL INDICATOR */}
+        {renderCloudButton()}
+
         {/* Situation & Philosophy Matrix */}
         <button
           onClick={onOpenSituationMatrix}
@@ -237,3 +334,5 @@ export const Toolbar: React.FC<ToolbarProps> = ({
     </header>
   );
 };
+
+export default Toolbar;

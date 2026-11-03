@@ -1,0 +1,36 @@
+import { initializeApp, getApps, getApp, type FirebaseApp } from 'firebase/app';
+import { getFirestore, type Firestore } from 'firebase/firestore';
+
+const apiKey = import.meta.env.VITE_FIREBASE_API_KEY;
+const authDomain = import.meta.env.VITE_FIREBASE_AUTH_DOMAIN;
+const projectId = import.meta.env.VITE_FIREBASE_PROJECT_ID;
+const storageBucket = import.meta.env.VITE_FIREBASE_STORAGE_BUCKET;
+const messagingSenderId = import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID;
+const appId = import.meta.env.VITE_FIREBASE_APP_ID;
+
+export const isFirebaseConfigured = Boolean(
+  apiKey &&
+  !apiKey.includes('your_firebase') &&
+  projectId &&
+  !projectId.includes('your_project_id')
+);
+
+if (!isFirebaseConfigured) {
+  console.warn(
+    '[Firebase] Environment variables (VITE_FIREBASE_API_KEY, VITE_FIREBASE_PROJECT_ID) are missing or set to placeholders. Remote Firestore sync is operating in fallback/demo mode. Copy .env.example to .env and configure your Firebase project credentials to enable live cloud persistence.'
+  );
+}
+
+const firebaseConfig = {
+  apiKey: apiKey || 'demo-api-key',
+  authDomain: authDomain || 'antigravity-football-playbook.firebaseapp.com',
+  projectId: projectId || 'antigravity-football-playbook',
+  storageBucket: storageBucket || 'antigravity-football-playbook.appspot.com',
+  messagingSenderId: messagingSenderId || '1234567890',
+  appId: appId || '1:1234567890:web:abcdef1234567890'
+};
+
+const app: FirebaseApp = getApps().length ? getApp() : initializeApp(firebaseConfig);
+export const db: Firestore = getFirestore(app);
+
+export default db;

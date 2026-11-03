@@ -1,4 +1,4 @@
-import type { Play, PlaybookFile } from '../types/playbook';
+import type { Play, PlaybookFile, Formation } from '../types/playbook';
 
 export const DEFAULT_WISHBONE_PLAY: Play = {
   id: "play-wishbone-zone-glance",
@@ -164,3 +164,61 @@ export const INITIAL_PLAYBOOK: PlaybookFile = {
     PISTOL_COUNTER_TREY_PLAY
   ]
 };
+
+export const DEFAULT_FORMATIONS: Formation[] = [
+  {
+    id: "formation-wishbone-21",
+    name: "Shotgun Wishbone 21 Pers",
+    side: "offense",
+    personnel: "21 Personnel",
+    description: "Heavy backfield with H & Z flankers flanking QB in gun; Y tight wing.",
+    players: DEFAULT_WISHBONE_PLAY.players.filter(p => p.side === 'offense'),
+    createdAt: new Date().toISOString()
+  },
+  {
+    id: "formation-3-5-odd",
+    name: "3-5 Odd Front (0-Tech Nose)",
+    side: "defense",
+    personnel: "3-5-3 Defense",
+    description: "3 down linemen with 0-tech head-up nose, 4i DEs, 3 second-level LBs and 2 apex overhangs.",
+    players: DEFAULT_WISHBONE_PLAY.players.filter(p => p.side === 'defense'),
+    createdAt: new Date().toISOString()
+  },
+  {
+    id: "formation-gun-trey-11",
+    name: "11 Personnel Gun Trey Open",
+    side: "offense",
+    personnel: "11 Personnel",
+    description: "Single-back 3x1 spread formation creating boundary 1-on-1 and field passing triangles.",
+    players: GUN_TREY_BOOT_PLAY.players.filter(p => p.side === 'offense'),
+    createdAt: new Date().toISOString()
+  },
+  {
+    id: "formation-3-4-over",
+    name: "3-4 Over Front",
+    side: "defense",
+    personnel: "3-4 Defense",
+    description: "Two-gap front shifted toward the field / strongside with stand-up edge rushers.",
+    players: GUN_TREY_BOOT_PLAY.players.filter(p => p.side === 'defense'),
+    createdAt: new Date().toISOString()
+  },
+  {
+    id: "formation-pistol-12-ace",
+    name: "Pistol 12 Personnel Ace Wing",
+    side: "offense",
+    personnel: "12 Personnel",
+    description: "Downhill Pistol alignment with tight end attached and wing tight-end for double-pull gap schemes.",
+    players: PISTOL_COUNTER_TREY_PLAY.players.filter(p => p.side === 'offense'),
+    createdAt: new Date().toISOString()
+  },
+  {
+    id: "formation-4-2-5-nickel",
+    name: "4-2-5 Nickel Over",
+    side: "defense",
+    personnel: "4-2-5 Nickel",
+    description: "Modern 4-down front with twin inside backers and athletic nickel safety playing the alley.",
+    players: PISTOL_COUNTER_TREY_PLAY.players.filter(p => p.side === 'defense'),
+    createdAt: new Date().toISOString()
+  }
+];
+

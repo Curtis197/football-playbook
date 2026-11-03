@@ -56,3 +56,26 @@ Comprehensive catalog of capabilities and features supported in the Football Pla
   - Export Diagram as high-res standalone SVG
   - Import JSON with validation
   - Reset & Duplicate play functionality
+
+- **Firebase NoSQL Cloud Persistence & Playbook Library (Spec 4)**:
+  - Auth-free direct access via Firebase JS SDK (`firebase/app`, `firebase/firestore`)
+  - Configurable Vite environment credentials (`.env.example` with fallback/demo modes)
+  - Full CRUD persistence service layer (`src/services/playbookDb.ts`):
+    - `savePlay`, `fetchPlay`, `fetchAllPlays`, `fetchPlaysByCategory`, `fetchPlaysByTag`, `deletePlay`
+    - `saveFormation`, `fetchFormations`, `deleteFormation`
+    - `seedDefaultPresets` (1-click cloud seeding of Wishbone, Boot, and Counter Trey presets)
+  - Playbook Library Drawer (`PlayLibraryModal.tsx`):
+    - Triggered via top toolbar "My Playbook" button with real-time play counter
+    - Strategy Badges display: Run Concept (Amber `#f59e0b`), Counter / PA Action (Cyan `#06b6d4`), Defensive Front (Rose `#f43f5e`)
+    - Dynamic filter bar: Category switcher (`run`, `pass_action`, `rpo`, `screen`, `blitz_pickup`) and clickable strategy tags (`#3-5-counter`, `#zone-read`, etc.)
+    - Full search across play names, formations, fronts, and coaching philosophy concepts
+    - Direct card actions: Load onto Chalkboard, Duplicate, and Delete with live synchronization
+  - Base Formation Templates Switcher (`FormationSwitcherModal.tsx`):
+    - Save current chalkboard alignment as a new reusable base formation template
+    - Scope selection: Offense only, Defense only, or Both
+    - Apply existing formation templates to canvas with intelligent route retention (preserves route vectors aligned with players) or clean reset confirmation
+    - Default formation presets (Shotgun Wishbone 21 Pers, 3-5 Odd Front, 11 Personnel Gun Trey, 3-4 Over, Pistol 12 Ace Wing, 4-2-5 Nickel)
+  - Real-Time Cloud Sync Feedback (`Toolbar.tsx`):
+    - "Save to Cloud" button with multi-state visual feedback (Idle -> Saving -> Saved checkmark -> Error retry)
+    - Graceful offline / unconfigured fallback with non-intrusive alert toasts preserving full canvas functionality
+

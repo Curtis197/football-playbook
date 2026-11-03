@@ -16,10 +16,14 @@ import {
   parseAndValidateImport 
 } from './utils/storage';
 import { ChalkboardCanvas } from './components/ChalkboardCanvas';
-import { Toolbar } from './components/Toolbar';
+import { Toolbar, type CloudSyncStatus } from './components/Toolbar';
 import { ModeSwitcher } from './components/ModeSwitcher';
 import { InspectorPanel } from './components/InspectorPanel';
 import { SituationMatrixModal } from './components/SituationMatrixModal';
+import { PlayLibraryModal } from './components/PlayLibraryModal';
+import { FormationSwitcherModal } from './components/FormationSwitcherModal';
+import { savePlay } from './services/playbookDb';
+import { isFirebaseConfigured } from './services/firebase';
 
 export const App: React.FC = () => {
   const [playbook, setPlaybook] = useState<PlaybookFile>(() => loadPlaybookFromStorage());
@@ -28,6 +32,9 @@ export const App: React.FC = () => {
   const [selectedPlayerId, setSelectedPlayerId] = useState<string | null>(null);
   const [selectedActionId, setSelectedActionId] = useState<string | null>(null);
   const [isMatrixModalOpen, setIsMatrixModalOpen] = useState(false);
+  const [isLibraryModalOpen, setIsLibraryModalOpen] = useState(false);
+  const [isFormationsModalOpen, setIsFormationsModalOpen] = useState(false);
+  const [cloudSyncStatus, setCloudSyncStatus] = useState<CloudSyncStatus>('idle');
   const [notification, setNotification] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);
 
   // Sync state to LocalStorage
@@ -264,6 +271,97 @@ export const App: React.FC = () => {
     }
   };
 
+  // Save active play to Cloud Firestore
+  const handleSaveToCloud = async () => {
+    setCloudSyncStatus('saving');
+    try {
+      await savePlay(currentPlay);
+      setCloudSyncStatus('saved');
+      showNotification(`Saved "${currentPlay.name}" to Cloud Firestore!`, 'success');
+      setTimeout(() => {
+        setCloudSyncStatus('idle');
+      }, 3000);
+    } catch (err: unknown) {
+      setCloudSyncStatus('error');
+      const msg = err instanceof Error ? err.message : 'Write failed';
+      console.warn('[handleSaveToCloud] Cloud error:', msg);
+      showNotification(
+        isFirebaseConfigured
+          ? `Firestore save error: ${msg}. Play saved locally.`
+          : 'Firebase keys not set in .env. Play saved locally in browser storage.',
+        'error'
+      );
+      setTimeout(() => {
+        setCloudSyncStatus('idle');
+      }, 4000);
+    }
+  };
+
+  // Apply Formation Template to current play
+  const handleApplyFormation = (newPlayers: Player[], keepActions: boolean) => {
+    updateCurrentPlay(p => {
+      let nextActions = keepActions ? [...p.actions] : [];
+      if (keepActions) {
+        // Keep existing route assignments aligned to the players
+        const playerMap = new Map(newPlayers.map(pl => [pl.id, pl]));
+        nextActions = nextActions.map(action => {
+          const player = playerMap.get(action.playerId);
+          if (player && action.points.length > 0) {
+            const updatedPoints = [
+              { ...action.points[0], x: player.x, y: player.y },
+              ...action.points.slice(1)
+            ];
+            return { ...action, points: updatedPoints };
+          }
+          return action;
+        });
+      }
+
+      return {
+        ...p,
+        players: newPlayers,
+        actions: nextActions
+      };
+    });
+    setSelectedPlayerId(null);
+    setSelectedActionId(null);
+  };
+
+  // Play Library actions
+  const handleSelectPlayFromLibrary = (play: Play) => {
+    setPlaybook(prev => {
+      const exists = prev.plays.some(p => p.id === play.id);
+      const updated = exists ? prev.plays.map(p => (p.id === play.id ? play : p)) : [play, ...prev.plays];
+      return { ...prev, plays: updated };
+    });
+    setActivePlayId(play.id);
+    setSelectedPlayerId(null);
+    setSelectedActionId(null);
+  };
+
+  const handleDuplicatePlayFromLibrary = (play: Play) => {
+    setPlaybook(prev => ({
+      ...prev,
+      plays: [play, ...prev.plays]
+    }));
+  };
+
+  const handleDeletePlayFromLibrary = (playId: string) => {
+    setPlaybook(prev => {
+      const remaining = prev.plays.filter(p => p.id !== playId);
+      return {
+        ...prev,
+        plays: remaining.length > 0 ? remaining : [DEFAULT_WISHBONE_PLAY]
+      };
+    });
+    if (activePlayId === playId) {
+      const fallback = playbook.plays.find(p => p.id !== playId) || DEFAULT_WISHBONE_PLAY;
+      setActivePlayId(fallback.id);
+      setSelectedPlayerId(null);
+      setSelectedActionId(null);
+    }
+  };
+
   return (
     <div className="flex flex-col h-screen w-screen overflow-hidden bg-[#0d1117]">
       {/* TOP TOOLBAR */}
@@ -281,6 +379,10 @@ export const App: React.FC = () => {
         onExportPlaybookJson={handleExportPlaybookJson}
         onImportJson={handleImportJson}
         onOpenSituationMatrix={() => setIsMatrixModalOpen(true)}
+        onOpenPlayLibrary={() => setIsLibraryModalOpen(true)}
+        onOpenFormations={() => setIsFormationsModalOpen(true)}
+        onSaveToCloud={handleSaveToCloud}
+        cloudSyncStatus={cloudSyncStatus}
       />
 
       {/* MAIN WORKSPACE: Mode Switcher + SVG Chalkboard + Inspector */}
@@ -366,6 +468,28 @@ export const App: React.FC = () => {
         plays={playbook.plays}
         activePlayId={currentPlay.id}
         onSelectPlay={handleSelectPlay}
+      />
+
+      {/* PLAYBOOK LIBRARY DRAWER / MODAL */}
+      <PlayLibraryModal
+        isOpen={isLibraryModalOpen}
+        onClose={() => setIsLibraryModalOpen(false)}
+        currentPlayId={currentPlay.id}
+        onSelectPlay={handleSelectPlayFromLibrary}
+        onDuplicatePlay={handleDuplicatePlayFromLibrary}
+        onDeletePlay={handleDeletePlayFromLibrary}
+        localPlays={playbook.plays}
+        showNotification={showNotification}
+      />
+
+      {/* FORMATION TEMPLATES SWITCHER MODAL */}
+      <FormationSwitcherModal
+        isOpen={isFormationsModalOpen}
+        onClose={() => setIsFormationsModalOpen(false)}
+        currentPlayers={currentPlay.players}
+        currentActions={currentPlay.actions}
+        onApplyFormation={handleApplyFormation}
+        showNotification={showNotification}
       />
     </div>
   );

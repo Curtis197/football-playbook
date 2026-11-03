@@ -73,3 +73,15 @@ export interface PlaybookFile {
 
 // 6. Editor Interaction Modes
 export type CanvasMode = 'select' | 'draw_route' | 'draw_block' | 'draw_motion' | 'add_offense' | 'add_defense';
+
+// 7. Base Formation Template Definition
+export interface Formation {
+  id: string;
+  name: string;
+  side: Side | 'both';
+  personnel?: string;
+  description?: string;
+  players: Player[];
+  createdAt?: string;
+}
+
