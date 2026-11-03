@@ -6,7 +6,8 @@ import type {
   PathAction, 
   CanvasMode, 
   PlayCategory,
-  AppMode 
+  AppMode,
+  Theme
 } from './types/playbook';
 import { DEFAULT_WISHBONE_PLAY } from './data/presets';
 import { 
@@ -30,6 +31,10 @@ export const App: React.FC = () => {
   const [playbook, setPlaybook] = useState<PlaybookFile>(() => loadPlaybookFromStorage());
   const [activePlayId, setActivePlayId] = useState<string>(() => playbook.plays[0]?.id || DEFAULT_WISHBONE_PLAY.id);
   const [appMode, setAppMode] = useState<AppMode>('build');
+  const [theme, setTheme] = useState<Theme>(() => {
+    const saved = localStorage.getItem('football_theme');
+    return (saved === 'light' || saved === 'dark') ? saved : 'dark';
+  });
   const [mode, setMode] = useState<CanvasMode>('select');
   const [selectedPlayerId, setSelectedPlayerId] = useState<string | null>(null);
   const [selectedActionId, setSelectedActionId] = useState<string | null>(null);
@@ -38,6 +43,24 @@ export const App: React.FC = () => {
   const [isFormationsModalOpen, setIsFormationsModalOpen] = useState(false);
   const [cloudSyncStatus, setCloudSyncStatus] = useState<CloudSyncStatus>('idle');
   const [notification, setNotification] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);
+
+  // Sync theme to document element and LocalStorage
+  useEffect(() => {
+    localStorage.setItem('football_theme', theme);
+    if (theme === 'light') {
+      document.documentElement.classList.add('light');
+      document.documentElement.classList.remove('dark');
+    } else {
+      document.documentElement.classList.add('dark');
+      document.documentElement.classList.remove('light');
+    }
+  }, [theme]);
+
+  const handleToggleTheme = () => {
+    const nextTheme = theme === 'dark' ? 'light' : 'dark';
+    setTheme(nextTheme);
+    showNotification(`Switched to ${nextTheme === 'light' ? 'Light Mode (Whiteboard)' : 'Dark Mode (Chalkboard)'}`, 'info');
+  };
 
   const handleSetAppMode = (nextMode: AppMode) => {
     setAppMode(nextMode);
@@ -375,13 +398,15 @@ export const App: React.FC = () => {
   };
 
   return (
-    <div className="flex flex-col h-screen w-screen overflow-hidden bg-[#0d1117]">
+    <div className={`flex flex-col h-screen w-screen overflow-hidden ${theme === 'light' ? 'bg-slate-100 text-slate-900' : 'bg-[#0d1117] text-slate-100'} transition-colors`}>
       {/* TOP TOOLBAR */}
       <Toolbar
         currentPlay={currentPlay}
         allPlays={playbook.plays}
         appMode={appMode}
         onSetAppMode={handleSetAppMode}
+        theme={theme}
+        onToggleTheme={handleToggleTheme}
         onSelectPlay={handleSelectPlay}
         onUpdatePlayName={handleUpdatePlayName}
         onUpdateCategory={handleUpdateCategory}
@@ -407,18 +432,20 @@ export const App: React.FC = () => {
           onSetMode={setMode}
           appMode={appMode}
           onSetAppMode={handleSetAppMode}
+          theme={theme}
           selectedPlayerId={selectedPlayerId}
           selectedActionId={selectedActionId}
           onDeleteSelected={handleDeleteSelected}
         />
 
         {/* CENTER STAGE: CHALKBOARD SVG CANVAS */}
-        <main className="flex-1 flex flex-col items-center justify-center relative overflow-hidden bg-[#10141a]">
+        <main className={`flex-1 flex flex-col items-center justify-center relative overflow-hidden ${theme === 'light' ? 'bg-slate-200/90' : 'bg-[#10141a]'} transition-colors`}>
           <ChalkboardCanvas
             players={currentPlay.players}
             actions={currentPlay.actions}
             mode={mode}
             appMode={appMode}
+            theme={theme}
             selectedPlayerId={selectedPlayerId}
             selectedActionId={selectedActionId}
             onSelectPlayer={setSelectedPlayerId}
@@ -437,6 +464,7 @@ export const App: React.FC = () => {
           selectedPlayer={selectedPlayer}
           selectedAction={selectedAction}
           appMode={appMode}
+          theme={theme}
           onSelectPlayer={setSelectedPlayerId}
           onUpdatePlayer={(updated) => {
             updateCurrentPlay(p => ({

@@ -17,6 +17,7 @@ export interface Player {
   label: string;           // "Y", "H", "Z", "W", "M", "NT"
   side: Side;
   shape?: PlayerShape;     // 'round', 'square', or 'rounded_square'
+  color?: string;          // Custom hex color (e.g. '#0284c7', '#e11d48')
   x: number;               // Normalized X coordinate
   y: number;               // Normalized Y coordinate
   assignmentTitle: string; // e.g. "Seam Attack / Clearout"
@@ -77,6 +78,7 @@ export interface PlaybookFile {
 // 6. Editor Interaction Modes
 export type CanvasMode = 'select' | 'draw_route' | 'draw_block' | 'draw_motion' | 'add_offense' | 'add_defense';
 export type AppMode = 'build' | 'view';
+export type Theme = 'dark' | 'light';
 
 // 7. Base Formation Template Definition
 export interface Formation {

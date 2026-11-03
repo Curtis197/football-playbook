@@ -1,5 +1,5 @@
 import React from 'react';
-import type { CanvasMode, AppMode } from '../types/playbook';
+import type { CanvasMode, AppMode, Theme } from '../types/playbook';
 import { 
   MousePointer, 
   CornerUpRight, 
@@ -18,6 +18,7 @@ interface ModeSwitcherProps {
   onSetMode: (mode: CanvasMode) => void;
   appMode?: AppMode;
   onSetAppMode?: (mode: AppMode) => void;
+  theme?: Theme;
   selectedPlayerId: string | null;
   selectedActionId: string | null;
   onDeleteSelected: () => void;
@@ -28,10 +29,12 @@ export const ModeSwitcher: React.FC<ModeSwitcherProps> = ({
   onSetMode,
   appMode = 'build',
   onSetAppMode,
+  theme = 'dark',
   selectedPlayerId,
   selectedActionId,
   onDeleteSelected
 }) => {
+  const isLight = theme === 'light';
   const modes: { id: CanvasMode; label: string; icon: React.ReactNode; desc: string; shortcut?: string }[] = [
     {
       id: 'select',
@@ -85,18 +88,18 @@ export const ModeSwitcher: React.FC<ModeSwitcherProps> = ({
   };
 
   return (
-    <aside className="w-16 md:w-56 bg-[#161b22] border-r border-[#30363d] flex flex-col justify-between p-2 select-none z-10 shrink-0">
+    <aside className={`w-16 md:w-56 ${isLight ? 'bg-white border-r border-slate-200 text-slate-800' : 'bg-[#161b22] border-r border-[#30363d] text-slate-200'} flex flex-col justify-between p-2 select-none z-10 shrink-0`}>
       <div className="flex flex-col gap-1">
         {/* APP MODE TOGGLE (BUILD VS VIEW) */}
         {onSetAppMode && (
-          <div className="flex items-center bg-[#0d1117] p-1 rounded-lg border border-slate-700/60 mb-2">
+          <div className={`flex items-center ${isLight ? 'bg-slate-100 border-slate-200' : 'bg-[#0d1117] border-slate-700/60'} p-1 rounded-lg border mb-2`}>
             <button
               type="button"
               onClick={() => onSetAppMode('build')}
               className={`flex-1 py-1.5 px-2 rounded text-[11px] font-bold uppercase tracking-wider flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
                 appMode === 'build'
                   ? 'bg-sky-600 text-white shadow-sm'
-                  : 'text-slate-400 hover:text-slate-200'
+                  : isLight ? 'text-slate-600 hover:text-slate-900' : 'text-slate-400 hover:text-slate-200'
               }`}
               title="Build Mode: Draw routes, move players, edit annotations on side panel"
             >
@@ -109,7 +112,7 @@ export const ModeSwitcher: React.FC<ModeSwitcherProps> = ({
               className={`flex-1 py-1.5 px-2 rounded text-[11px] font-bold uppercase tracking-wider flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
                 appMode === 'view'
                   ? 'bg-emerald-600 text-white shadow-sm'
-                  : 'text-slate-400 hover:text-slate-200'
+                  : isLight ? 'text-slate-600 hover:text-slate-900' : 'text-slate-400 hover:text-slate-200'
               }`}
               title="View Mode: Hover over players to inspect coaching explanations"
             >
@@ -119,7 +122,7 @@ export const ModeSwitcher: React.FC<ModeSwitcherProps> = ({
           </div>
         )}
 
-        <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500 px-2 py-1 hidden md:block">
+        <span className={`text-[11px] font-bold uppercase tracking-wider ${isLight ? 'text-slate-500' : 'text-slate-500'} px-2 py-1 hidden md:block`}>
           {appMode === 'view' ? 'Chalkboard Tools' : 'Build Tools'}
         </span>
 
@@ -131,15 +134,19 @@ export const ModeSwitcher: React.FC<ModeSwitcherProps> = ({
               onClick={() => handleToolClick(m.id)}
               className={`flex items-center gap-3 p-2.5 rounded-lg text-left transition-all group cursor-pointer ${
                 isActive
-                  ? 'bg-sky-600/20 border border-sky-500/50 text-sky-300 shadow-sm'
+                  ? isLight
+                    ? 'bg-sky-50 border border-sky-400 text-sky-800 shadow-sm'
+                    : 'bg-sky-600/20 border border-sky-500/50 text-sky-300 shadow-sm'
+                  : isLight
+                  ? 'hover:bg-slate-100 text-slate-700 border border-transparent'
                   : 'hover:bg-slate-800/80 text-slate-400 hover:text-slate-200 border border-transparent'
               }`}
               title={`${m.label}: ${m.desc}`}
             >
               <div className="shrink-0">{m.icon}</div>
               <div className="hidden md:block overflow-hidden">
-                <div className="text-xs font-semibold leading-none">{m.label}</div>
-                <div className="text-[10px] text-slate-500 truncate mt-0.5">{m.desc}</div>
+                <div className={`text-xs font-semibold leading-none ${isActive ? (isLight ? 'text-sky-900 font-bold' : 'text-sky-300') : ''}`}>{m.label}</div>
+                <div className={`text-[10px] ${isLight ? 'text-slate-500' : 'text-slate-500'} truncate mt-0.5`}>{m.desc}</div>
               </div>
             </button>
           );
@@ -147,16 +154,20 @@ export const ModeSwitcher: React.FC<ModeSwitcherProps> = ({
 
         {/* Delete selection button */}
         {(selectedPlayerId || selectedActionId) && (
-          <div className="mt-3 pt-3 border-t border-slate-700">
+          <div className={`mt-3 pt-3 border-t ${isLight ? 'border-slate-200' : 'border-slate-700'}`}>
             <button
               onClick={onDeleteSelected}
-              className="w-full flex items-center gap-2 p-2.5 rounded-lg bg-rose-950/40 hover:bg-rose-900/60 border border-rose-800/50 text-rose-300 transition-all text-left cursor-pointer"
+              className={`w-full flex items-center gap-2 p-2.5 rounded-lg ${
+                isLight
+                  ? 'bg-rose-50 hover:bg-rose-100 border border-rose-300 text-rose-700'
+                  : 'bg-rose-950/40 hover:bg-rose-900/60 border border-rose-800/50 text-rose-300'
+              } transition-all text-left cursor-pointer`}
               title="Delete selected player or vector path"
             >
-              <Trash2 className="w-5 h-5 text-rose-400 shrink-0" />
+              <Trash2 className="w-5 h-5 text-rose-500 shrink-0" />
               <div className="hidden md:block">
                 <div className="text-xs font-bold leading-none">Delete Selected</div>
-                <div className="text-[10px] text-rose-400/80">
+                <div className={`text-[10px] ${isLight ? 'text-rose-600' : 'text-rose-400/80'}`}>
                   {selectedPlayerId ? 'Remove player' : 'Remove vector'}
                 </div>
               </div>
@@ -166,21 +177,23 @@ export const ModeSwitcher: React.FC<ModeSwitcherProps> = ({
       </div>
 
       {/* FOOTER TIPS */}
-      <div className="hidden md:flex flex-col gap-1.5 p-2 bg-slate-900/70 border border-slate-800 rounded-lg text-[11px] text-slate-400">
-        <div className="flex items-center gap-1 text-slate-300 font-semibold">
-          <Info className="w-3.5 h-3.5 text-sky-400" />
+      <div className={`hidden md:flex flex-col gap-1.5 p-2 ${
+        isLight ? 'bg-slate-50 border-slate-200 text-slate-600' : 'bg-slate-900/70 border-slate-800 text-slate-400'
+      } border rounded-lg text-[11px]`}>
+        <div className={`flex items-center gap-1 ${isLight ? 'text-slate-700' : 'text-slate-300'} font-semibold`}>
+          <Info className="w-3.5 h-3.5 text-sky-500" />
           <span>{appMode === 'view' ? 'View Mode Tips' : 'Build Mode Tips'}</span>
         </div>
         {appMode === 'view' ? (
-          <p className="leading-tight text-[10px] text-emerald-300/90">
+          <p className={`leading-tight text-[10px] ${isLight ? 'text-emerald-700' : 'text-emerald-300/90'}`}>
             • Hover over any player to review coaching keys and live explanations without blocking canvas building.
           </p>
         ) : (
           <>
-            <p className="leading-tight text-[10px] text-slate-400">
+            <p className="leading-tight text-[10px]">
               • Hover overlays are hidden during building so you can draw cleanly.
             </p>
-            <p className="leading-tight text-[10px] text-slate-400">
+            <p className="leading-tight text-[10px]">
               • Click any player to view and edit assignments in the side panel.
             </p>
           </>

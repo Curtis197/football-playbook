@@ -39,6 +39,22 @@ Comprehensive catalog of capabilities and features supported in the Football Pla
   - Thought Partner Interactive Hover: Floating assignment tooltip overlay with player badge, assignment title, assignment notes, and coaching keys in View Mode
   - Drag-and-drop repositioning with live coordinate updates and bounded field positioning
 
+- **Theme Engine & Light Mode (Whiteboard) Support**:
+  - Global theme switcher supporting Dark Mode (Classic Slate Chalkboard) and Light Mode (Clean Coaching Whiteboard).
+  - One-click Sun/Moon toggle in Top Toolbar with automatic persistence to browser `localStorage` (`football_theme`) and HTML root class synchronization.
+  - Whiteboard canvas field rendering (`.chalkboard-bg-light`) with high-contrast yard lines, numbers, hashes, LOS, and 1st down markers.
+  - Fully reactive light mode styling across Toolbar, ModeSwitcher, InspectorPanel, and game planning matrix cards.
+
+- **Custom Color Picking for Players & Lines**:
+  - Player Accent Color Picker:
+    - Dedicated color picker in InspectorPanel with 12 preset football swatches (Offense Sky, Defense Rose, Amber Gold, Emerald Green, Royal Purple, Hot Pink, Electric Cyan, Vivid Orange, Crimson Maroon, Midnight Navy, Deep Charcoal, Clean White) plus native HTML5 custom color picker.
+    - Automatic contrast calculation using ITU-R BT.601 relative luminance for player labels ensuring 100% legibility on light and dark jersey fills.
+    - Active selection halo and roster badge synchronization with 1-click "Reset Default" action.
+  - Vector Line & Terminal Marker Color Picker:
+    - Custom color picking for pass routes, run blocks, pull blocks, and motion tracks with 11 football concept swatches and custom color picker.
+    - Dynamic SVG `<marker>` generation per action (`arrow-${id}`, `tbar-${id}`, `dot-${id}`) ensuring terminal arrowheads and perpendicular T-Bars match the custom stroke color.
+    - 1-click "Reset Default" to revert back to schematic role defaults.
+
 - **Philosophy & Game Planning Companion (Spec 3)**:
   - Strategy Tagging Matrix with colored badges:
     - Primary Run Concept (Inside Zone, Split-Zone Read, Pin & Pull, Fold Trap) - Amber (`#f59e0b`)

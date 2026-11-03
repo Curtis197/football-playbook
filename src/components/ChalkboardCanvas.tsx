@@ -1,12 +1,14 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
-import type { Player, PathAction, CanvasMode, Point, AppMode } from '../types/playbook';
+import type { Player, PathAction, CanvasMode, Point, AppMode, Theme } from '../types/playbook';
 import { generatePathString, getSvgCoordinates, clampFieldCoordinates, getDistance, insertPointIntoAction } from '../utils/geometry';
+import { isLightColor } from '../utils/colors';
 
 interface ChalkboardCanvasProps {
   players: Player[];
   actions: PathAction[];
   mode: CanvasMode;
   appMode?: AppMode;
+  theme?: Theme;
   selectedPlayerId: string | null;
   selectedActionId: string | null;
   onSelectPlayer: (id: string | null) => void;
@@ -23,6 +25,7 @@ export const ChalkboardCanvas: React.FC<ChalkboardCanvasProps> = ({
   actions,
   mode,
   appMode = 'build',
+  theme = 'dark',
   selectedPlayerId,
   selectedActionId,
   onSelectPlayer,
@@ -33,6 +36,7 @@ export const ChalkboardCanvas: React.FC<ChalkboardCanvasProps> = ({
   onAddPlayerAtPoint,
   onSwitchToBuildMode
 }) => {
+  const isLight = theme === 'light';
   const svgRef = useRef<SVGSVGElement | null>(null);
 
   // Dragging state
@@ -234,30 +238,31 @@ export const ChalkboardCanvas: React.FC<ChalkboardCanvasProps> = ({
 
   // Determine line styling
   const getActionStroke = (action: PathAction, isSelected: boolean) => {
-    if (isSelected) return '#38bdf8';
+    if (isSelected && action.color) return action.color;
+    if (isSelected) return isLight ? '#0284c7' : '#38bdf8';
     if (action.color) return action.color;
     switch (action.type) {
       case 'pass_route':
-        return '#38bdf8'; // Sky blue
+        return isLight ? '#0284c7' : '#38bdf8'; // Sky blue / Deep blue
       case 'run_block':
-        return '#f59e0b'; // Amber
+        return isLight ? '#d97706' : '#f59e0b'; // Amber
       case 'pull_block':
-        return '#ec4899'; // Hot pink / violet
+        return isLight ? '#db2777' : '#ec4899'; // Pink / violet
       case 'motion':
-        return '#c084fc'; // Purple
+        return isLight ? '#9333ea' : '#c084fc'; // Purple
       default:
-        return '#38bdf8';
+        return isLight ? '#0284c7' : '#38bdf8';
     }
   };
 
   return (
-    <div className="relative w-full h-full flex flex-col items-center justify-center bg-[#10141a] p-2 select-none overflow-hidden">
-      {/* Field container with blackboard border */}
-      <div className="relative w-full max-w-[1100px] aspect-[1000/700] rounded-xl shadow-2xl border-4 border-[#2b3544] overflow-hidden bg-[#161c24]">
+    <div className={`relative w-full h-full flex flex-col items-center justify-center ${isLight ? 'bg-slate-200/90' : 'bg-[#10141a]'} p-2 select-none overflow-hidden transition-colors`}>
+      {/* Field container with blackboard / whiteboard border */}
+      <div className={`relative w-full max-w-[1100px] aspect-[1000/700] rounded-xl shadow-2xl border-4 ${isLight ? 'border-slate-300 bg-white' : 'border-[#2b3544] bg-[#161c24]'} overflow-hidden transition-colors`}>
         <svg
           ref={svgRef}
           viewBox="0 0 1000 700"
-          className="w-full h-full chalkboard-bg cursor-crosshair touch-none"
+          className={`w-full h-full ${isLight ? 'chalkboard-bg-light' : 'chalkboard-bg'} cursor-crosshair touch-none transition-colors`}
           onPointerDown={(e) => {
             if (e.target === svgRef.current) {
               handleCanvasClick(e);
@@ -278,7 +283,7 @@ export const ChalkboardCanvas: React.FC<ChalkboardCanvasProps> = ({
               markerHeight="6"
               orient="auto-start-reverse"
             >
-              <path d="M 0 1 L 10 5 L 0 9 z" fill="#38bdf8" />
+              <path d="M 0 1 L 10 5 L 0 9 z" fill={isLight ? "#0284c7" : "#38bdf8"} />
             </marker>
 
             {/* Run Block T-Bar */}
@@ -291,7 +296,7 @@ export const ChalkboardCanvas: React.FC<ChalkboardCanvasProps> = ({
               markerHeight="10"
               orient="auto"
             >
-              <line x1="5" y1="0.5" x2="5" y2="13.5" stroke="#f59e0b" strokeWidth="3" strokeLinecap="round" />
+              <line x1="5" y1="0.5" x2="5" y2="13.5" stroke={isLight ? "#d97706" : "#f59e0b"} strokeWidth="3" strokeLinecap="round" />
             </marker>
 
             {/* Pull Block Pink T-Bar */}
@@ -304,7 +309,7 @@ export const ChalkboardCanvas: React.FC<ChalkboardCanvasProps> = ({
               markerHeight="10"
               orient="auto"
             >
-              <line x1="5" y1="0.5" x2="5" y2="13.5" stroke="#ec4899" strokeWidth="3" strokeLinecap="round" />
+              <line x1="5" y1="0.5" x2="5" y2="13.5" stroke={isLight ? "#db2777" : "#ec4899"} strokeWidth="3" strokeLinecap="round" />
             </marker>
 
             {/* Motion Purple Arrow */}
@@ -317,13 +322,49 @@ export const ChalkboardCanvas: React.FC<ChalkboardCanvasProps> = ({
               markerHeight="6"
               orient="auto-start-reverse"
             >
-              <path d="M 0 1 L 10 5 L 0 9 z" fill="#c084fc" />
+              <path d="M 0 1 L 10 5 L 0 9 z" fill={isLight ? "#9333ea" : "#c084fc"} />
             </marker>
 
             {/* Dot marker */}
             <marker id="dot" viewBox="0 0 10 10" refX="5" refY="5" markerWidth="5" markerHeight="5">
-              <circle cx="5" cy="5" r="3.5" fill="#38bdf8" />
+              <circle cx="5" cy="5" r="3.5" fill={isLight ? "#0284c7" : "#38bdf8"} />
             </marker>
+
+            {/* Dynamic per-action markers for custom colors */}
+            {actions.map(act => {
+              const isSelected = selectedActionId === act.id;
+              const isPlayerHoveredInView = appMode === 'view' && hoveredPlayerId === act.playerId;
+              const strokeColor = getActionStroke(act, isSelected || isPlayerHoveredInView);
+              return (
+                <React.Fragment key={`defs-markers-${act.id}`}>
+                  <marker
+                    id={`arrow-${act.id}`}
+                    viewBox="0 0 10 10"
+                    refX="8"
+                    refY="5"
+                    markerWidth="6"
+                    markerHeight="6"
+                    orient="auto-start-reverse"
+                  >
+                    <path d="M 0 1 L 10 5 L 0 9 z" fill={strokeColor} />
+                  </marker>
+                  <marker
+                    id={`tbar-${act.id}`}
+                    viewBox="0 0 10 14"
+                    refX="5"
+                    refY="7"
+                    markerWidth="7"
+                    markerHeight="10"
+                    orient="auto"
+                  >
+                    <line x1="5" y1="0.5" x2="5" y2="13.5" stroke={strokeColor} strokeWidth="3" strokeLinecap="round" />
+                  </marker>
+                  <marker id={`dot-${act.id}`} viewBox="0 0 10 10" refX="5" refY="5" markerWidth="5" markerHeight="5">
+                    <circle cx="5" cy="5" r="3.5" fill={strokeColor} />
+                  </marker>
+                </React.Fragment>
+              );
+            })}
 
             {/* Player Glow filter */}
             <filter id="glow" x="-20%" y="-20%" width="140%" height="140%">
@@ -344,16 +385,18 @@ export const ChalkboardCanvas: React.FC<ChalkboardCanvasProps> = ({
                   y1={y}
                   x2="970"
                   y2={y}
-                  stroke={y % 100 === 0 ? "rgba(255, 255, 255, 0.25)" : "rgba(255, 255, 255, 0.1)"}
+                  stroke={y % 100 === 0 
+                    ? (isLight ? "rgba(15, 23, 42, 0.28)" : "rgba(255, 255, 255, 0.25)") 
+                    : (isLight ? "rgba(15, 23, 42, 0.12)" : "rgba(255, 255, 255, 0.1)")}
                   strokeWidth={y % 100 === 0 ? "1.5" : "0.75"}
                 />
                 {/* Yard numbers along sidelines */}
                 {y % 100 === 0 && (
                   <>
-                    <text x="50" y={y + 4} fill="#64748b" fontSize="11" fontFamily="monospace" textAnchor="middle">
+                    <text x="50" y={y + 4} fill={isLight ? "#475569" : "#64748b"} fontSize="11" fontFamily="monospace" textAnchor="middle">
                       {Math.abs(50 - Math.round((y - 100) / 10))}
                     </text>
-                    <text x="950" y={y + 4} fill="#64748b" fontSize="11" fontFamily="monospace" textAnchor="middle">
+                    <text x="950" y={y + 4} fill={isLight ? "#475569" : "#64748b"} fontSize="11" fontFamily="monospace" textAnchor="middle">
                       {Math.abs(50 - Math.round((y - 100) / 10))}
                     </text>
                   </>
@@ -365,9 +408,9 @@ export const ChalkboardCanvas: React.FC<ChalkboardCanvasProps> = ({
             {[100, 150, 200, 250, 300, 350, 400, 450, 500, 550, 600].map(y => (
               <g key={`hash-${y}`}>
                 {/* Left Hash */}
-                <line x1="420" y1={y - 5} x2="420" y2={y + 5} stroke="rgba(255,255,255,0.2)" strokeWidth="1.5" />
+                <line x1="420" y1={y - 5} x2="420" y2={y + 5} stroke={isLight ? "rgba(15, 23, 42, 0.22)" : "rgba(255,255,255,0.2)"} strokeWidth="1.5" />
                 {/* Right Hash */}
-                <line x1="580" y1={y - 5} x2="580" y2={y + 5} stroke="rgba(255,255,255,0.2)" strokeWidth="1.5" />
+                <line x1="580" y1={y - 5} x2="580" y2={y + 5} stroke={isLight ? "rgba(15, 23, 42, 0.22)" : "rgba(255,255,255,0.2)"} strokeWidth="1.5" />
               </g>
             ))}
           </g>
@@ -415,11 +458,11 @@ export const ChalkboardCanvas: React.FC<ChalkboardCanvasProps> = ({
 
               let markerEnd = 'none';
               if (act.endMarker === 'arrow') {
-                markerEnd = act.type === 'motion' ? 'url(#motion-arrow)' : 'url(#arrow)';
+                markerEnd = `url(#arrow-${act.id})`;
               } else if (act.endMarker === 'tbar') {
-                markerEnd = act.type === 'pull_block' ? 'url(#pull-tbar)' : 'url(#tbar)';
+                markerEnd = `url(#tbar-${act.id})`;
               } else if (act.endMarker === 'dot') {
-                markerEnd = 'url(#dot)';
+                markerEnd = `url(#dot-${act.id})`;
               }
 
               // Compute mid-label location
@@ -478,15 +521,15 @@ export const ChalkboardCanvas: React.FC<ChalkboardCanvasProps> = ({
                         width="90"
                         height="16"
                         rx="3"
-                        fill="#0f172a"
+                        fill={isLight ? "#ffffff" : "#0f172a"}
                         stroke={strokeColor}
-                        strokeWidth="1"
-                        opacity="0.9"
+                        strokeWidth="1.5"
+                        opacity="0.95"
                       />
                       <text
                         x="0"
                         y="0"
-                        fill="#e2e8f0"
+                        fill={isLight ? "#0f172a" : "#e2e8f0"}
                         fontSize="9"
                         fontWeight="600"
                         textAnchor="middle"
@@ -626,13 +669,33 @@ export const ChalkboardCanvas: React.FC<ChalkboardCanvasProps> = ({
               const isView = appMode === 'view';
               const shape = player.shape || (isOffense ? 'round' : 'square');
 
-              const fillColor = isOffense
-                ? (isSelected ? "#0284c7" : "#0f172a")
-                : (isSelected ? "#e11d48" : "#1e1b2e");
-              const strokeColor = isOffense
-                ? (isSelected ? "#38bdf8" : "#0ea5e9")
-                : (isSelected ? "#fda4af" : "#f43f5e");
-              const haloStroke = isOffense ? "#38bdf8" : "#f43f5e";
+              const customColor = player.color;
+              let fillColor: string;
+              let strokeColor: string;
+              let haloStroke: string;
+
+              if (customColor) {
+                fillColor = customColor;
+                strokeColor = isSelected 
+                  ? (isLight ? '#0284c7' : '#38bdf8') 
+                  : (isLight ? '#0f172a' : '#ffffff');
+                haloStroke = customColor;
+              } else {
+                fillColor = isOffense
+                  ? (isSelected ? "#0284c7" : (isLight ? "#ffffff" : "#0f172a"))
+                  : (isSelected ? "#e11d48" : (isLight ? "#ffffff" : "#1e1b2e"));
+                strokeColor = isOffense
+                  ? (isSelected ? (isLight ? "#0284c7" : "#38bdf8") : (isLight ? "#0284c7" : "#0ea5e9"))
+                  : (isSelected ? (isLight ? "#e11d48" : "#fda4af") : (isLight ? "#e11d48" : "#f43f5e"));
+                haloStroke = isOffense ? (isLight ? "#0284c7" : "#38bdf8") : (isLight ? "#e11d48" : "#f43f5e");
+              }
+
+              const textFill = customColor
+                ? (isLightColor(customColor) ? '#0f172a' : '#ffffff')
+                : (isSelected
+                  ? '#ffffff'
+                  : (isLight ? (isOffense ? '#0284c7' : '#e11d48') : '#ffffff'));
+
               const glowFilter = isSelected
                 ? (isOffense ? "url(#glow)" : "url(#defense-glow)")
                 : undefined;
@@ -743,7 +806,7 @@ export const ChalkboardCanvas: React.FC<ChalkboardCanvasProps> = ({
                     <text
                       x="0"
                       y="1"
-                      fill="#ffffff"
+                      fill={textFill}
                       fontSize={player.label.length > 2 ? "10" : "11"}
                       fontWeight="bold"
                       fontFamily="sans-serif"
