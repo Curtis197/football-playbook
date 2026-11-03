@@ -284,27 +284,27 @@ export const ChalkboardCanvas: React.FC<ChalkboardCanvasProps> = ({
             {/* Run Block T-Bar */}
             <marker
               id="tbar"
-              viewBox="0 0 10 10"
+              viewBox="0 0 10 14"
               refX="5"
-              refY="5"
-              markerWidth="6"
-              markerHeight="6"
+              refY="7"
+              markerWidth="7"
+              markerHeight="10"
               orient="auto"
             >
-              <path d="M 5 0 L 5 10 M 2 5 L 8 5" stroke="#f59e0b" strokeWidth="2.5" strokeLinecap="square" />
+              <line x1="5" y1="0.5" x2="5" y2="13.5" stroke="#f59e0b" strokeWidth="3" strokeLinecap="round" />
             </marker>
 
             {/* Pull Block Pink T-Bar */}
             <marker
               id="pull-tbar"
-              viewBox="0 0 10 10"
+              viewBox="0 0 10 14"
               refX="5"
-              refY="5"
-              markerWidth="6"
-              markerHeight="6"
+              refY="7"
+              markerWidth="7"
+              markerHeight="10"
               orient="auto"
             >
-              <path d="M 5 0 L 5 10 M 2 5 L 8 5" stroke="#ec4899" strokeWidth="2.5" strokeLinecap="square" />
+              <line x1="5" y1="0.5" x2="5" y2="13.5" stroke="#ec4899" strokeWidth="3" strokeLinecap="round" />
             </marker>
 
             {/* Motion Purple Arrow */}
