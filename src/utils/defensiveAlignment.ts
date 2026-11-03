@@ -536,6 +536,25 @@ export interface DefensivePackage {
 
 export const DEFENSIVE_PACKAGES: DefensivePackage[] = [
   {
+    id: 'pkg-4-3-over',
+    name: '4-3 Over Front',
+    scheme: '4-3',
+    description: 'Standard 4-3 front with 3-tech DT to the offensive strong side, 1-tech nose tackle weak, and Sam linebacker over the tight end.',
+    defenders: [
+      { id: 'def_nt', label: 'NT', technique: '1-Tech Weak', assignmentTitle: '1-Tech Shade', assignmentNotes: 'Control weak A-gap; anchor against Center/LG double team.' },
+      { id: 'def_dt', label: 'DT', technique: '3-Tech Strong', assignmentTitle: '3-Tech DT', assignmentNotes: 'Penetrate strong B-gap; disrupt zone and pull tracks.' },
+      { id: 'def_de_w', label: 'DE', technique: '5-Tech Weak', assignmentTitle: 'Weak 5-End', assignmentNotes: 'Control weak C-gap / edge contain; QB option key.' },
+      { id: 'def_de_s', label: 'DE', technique: '5-Tech Strong', assignmentTitle: 'Strong 5-End', assignmentNotes: 'Control C-gap between RT and TE; squeeze off-tackle.' },
+      { id: 'def_w', label: 'W', technique: '30 Stack Weak', assignmentTitle: 'Will Linebacker', assignmentNotes: 'Scrape weak B-gap to perimeter on run flow.' },
+      { id: 'def_m', label: 'M', technique: '20 Stack Strong', assignmentTitle: 'Mike Linebacker', assignmentNotes: 'Plug strong A/B gap downhill on run.' },
+      { id: 'def_s', label: 'S', technique: 'Apex Strong', assignmentTitle: 'Sam Linebacker', assignmentNotes: 'Apex / overhang over Tight End; force perimeter runs inside.' },
+      { id: 'def_cb1', label: 'CB', technique: 'Off CB Left', assignmentTitle: 'Left Cornerback', assignmentNotes: 'Cover 3 deep outside 1/3.' },
+      { id: 'def_cb2', label: 'CB', technique: 'Off CB Right', assignmentTitle: 'Right Cornerback', assignmentNotes: 'Cover 3 deep outside 1/3.' },
+      { id: 'def_fs', label: 'FS', technique: 'Single-High FS', assignmentTitle: 'Free Safety', assignmentNotes: 'Deep middle 1/3 field safety.' },
+      { id: 'def_ss', label: 'SS', technique: 'Robber Strong', assignmentTitle: 'Strong Safety', assignmentNotes: 'Down safety; curl-flat defender and primary run fit in strong alley.' }
+    ]
+  },
+  {
     id: 'pkg-3-4-over',
     name: '3-4 Over Front',
     scheme: '3-4',

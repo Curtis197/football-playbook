@@ -81,6 +81,7 @@ export const ChalkboardCanvas: React.FC<ChalkboardCanvasProps> = ({
   // Handle external restart block request (e.g. from Inspector or on-canvas combo trigger)
   useEffect(() => {
     if (restartBlockRequest) {
+      // oxlint-disable-next-line react/set-state-in-effect
       setDrawingPlayerId(restartBlockRequest.playerId);
       setDrawingParentActionId(restartBlockRequest.actionId);
       setDrawingPoints([restartBlockRequest.startPoint]);

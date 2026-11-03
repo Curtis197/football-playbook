@@ -149,6 +149,21 @@ export const App: React.FC = () => {
     }));
   };
 
+  // Restart continuation/combo block from existing block terminal point
+  const handleStartRestartBlock = (fromAction: PathAction) => {
+    if (!fromAction.points || fromAction.points.length === 0) return;
+    const terminalPoint = fromAction.points[fromAction.points.length - 1];
+    setMode('draw_block');
+    setSelectedPlayerId(fromAction.playerId);
+    setSelectedActionId(fromAction.id);
+    setRestartBlockRequest({
+      actionId: fromAction.id,
+      playerId: fromAction.playerId,
+      startPoint: { x: terminalPoint.x, y: terminalPoint.y, isSharp: false }
+    });
+    showNotification(`Drawing combo block starting from ${fromAction.label || 'block'} endpoint... Click canvas to plot next waypoint!`, 'info');
+  };
+
   // Add player at coordinate
   const handleAddPlayerAtPoint = (x: number, y: number, side: 'offense' | 'defense') => {
     const existingCount = currentPlay.players.filter(p => p.side === side).length;
@@ -510,12 +525,16 @@ export const App: React.FC = () => {
             selectedPlayerId={selectedPlayerId}
             selectedActionId={selectedActionId}
             onSelectPlayer={setSelectedPlayerId}
+
             onSelectAction={setSelectedActionId}
             onUpdatePlayerPosition={handleUpdatePlayerPosition}
             onAddAction={handleAddAction}
             onUpdateActionPoints={handleUpdateActionPoints}
             onAddPlayerAtPoint={handleAddPlayerAtPoint}
             onSwitchToBuildMode={() => handleSetAppMode('build')}
+            onSetMode={setMode}
+            restartBlockRequest={restartBlockRequest}
+            onClearRestartBlockRequest={() => setRestartBlockRequest(null)}
           />
         </main>
 
@@ -527,6 +546,8 @@ export const App: React.FC = () => {
           appMode={appMode}
           theme={theme}
           onSelectPlayer={setSelectedPlayerId}
+
+          onStartRestartBlock={handleStartRestartBlock}
           onUpdatePlayer={(updated) => {
             updateCurrentPlay(p => ({
               ...p,

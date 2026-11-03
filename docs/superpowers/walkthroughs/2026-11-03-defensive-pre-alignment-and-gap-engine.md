@@ -80,13 +80,22 @@ Implemented a comprehensive American football defensive alignment and gap engine
 
 ---
 
-### 4. Defense Fronts & Shifts Modal (`src/components/DefenseFrontModal.tsx`)
+### 4. Defense Fronts & Shifts Modal (`src/components/DefenseFrontModal.tsx`) & Firebase Cloud Seeding
 - Triggerable from top Toolbar (`Defense Fronts` button) and Chalkboard HUD (`Load Defense` button):
   - Offense analysis banner displaying detected strength, LOS $Y$, Center $X$, and Tight End presence.
-  - 1-click loading of preset front packages (3-4 Over, 4-2-5 Nickel, 3-5 Odd, 4-3 Under, Mint, Bear).
+  - 1-click loading of preset front packages (4-3 Over, 4-3 Under, 3-4 Over, 4-2-5 Nickel, 3-5 Odd, Mint, Bear).
   - Roster preview table displaying Pos, Technique, Assignment, and pre-aligned $(X, Y)$ coordinates.
   - Offensive gap distribution grid showing all 8 gap coordinates.
   - Shift controls for Left, Right, Over, Under, Pinch, Fan, and Re-Align.
+- **Firebase Firestore Live Seeding (`scripts/seed-defensive-fronts.mjs`)**:
+  - Successfully connected to Firebase project `football-playbook-c6936` and uploaded all 7 basic defensive fronts into the `formations` collection:
+    1. `front-4-3-over` (4-3 Over Front - 11 players)
+    2. `front-4-3-under` (4-3 Under Front - 11 players)
+    3. `front-3-4-over` (3-4 Over Front - 11 players)
+    4. `front-3-5-odd` (3-5 Odd Front - 11 players)
+    5. `front-4-2-5-nickel` (4-2-5 Nickel Over - 11 players)
+    6. `front-3-4-mint` (Mint / Tite Front - 11 players)
+    7. `front-bear-46` (Bear / 46 Front - 11 players)
 
 ---
 
