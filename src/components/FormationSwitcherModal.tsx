@@ -21,7 +21,8 @@ import {
   Search,
   RotateCcw,
   Zap,
-  Filter
+  Filter,
+  Layers
 } from 'lucide-react';
 
 interface FormationSwitcherModalProps {

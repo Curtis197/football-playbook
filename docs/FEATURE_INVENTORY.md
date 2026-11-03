@@ -204,5 +204,33 @@ Comprehensive catalog of capabilities and features supported in the Football Pla
     - 1-Click HUD Toggle on Chalkboard Canvas top bar: `[🎯 Player-Rel]` vs `[🔢 #123 Concept]`.
     - Enhanced confirmation prompt in `FormationSwitcherModal.tsx`: Allows choosing between `🎯 Keep: Relative to Player`, `🔢 Keep: Concept (#1/#2/#3 Outside)`, or clearing routes.
 
+- **4-Tier Offensive Formation Taxonomy & Backfield Matrix Engine (`offensiveFormationsMatrix.ts` & `FormationSwitcherModal.tsx`)**:
+  - Full matrix labeling across 4 core dimensions:
+    1. **Backfield Personnel Number** (`21`, `31`, `30`, `20`, `22`, `12`, `11`, `10`, `01`, `00`).
+    2. **QB Position** (`Shotgun`, `Pistol`, `Down Center` / Under Center).
+    3. **Receiver Alignment** (`2x2`, `3x1`, `2x1`, `3x2`, `4x1`, `1x1`, and bunch clusters).
+    4. **Scheme Style** (`Pro Style`, `Spread`, `Old School`).
+  - Comprehensive Formation Library:
+    - 31 Personnel: Classic Wishbone 31, Delaware Wing-T 31, Maryland I 31, Power-T 31, Pistol Full House 31.
+    - 30 Personnel: Wishbone Open 30, Shotgun Diamond 30.
+    - 22 Personnel: Power-I Tank 22, Double Wing 22, Pistol Heavy 22.
+    - 21 Personnel: Pro-I Classic 21, Strong-I 21, Weak-I 21, Split Backs Pro 21, Shotgun Split 21, Pistol I-Form 21, Pro-I Condensed Bunch 21, Shotgun 21 Wing Bunch.
+    - 20 Personnel: Gun 20 Split (Pony), Gun 20 Trips, Gun 20 Pony Bunch, Pistol Diamond 20.
+    - 12 Personnel: Single-Back Ace 12, Gun 12 Doubles (Y-Off), Gun 12 Trey Bunch, Pistol 12 Wing, Under Center 12 Wing Bunch.
+    - 11 Personnel: Spread 2x2, Spread Trips 3x1, Gun 11 Bunch, Gun 11 Snug Bunch, Pistol 11 Bunch, Under Center 11 Condensed Bunch, Under Center 11 Slot, Pistol 11 Doubles.
+    - 10 Personnel: Gun 10 Doubles (4-Wide), Gun 10 Trips Open, Gun 10 Bunch Open, Gun 10 Quads Bunch.
+    - Empty Sets (01/00): Empty 3x2, Gun Empty 01 Bunch, Gun Empty 00 5-Wide, Gun Empty 00 Double Bunch.
+  - Multi-Facet Formation Picker & Filter Bar (`FormationSwitcherModal.tsx`):
+    - Real-time text search query across formation names, personnel, tags, and descriptions.
+    - Filter pills for Backfield Personnel (`All`, `31`, `30`, `22`, `21`, `20`, `12`, `11`, `10`, `00/01`).
+    - QB Position filter pills (`All`, `Gun`, `Pistol`, `Center`).
+    - Receiver Alignment filter pills (`All`, `2x2`, `3x1`, `2x1`, `3x2`, `4x1`, `1x1`).
+    - Dedicated Bunch Filter toggle (`⚡ Bunch`).
+    - Scheme style filter pills (`Spread`, `Pro Style`, `Old School`).
+    - Active filter counter and 1-click Reset Filters action.
+  - 1-Click Sync to Firebase Firestore:
+    - Dedicated "Sync to Firebase" action in the formation modal header batch-upserts all mapped formation templates directly to Firestore.
+
+
 
 
