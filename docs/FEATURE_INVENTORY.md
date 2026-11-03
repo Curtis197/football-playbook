@@ -45,6 +45,20 @@ Comprehensive catalog of capabilities and features supported in the Football Pla
   - Whiteboard canvas field rendering (`.chalkboard-bg-light`) with high-contrast yard lines, numbers, hashes, LOS, and 1st down markers.
   - Fully reactive light mode styling across Toolbar, ModeSwitcher, InspectorPanel, and game planning matrix cards.
 
+  - Blank Node Perimeter Vector Origin & Text Clearance Buffer:
+    - When player shape is `none` (bare label), vector lines (routes, blocks, motion) dynamically calculate their origin from the blank node perimeter boundary (`startOffset = 18px` along trajectory) using `getBlankNodeOffsetPoint(p0, p1, 18)`.
+    - Eliminates line strike-through and intersection through the player letter text.
+    - Integrated circular clearance background buffer (`r="15"`) beneath bare text ensuring crossing lines and field hash marks never obscure player labels.
+    - Live drawing preview dynamically renders with the same perimeter offset when drawing from a blank node player.
+  - Combo & Option Block Continuation Engine:
+    - Continuation block vectors can restart directly from an existing block track or terminal T-Bar, enabling authentic Double Team combo releases to linebackers and Option read seals.
+    - Schema support: `parentActionId?: string` and `branchType?: 'combo' | 'option'` in `PathAction`.
+    - 3 Ergonomic Ways to Restart a Combo/Option Block:
+      1. Click anywhere along an existing block line in `draw_block` mode to branch a continuation block from that coordinate.
+      2. 1-click on-canvas `+COMBO` trigger button displayed at the terminal waypoint of any selected block.
+      3. Dedicated "Combo & Option Block (Restart)" card in Inspector Panel with "+ Restart Block from Terminal T-Bar" button.
+    - Visual Combo Junction Marker: Golden circular link node (`r="6"`) at the restart origin connecting parent and child block vectors.
+
 - **Custom Color Picking & Node Shape Geometry for Players & Lines**:
   - Player Node Shape Selector & Default Bare Label Presentation:
     - 4 selectable node shape profiles per player: `round` (classic circle), `square` (traditional block), `rounded_square` (modern squircle), and `none` (bare text label).
