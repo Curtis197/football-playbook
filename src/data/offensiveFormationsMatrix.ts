@@ -564,6 +564,28 @@ export const MATRIX_OFFENSIVE_FORMATIONS: Formation[] = [
   // 12 PERSONNEL (1 RB, 2 TEs, 2 WRs)
   // ==========================================
   {
+    id: 'formation-deuce-12',
+    name: 'Deuce / Twin-TE (12 Personnel)',
+    side: 'offense',
+    personnel: '12',
+    qbPosition: 'down_center',
+    receiverAlignment: '2x2',
+    style: 'pro_style',
+    isBunch: false,
+    tags: ['12', 'down_center', '2x2', 'pro_style', 'deuce', 'twin_te'],
+    labels: ['12 Pers', 'Under Center', 'Pro Style', 'Deuce'],
+    description: '12 Personnel Deuce formation pairing inline TE (Y) and wing TE (U) on the same side with split WRs, adaptable between Under Center, Pistol, and Shotgun for power gap runs and play-action crossers.',
+    players: [
+      ...createStandardOL('deuce12'),
+      makeSkillPlayer('deuce12_y', 'Y', 660, 380, 'Inline Tight End', 'Base block DE or climb to Sam LB.'),
+      makeSkillPlayer('deuce12_u', 'U', 720, 400, 'Wing/Slot Tight End', 'Seal overhang defender or leak into flat on play-action.'),
+      makeSkillPlayer('deuce12_qb', 'QB', 480, 415, 'Under Center QB', 'Reverse pivot handoff on Duo/Power, or roll out bootleg.'),
+      makeSkillPlayer('deuce12_tb', 'TB', 480, 500, 'Singleback Tailback', 'Downhill track behind double-team on 3-tech.'),
+      makeSkillPlayer('deuce12_x', 'X', 120, 380, 'Split End Left', 'Iso boundary slant / go.'),
+      makeSkillPlayer('deuce12_z', 'Z', 860, 380, 'Flanker Right', 'Field clearout / comeback.')
+    ]
+  },
+  {
     id: 'formation-shotgun-12-doubles',
     name: 'Gun 12 Doubles (Y-Off)',
     side: 'offense',

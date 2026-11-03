@@ -1,5 +1,20 @@
 import type { Play, PlaybookFile, Formation } from '../types/playbook';
 import { MATRIX_OFFENSIVE_FORMATIONS } from './offensiveFormationsMatrix';
+import {
+  BASIC_PASSING_CONCEPTS_PLAYS,
+  STICK_TRIPS_11P_PLAY,
+  SNAG_PRO_SET_21P_PLAY,
+  MESH_ACE_12P_PLAY,
+  SHALLOW_CROSS_PISTOL_20P_PLAY
+} from './passingConcepts';
+
+export {
+  BASIC_PASSING_CONCEPTS_PLAYS,
+  STICK_TRIPS_11P_PLAY,
+  SNAG_PRO_SET_21P_PLAY,
+  MESH_ACE_12P_PLAY,
+  SHALLOW_CROSS_PISTOL_20P_PLAY
+};
 
 export const DEFAULT_WISHBONE_PLAY: Play = {
   id: "play-wishbone-zone-glance",
@@ -233,7 +248,8 @@ export const INITIAL_PLAYBOOK: PlaybookFile = {
     DEFAULT_WISHBONE_PLAY,
     PRO_I_VEER_OPTION_PLAY,
     GUN_TREY_BOOT_PLAY,
-    PISTOL_COUNTER_TREY_PLAY
+    PISTOL_COUNTER_TREY_PLAY,
+    ...BASIC_PASSING_CONCEPTS_PLAYS
   ]
 };
 

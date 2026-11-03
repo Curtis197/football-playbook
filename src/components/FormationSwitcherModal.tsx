@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import type { Formation, Player, PathAction, Side, RouteAdaptationMode, QBPosition, ReceiverAlignment } from '../types/playbook';
+import { morphBackfieldAlignment, detectCurrentQBPosition, type SnapAlignment } from '../utils/formationBackfield';
 import { 
   fetchFormations, 
   saveFormation, 
@@ -73,6 +74,7 @@ export const FormationSwitcherModal: React.FC<FormationSwitcherModalProps> = ({
   const [alignFilter, setAlignFilter] = useState<string>('all');
   const [bunchFilter, setBunchFilter] = useState<'all' | 'bunch' | 'non_bunch'>('all');
   const [styleFilter, setStyleFilter] = useState<string>('all');
+  const [previewBackfield, setPreviewBackfield] = useState<SnapAlignment | null>(null);
 
   const [confirmApplyModal, setConfirmApplyModal] = useState<Formation | null>(null);
 
@@ -203,8 +205,24 @@ export const FormationSwitcherModal: React.FC<FormationSwitcherModalProps> = ({
     });
   }, [formations, sideFilter, searchQuery, styleFilter, personnelFilter, qbFilter, alignFilter, bunchFilter]);
 
-  // Keep selected formation synchronized with filtered results
-  const selectedFormation = formations.find(f => f.id === selectedFormationId) || filteredFormations[0] || formations[0];
+  // Base selected formation template
+  const baseSelectedFormation = formations.find(f => f.id === selectedFormationId) || filteredFormations[0] || formations[0];
+
+  // Active QB backfield alignment (either preview override or native formation alignment)
+  const currentBackfield = previewBackfield || (baseSelectedFormation?.qbPosition as SnapAlignment) || (baseSelectedFormation ? detectCurrentQBPosition(baseSelectedFormation.players) : 'shotgun');
+
+  // Selected formation with live morphed backfield if coach clicked Center / Pistol / Gun
+  const selectedFormation = useMemo(() => {
+    if (!baseSelectedFormation || baseSelectedFormation.side === 'defense' || !previewBackfield) {
+      return baseSelectedFormation;
+    }
+    const morphed = morphBackfieldAlignment(baseSelectedFormation.players, [], previewBackfield);
+    return {
+      ...baseSelectedFormation,
+      players: morphed.players,
+      qbPosition: previewBackfield
+    };
+  }, [baseSelectedFormation, previewBackfield]);
 
   // Save current player setup as new base formation template
   const handleSaveCurrentAsFormation = async (e: React.FormEvent) => {
@@ -909,7 +927,10 @@ export const FormationSwitcherModal: React.FC<FormationSwitcherModalProps> = ({
                   return (
                     <div
                       key={f.id}
-                      onClick={() => setSelectedFormationId(f.id)}
+                      onClick={() => {
+                        setSelectedFormationId(f.id);
+                        setPreviewBackfield(null);
+                      }}
                       className={`p-3 rounded-xl border cursor-pointer transition-all flex items-start justify-between gap-3 ${
                         isSelected
                           ? 'bg-[#182234] border-sky-500 ring-1 ring-sky-500/50 shadow-md'
@@ -1062,6 +1083,57 @@ export const FormationSwitcherModal: React.FC<FormationSwitcherModalProps> = ({
                     <div>
                       <span className="block text-[9px] uppercase font-bold text-slate-500">Style:</span>
                       <strong className="text-emerald-300 text-xs capitalize">{selectedFormation.style?.replace('_', ' ') || 'Pro'}</strong>
+                    </div>
+                  </div>
+                )}
+
+                {/* INTERACTIVE BACKFIELD MODIFIER (Ace, Deuce, Spread, etc.) */}
+                {selectedFormation.side === 'offense' && (
+                  <div className="flex items-center justify-between p-2.5 rounded-xl bg-[#090d14] border border-[#232936] mb-3 flex-wrap gap-2">
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-[10px] uppercase font-extrabold text-slate-300">Backfield Snap:</span>
+                      <span className="text-[10px] text-slate-500 font-mono">(Center / Gun / Pistol)</span>
+                    </div>
+                    <div className="flex items-center gap-1 bg-[#121620] p-1 rounded-lg border border-[#222834]">
+                      <button
+                        type="button"
+                        onClick={() => setPreviewBackfield('down_center')}
+                        className={`px-2.5 py-1 rounded text-[10px] font-bold transition-all cursor-pointer flex items-center gap-1 ${
+                          currentBackfield === 'down_center'
+                            ? 'bg-amber-600 text-white shadow-sm ring-1 ring-amber-400'
+                            : 'text-slate-400 hover:text-slate-200'
+                        }`}
+                        title="Under Center: QB under Center at 1 yard, RB downhill at 6-7 yards"
+                      >
+                        <span>🏈</span>
+                        <span>Under Center</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setPreviewBackfield('pistol')}
+                        className={`px-2.5 py-1 rounded text-[10px] font-bold transition-all cursor-pointer flex items-center gap-1 ${
+                          currentBackfield === 'pistol'
+                            ? 'bg-sky-600 text-white shadow-sm ring-1 ring-sky-400'
+                            : 'text-slate-400 hover:text-slate-200'
+                        }`}
+                        title="Pistol: QB at 3.5 yards, RB stacked directly behind at 7 yards"
+                      >
+                        <span>🎯</span>
+                        <span>Pistol</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setPreviewBackfield('shotgun')}
+                        className={`px-2.5 py-1 rounded text-[10px] font-bold transition-all cursor-pointer flex items-center gap-1 ${
+                          currentBackfield === 'shotgun'
+                            ? 'bg-emerald-600 text-white shadow-sm ring-1 ring-emerald-400'
+                            : 'text-slate-400 hover:text-slate-200'
+                        }`}
+                        title="Shotgun: QB at 5-6 yards, RB offset sidecar"
+                      >
+                        <span>⚡</span>
+                        <span>Shotgun</span>
+                      </button>
                     </div>
                   </div>
                 )}

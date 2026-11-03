@@ -122,6 +122,8 @@ export const Toolbar: React.FC<ToolbarProps> = ({
         return 'bg-amber-900/60 text-amber-300 border-amber-500/50';
       case 'pass_action':
         return 'bg-sky-900/60 text-sky-300 border-sky-500/50';
+      case 'pass_dropback':
+        return 'bg-indigo-900/60 text-indigo-300 border-indigo-500/50';
       case 'screen':
         return 'bg-emerald-900/60 text-emerald-300 border-emerald-500/50';
       case 'blitz_pickup':
@@ -418,6 +420,7 @@ export const Toolbar: React.FC<ToolbarProps> = ({
           )}`}
         >
           <option value="run" className={isLight ? 'bg-white text-amber-600' : 'bg-[#161b22] text-amber-300'}>Run</option>
+          <option value="pass_dropback" className={isLight ? 'bg-white text-indigo-600' : 'bg-[#161b22] text-indigo-300'}>Dropback Pass</option>
           <option value="rpo" className={isLight ? 'bg-white text-purple-600' : 'bg-[#161b22] text-purple-300'}>RPO</option>
           <option value="pass_action" className={isLight ? 'bg-white text-sky-600' : 'bg-[#161b22] text-sky-300'}>Play-Action</option>
           <option value="screen" className={isLight ? 'bg-white text-emerald-600' : 'bg-[#161b22] text-emerald-300'}>Screen</option>

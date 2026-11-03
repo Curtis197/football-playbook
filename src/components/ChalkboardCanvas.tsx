@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import type { Player, PathAction, CanvasMode, Point, AppMode, Theme, Formation, Play, RouteAdaptationMode } from '../types/playbook';
+import type { SnapAlignment } from '../utils/formationBackfield';
 import { generatePathString, getSvgCoordinates, clampFieldCoordinates, getDistance, insertPointIntoAction } from '../utils/geometry';
 import { isLightColor } from '../utils/colors';
 import { Shield, ChevronLeft, ChevronRight, RotateCcw, Save } from 'lucide-react';
@@ -25,6 +26,8 @@ interface ChalkboardCanvasProps {
   onSelectPlay?: (playId: string) => void;
   onSelectOffenseFormation?: (formationId: string) => void;
   onSelectDefenseFront?: (formationId: string) => void;
+  currentQBAlignment?: SnapAlignment;
+  onMorphBackfield?: (alignment: SnapAlignment) => void;
   routeAdaptationMode?: RouteAdaptationMode;
   onToggleRouteAdaptationMode?: () => void;
   onSetRouteAdaptationMode?: (mode: RouteAdaptationMode) => void;
@@ -63,6 +66,8 @@ export const ChalkboardCanvas: React.FC<ChalkboardCanvasProps> = ({
   onSelectPlay,
   onSelectOffenseFormation,
   onSelectDefenseFront,
+  currentQBAlignment = 'shotgun',
+  onMorphBackfield,
   routeAdaptationMode = 'player_relative',
   onToggleRouteAdaptationMode,
   onSetRouteAdaptationMode: _onSetRouteAdaptationMode,
@@ -140,6 +145,14 @@ export const ChalkboardCanvas: React.FC<ChalkboardCanvasProps> = ({
   });
 
   const otherPlays = (allPlays || []).filter(p => !playsForFormation.some(pf => pf.id === p.id));
+  const passingPlays = otherPlays.filter(p => p.primaryPassConcept || p.category === 'pass_dropback');
+  const runOptionPlays = otherPlays.filter(p => (p.category === 'run' || p.primaryRunConcept) && !p.primaryPassConcept);
+  const rpoPaPlays = otherPlays.filter(p => (p.category === 'rpo' || p.category === 'pass_action' || p.category === 'screen') && !p.primaryPassConcept);
+  const remainingPlays = otherPlays.filter(p => 
+    !passingPlays.some(pp => pp.id === p.id) &&
+    !runOptionPlays.some(rp => rp.id === p.id) &&
+    !rpoPaPlays.some(pa => pa.id === p.id)
+  );
 
   // Dragging state
   const [draggingPlayerId, setDraggingPlayerId] = useState<string | null>(null);
@@ -1238,6 +1251,62 @@ export const ChalkboardCanvas: React.FC<ChalkboardCanvasProps> = ({
                 </button>
               )}
 
+              {/* DYNAMIC BACKFIELD MORPH TOGGLE (Center / Gun / Pistol) */}
+              {onMorphBackfield && (
+                <div 
+                  className={`flex items-center rounded-lg p-0.5 border text-[10px] shadow-sm ${
+                    isLight ? 'bg-slate-100 border-slate-300' : 'bg-[#090d14] border-[#2a313f]'
+                  }`}
+                  title="Morph backfield alignment between Under Center, Pistol, and Shotgun while preserving perimeter receiver distribution"
+                >
+                  <button
+                    type="button"
+                    onClick={() => onMorphBackfield('down_center')}
+                    className={`px-2 py-0.5 rounded font-bold transition-all cursor-pointer flex items-center gap-1 ${
+                      currentQBAlignment === 'down_center'
+                        ? 'bg-amber-600 text-white shadow-sm'
+                        : isLight
+                        ? 'text-slate-600 hover:text-slate-900'
+                        : 'text-slate-400 hover:text-slate-200'
+                    }`}
+                    title="Under Center (QB direct snap at 1 yard, RB downhill at 6-7 yards)"
+                  >
+                    <span>🏈</span>
+                    <span>Center</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => onMorphBackfield('pistol')}
+                    className={`px-2 py-0.5 rounded font-bold transition-all cursor-pointer flex items-center gap-1 ${
+                      currentQBAlignment === 'pistol'
+                        ? 'bg-sky-600 text-white shadow-sm'
+                        : isLight
+                        ? 'text-slate-600 hover:text-slate-900'
+                        : 'text-slate-400 hover:text-slate-200'
+                    }`}
+                    title="Pistol (QB at 3.5 yards, RB stacked directly behind at 7 yards)"
+                  >
+                    <span>🎯</span>
+                    <span>Pistol</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => onMorphBackfield('shotgun')}
+                    className={`px-2 py-0.5 rounded font-bold transition-all cursor-pointer flex items-center gap-1 ${
+                      currentQBAlignment === 'shotgun'
+                        ? 'bg-emerald-600 text-white shadow-sm'
+                        : isLight
+                        ? 'text-slate-600 hover:text-slate-900'
+                        : 'text-slate-400 hover:text-slate-200'
+                    }`}
+                    title="Shotgun (QB at 5-6 yards, RB offset sidecar)"
+                  >
+                    <span>⚡</span>
+                    <span>Gun</span>
+                  </button>
+                </div>
+              )}
+
               {/* ROUTE ADAPTATION MODE TOGGLE */}
               {onToggleRouteAdaptationMode && (
                 <button
@@ -1302,9 +1371,36 @@ export const ChalkboardCanvas: React.FC<ChalkboardCanvasProps> = ({
                         ))}
                       </optgroup>
                     )}
-                    {otherPlays.length > 0 && (
-                      <optgroup label={`Other Playbook Plays (${otherPlays.length})`}>
-                        {otherPlays.map(p => (
+                    {passingPlays.length > 0 && (
+                      <optgroup label={`Passing Concepts (${passingPlays.length})`}>
+                        {passingPlays.map(p => (
+                          <option key={p.id} value={p.id} className={isLight ? 'bg-white text-slate-900' : 'bg-slate-900 text-slate-100'}>
+                            🎯 {p.name}
+                          </option>
+                        ))}
+                      </optgroup>
+                    )}
+                    {runOptionPlays.length > 0 && (
+                      <optgroup label={`Run & Option Schemes (${runOptionPlays.length})`}>
+                        {runOptionPlays.map(p => (
+                          <option key={p.id} value={p.id} className={isLight ? 'bg-white text-slate-900' : 'bg-slate-900 text-slate-100'}>
+                            🏃 {p.name}
+                          </option>
+                        ))}
+                      </optgroup>
+                    )}
+                    {rpoPaPlays.length > 0 && (
+                      <optgroup label={`RPO & Play-Action (${rpoPaPlays.length})`}>
+                        {rpoPaPlays.map(p => (
+                          <option key={p.id} value={p.id} className={isLight ? 'bg-white text-slate-900' : 'bg-slate-900 text-slate-100'}>
+                            ⚡ {p.name}
+                          </option>
+                        ))}
+                      </optgroup>
+                    )}
+                    {remainingPlays.length > 0 && (
+                      <optgroup label={`Other Playbook Plays (${remainingPlays.length})`}>
+                        {remainingPlays.map(p => (
                           <option key={p.id} value={p.id} className={isLight ? 'bg-white text-slate-900' : 'bg-slate-900 text-slate-100'}>
                             {p.name}
                           </option>

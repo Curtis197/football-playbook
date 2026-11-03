@@ -47,7 +47,8 @@ export interface PathAction {
 }
 
 // 4. Complete Play Definition
-export type PlayCategory = 'run' | 'pass_action' | 'rpo' | 'screen' | 'blitz_pickup';
+export type PlayCategory = 'run' | 'pass_action' | 'pass_dropback' | 'rpo' | 'screen' | 'blitz_pickup';
+export type PassingConcept = 'stick' | 'snag' | 'mesh' | 'shallow_cross' | 'smash' | 'flood' | 'dagger' | 'drive' | string;
 
 export interface PlayNotes {
   qbRead: string;          // "Key weakside 4i/5 DE; if crashes, keep or fire glance"
@@ -66,6 +67,9 @@ export interface Play {
   tags: string[];          // ["zone-read", "3-5-counter", "leak", "high-low"]
   situation: string[];     // ["1st & 10", "Red Zone", "Aggressive LB flow"]
   primaryRunConcept?: string; // "Inside Zone", "Split-Zone Read", "Pin & Pull", "Fold Trap"
+  primaryPassConcept?: PassingConcept; // "stick", "snag", "mesh", "shallow_cross", "smash", "flood"
+  personnel?: string;         // "21", "22", "12", "11", "20", "10"
+  receiverAlignment?: ReceiverAlignment; // "2x2", "3x1", "bunch", "2x1", "empty"
   counterAction?: string;     // "Pop/Glance", "Weakside Boot/Leak", "Play-Action Seam", "Jet Sweep"
   targetFront?: string;       // "3-5 Odd (0-Tech)", "3-4 Over", "4-2-5 Nickel", "4-3 Under"
   players: Player[];

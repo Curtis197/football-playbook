@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import type { 
   Play, 
   PlaybookFile, 
@@ -30,6 +30,7 @@ import { FormationSwitcherModal } from './components/FormationSwitcherModal';
 import { DefenseFrontModal } from './components/DefenseFrontModal';
 import { shiftDefensiveFront, realignAllDefenders, analyzeOffense, calculateDefensiveAlignmentPosition, inferDefenderTechnique } from './utils/defensiveAlignment';
 import { adaptRoutesToNewFormation } from './utils/routeAdaptation';
+import { morphBackfieldAlignment, detectCurrentQBPosition, type SnapAlignment } from './utils/formationBackfield';
 import { savePlay, fetchFormations, saveFormation } from './services/playbookDb';
 import { isFirebaseConfigured } from './services/firebase';
 
@@ -479,6 +480,30 @@ export const App: React.FC = () => {
     setSelectedActionId(null);
   };
 
+  // Detect current QB snap alignment from active offensive players
+  const currentQBAlignment = useMemo(() => {
+    return detectCurrentQBPosition(currentPlay.players);
+  }, [currentPlay.players]);
+
+  // Morph backfield alignment between Down Center, Pistol, and Shotgun
+  const handleMorphBackfield = (targetAlignment: SnapAlignment) => {
+    const result = morphBackfieldAlignment(currentPlay.players, currentPlay.actions, targetAlignment);
+    if (result.previousAlignment === result.newAlignment) return;
+
+    updateCurrentPlay(p => ({
+      ...p,
+      players: result.players,
+      actions: result.actions
+    }));
+
+    const labelMap: Record<SnapAlignment, string> = {
+      down_center: 'Under Center (Down Center)',
+      shotgun: 'Shotgun',
+      pistol: 'Pistol'
+    };
+    showNotification(`Morphed backfield to ${labelMap[targetAlignment]}`, 'success');
+  };
+
   // Apply pre-aligned defenders from Defense Fronts
   const handleApplyDefenders = (updatedDefenders: Player[], frontName?: string) => {
     updateCurrentPlay(p => {
@@ -734,6 +759,8 @@ export const App: React.FC = () => {
             activeDefenseFront={currentPlay.frontDefense}
             onSelectOffenseFormation={handleSelectOffenseFormation}
             onSelectDefenseFront={handleSelectDefenseFront}
+            currentQBAlignment={currentQBAlignment}
+            onMorphBackfield={handleMorphBackfield}
             routeAdaptationMode={routeAdaptationMode}
             onToggleRouteAdaptationMode={() => {
               setRouteAdaptationMode(prev => {

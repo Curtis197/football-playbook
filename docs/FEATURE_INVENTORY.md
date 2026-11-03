@@ -231,6 +231,52 @@ Comprehensive catalog of capabilities and features supported in the Football Pla
   - 1-Click Sync to Firebase Firestore:
     - Dedicated "Sync to Firebase" action in the formation modal header batch-upserts all mapped formation templates directly to Firestore.
 
+- **Dynamic Backfield Alignment Morph Engine (Under Center, Pistol, Shotgun) (`formationBackfield.ts`)**:
+  - Orthogonal Backfield Modifier for Surface Formations (Ace, Deuce, Trips, Doubles, Bunch):
+    - Allows switching any base formation between Under Center (`down_center`), `pistol`, and `shotgun` dynamically without altering the 5 offensive linemen or perimeter receiver alignments (X, Z, Y, U, slots, wings).
+    - Singleback Sets (Ace 12P, Deuce 12P, Spread 11P):
+      - Under Center: QB at 1 yard depth (`y=415`), RB at 6-7 yards depth (`y=500`) directly behind QB.
+      - Pistol: QB at 3.5 yards depth (`y=440`), RB stacked directly behind at 7 yards depth (`y=520`).
+      - Shotgun: QB at 5-6 yards depth (`y=465`), RB offset as sidecar (`x=540, y=465` or `x=420, y=465`).
+    - Two-Back Sets (Pro-I, Split Backs, 21P, 22P):
+      - Under Center: FB at 4-5 yards (`y=465`), TB at 7-8 yards (`y=525`).
+      - Pistol: FB at 4.5 yards (`y=485`), TB deep at 7.5 yards (`y=545`).
+      - Shotgun: Dual split sidecars flanking the QB (`x=420` and `x=540`, `y=465`).
+    - Relative Vector Action Translation:
+      - Automatically calculates $(\Delta x, \Delta y)$ for QB and RB movements to translate any existing pass protection, mesh paths, and route tracks smoothly without distortion.
+  - On-Canvas Chalkboard Top HUD Segmented Modifier (`ChalkboardCanvas.tsx`):
+    - 3-segment toggle directly beside the Offensive Formation dropdown: `[ 🏈 Center | 🎯 Pistol | ⚡ Gun ]` with real-time active state detection.
+  - Formation Switcher Modal Live Variant Selector (`FormationSwitcherModal.tsx`):
+    - Interactive "Backfield Snap: [ Under Center | Pistol | Shotgun ]" modifier in the right preview panel, allowing coaches to preview and apply any formation (such as Ace or Deuce) in their preferred snap alignment.
+
+- **Passing Concepts Library & Multi-Dimensional Separation (Stick, Snag, Mesh, Shallow Cross)**:
+  - Foundational Passing Schemes (`src/data/passingConcepts.ts`):
+    - **Y-Stick Concept** (`Gun 11P Trips - Y-Stick vs 4-3 Over`):
+      - 11 Personnel (1 RB, 1 TE, 3 WRs), 3x1 Trips Open receiver alignment.
+      - 3-man triangle passing read: #1 Outside MOR Go/Clearout, #2 5-Yard Stick (sit in void), #3 Speed Flat/Arrow to pull Apex defender. Weakside check & release flat, backside single-high alert slant.
+    - **Snag / Y-Corner Concept** (`Pro-Set 21P - Snag / Y-Corner vs 3-4 Over`):
+      - 21 Personnel (2 RBs, 1 TE, 2 WRs), 2x1 Pro-Set receiver alignment.
+      - 3-level perimeter flood: #1 Snag/Mini-Curl (sit at 5-6 yards in curl window), Corner route (stem 8-10 yards, 45° break to sideline pylon), Arrow/Speed Flat out of backfield. High-low on flat defender.
+    - **Mesh Concept** (`Single-Back 12P - Mesh vs 4-2-5 Nickel`):
+      - 12 Personnel (1 RB, 2 TEs, 2 WRs), 2x2 Ace Wing receiver alignment.
+      - Rub concept crossing routes at 4-5 yards depth: Under shallow crosser (setting the mesh) and Over shallow crosser (rubbing underneath trailing defenders), with twin Post-Corner and Wheel/Overhang perimeter options.
+    - **Shallow Cross / Drive Concept** (`Pistol 20P - Shallow Cross vs 3-5 Odd`):
+      - 20 Personnel (2 RBs, 0 TEs, 3 WRs), 2x2 Diamond receiver alignment.
+      - High-low conflict on middle linebacker: #1 Shallow Drag under the Mike LB at 3 yards depth, paired with Dig / Hunt route digging into vacated window at 10 yards depth behind flowing Mike.
+  - Multi-Dimensional Filtering in Playbook Library (`src/components/PlayLibraryModal.tsx`):
+    - **Category Filters**: Run, Dropback Pass (`pass_dropback`), Play-Action, RPO, Screen, Blitz Pickup.
+    - **Concept Family Filter**: All Concepts, Stick, Snag, Mesh, Shallow Cross.
+    - **Personnel Filter (Backfield Count)**: All Personnel, 11P, 12P, 20P, 21P, 22P.
+    - **Receiver Alignment Filter**: All Alignments, 3x1 Trips, 2x2 Doubles, 2x1 Pro-Set, Bunch, Empty.
+    - Strategy Badges on Play Cards:
+      - Passing Concept badge (Indigo `#6366f1` with Target icon).
+      - Personnel Grouping badge (Blue `#3b82f6` with Users icon).
+      - Receiver Alignment badge (Emerald `#10b981` with Layers icon).
+    - 1-Click "Reset All Filters" when any multidimensional filter is engaged.
+  - Concept-Organized Play Picker on Chalkboard Canvas (`src/components/ChalkboardCanvas.tsx`):
+    - Hierarchical optgroup breakdown: `Plays for this Formation`, `Passing Concepts (Stick, Snag, Mesh, Shallow)`, `Run & Option Schemes`, `RPO & Play-Action`, and `Other Playbook Plays`.
+
+
 
 
 
