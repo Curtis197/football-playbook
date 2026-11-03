@@ -45,7 +45,11 @@ Comprehensive catalog of capabilities and features supported in the Football Pla
   - Whiteboard canvas field rendering (`.chalkboard-bg-light`) with high-contrast yard lines, numbers, hashes, LOS, and 1st down markers.
   - Fully reactive light mode styling across Toolbar, ModeSwitcher, InspectorPanel, and game planning matrix cards.
 
-- **Custom Color Picking for Players & Lines**:
+- **Custom Color Picking & Node Shape Geometry for Players & Lines**:
+  - Player Node Shape Selector:
+    - 4 selectable node shape profiles per player: `round` (classic circle), `square` (traditional block), `rounded_square` (modern squircle), and `none` (bare text label).
+    - `none` shape renders cleanly as bare high-contrast text in player's schematic/custom color with an invisible responsive hit box (`fill="transparent"`) for seamless click, drag-and-drop, and hover detection.
+    - Subtle dashed bounding rectangle on selection and dashed tooltip badge for bare text players.
   - Player Accent Color Picker:
     - Dedicated color picker in InspectorPanel with 12 preset football swatches (Offense Sky, Defense Rose, Amber Gold, Emerald Green, Royal Purple, Hot Pink, Electric Cyan, Vivid Orange, Crimson Maroon, Midnight Navy, Deep Charcoal, Clean White) plus native HTML5 custom color picker.
     - Automatic contrast calculation using ITU-R BT.601 relative luminance for player labels ensuring 100% legibility on light and dark jersey fills.
