@@ -1,5 +1,5 @@
 import type { Play, PlaybookFile } from '../types/playbook';
-import { INITIAL_PLAYBOOK } from '../data/presets';
+import { INITIAL_PLAYBOOK, DEFAULT_WISHBONE_PLAY } from '../data/presets';
 
 const STORAGE_KEY = 'antigravity_football_playbook_v1';
 
@@ -9,6 +9,16 @@ export function loadPlaybookFromStorage(): PlaybookFile {
     if (!raw) return INITIAL_PLAYBOOK;
     const parsed = JSON.parse(raw) as PlaybookFile;
     if (parsed && Array.isArray(parsed.plays) && parsed.plays.length > 0) {
+      // Auto-migrate legacy cramped defensive coordinates if present in default wishbone play
+      parsed.plays = parsed.plays.map(play => {
+        if (play.id === DEFAULT_WISHBONE_PLAY.id) {
+          const nt = play.players.find(p => p.id === 'def_nt' && p.side === 'defense');
+          if (nt && nt.y >= 345) {
+            return DEFAULT_WISHBONE_PLAY;
+          }
+        }
+        return play;
+      });
       return parsed;
     }
   } catch (err) {

@@ -136,6 +136,12 @@ Comprehensive catalog of capabilities and features supported in the Football Pla
   - Automatic Defensive Parameter Snapping (`calculateDefensiveAlignmentPosition`):
     - When any defensive player receives a technique/alignment parameter (e.g. `0-Tech`, `1-Tech Weak`, `3-Tech Strong`, `4i-Tech Weak`, `5-Tech Strong`, `7-Tech`, `9-Tech Wide`, `00 Stack`, `10 Stack`, `20 Stack`, `30 Stack`, `40 Stack`, `50 Stack`, `Apex Overhang`, `Press CB`, `Off CB`, `Single-High FS`, `2-High Safety`, `Robber`), the player automatically snaps to their designated coordinate relative to the offense.
     - Resolves relative alignment descriptors (`Strong`, `Weak`) dynamically against the detected offensive strength.
+    - Spacious Depth Calibration for Authentic Blocking Schemes:
+      - Down Linemen (`dlY = losY - 55`): Pushed 55px off LOS, giving 37px of visible line running room from blank node player boundaries for clean drive blocks, reach angles, and unobstructed terminal T-bar markers.
+      - Linebackers (`lbY = losY - 115`): Pushed 115px off LOS (60px behind DL), providing authentic second-level depth for Double Team combo climb releases, fold tracks, and linebacker scrape flows.
+      - Apex Overhang / Nickel (`apexY = losY - 80`): Walked-out alley force depth.
+      - Defensive Backs: `pressY = losY - 65`, `offCbY = losY - 140`, `robberY = losY - 185`, `twoHighY = losY - 235`, `singleHighY = losY - 275`.
+      - Automatic local storage migration seamlessly upgrades legacy cramped wishbone coordinates to the new spacious alignment.
     - Inspector Panel Technique Controller: Categorized tabs (1st Level DL, 2nd Level LB, 3rd Level DB) with quick-select chips, individual defender gap shift buttons (`◀ Shift Gap Left`, `Shift Gap Right ▶`), and re-snap trigger.
   - Load Defense Front Packages (`DefenseFrontModal.tsx`):
     - Load comprehensive 11-player defensive front schemes pre-aligned directly to the offensive alignment:
