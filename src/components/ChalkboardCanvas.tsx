@@ -668,19 +668,19 @@ export const ChalkboardCanvas: React.FC<ChalkboardCanvasProps> = ({
               const isHovered = (appMode === 'view' && hoveredPlayerId === player.id) || canvasHoveredPlayerId === player.id;
               const isOffense = player.side === 'offense';
               const isView = appMode === 'view';
-              const shape = player.shape || (isOffense ? 'round' : 'square');
+              const shape = player.shape || 'none';
 
               // 3 Color parameters: letterColor, nodeColor, fillColor + optional hoverColor
-              // Default color: Black with no shade (#000000)
+              // Default player setting: no node shape ('none') and black 0/0/0 for both offense and defense
               const defaultColor = '#000000';
               const effectiveNodeColor = player.nodeColor || player.color || defaultColor;
               const effectiveFillColor = shape === 'none'
                 ? 'transparent'
                 : (player.fillColor !== undefined ? player.fillColor : (player.color || defaultColor));
               const effectiveLetterColor = player.letterColor || (shape === 'none'
-                ? effectiveNodeColor
+                ? defaultColor
                 : (effectiveFillColor === 'transparent'
-                  ? (isLight ? '#000000' : '#ffffff')
+                  ? defaultColor
                   : (isLightColor(effectiveFillColor) ? '#000000' : '#ffffff')));
 
               const strokeColor = (isHovered && player.hoverColor)
@@ -836,6 +836,9 @@ export const ChalkboardCanvas: React.FC<ChalkboardCanvasProps> = ({
                       x="0"
                       y="1"
                       fill={textFill}
+                      stroke={!isLight && textFill === '#000000' && shape === 'none' ? 'rgba(255, 255, 255, 0.45)' : undefined}
+                      strokeWidth={!isLight && textFill === '#000000' && shape === 'none' ? '0.75' : undefined}
+                      style={{ paintOrder: 'stroke fill' }}
                       fontSize={shape === 'none' ? (player.label.length > 2 ? "12" : "14") : (player.label.length > 2 ? "10" : "11")}
                       fontWeight={shape === 'none' ? "900" : "bold"}
                       fontFamily="sans-serif"
@@ -864,13 +867,13 @@ export const ChalkboardCanvas: React.FC<ChalkboardCanvasProps> = ({
             <div className="bg-[#0f172a]/95 backdrop-blur-md border border-[#38bdf8]/50 text-slate-100 rounded-lg p-3 shadow-2xl min-w-[240px] max-w-[300px] pointer-events-auto">
               <div className="flex items-center gap-2 mb-1.5">
                 {(() => {
-                  const activeShape = activeHoveredPlayer.shape || (activeHoveredPlayer.side === 'offense' ? 'round' : 'square');
+                  const activeShape = activeHoveredPlayer.shape || 'none';
                   const activeNodeColor = activeHoveredPlayer.nodeColor || activeHoveredPlayer.color || '#000000';
                   const activeFillColor = activeShape === 'none'
                     ? 'transparent'
                     : (activeHoveredPlayer.fillColor !== undefined ? activeHoveredPlayer.fillColor : (activeHoveredPlayer.color || '#000000'));
                   const activeLetterColor = activeHoveredPlayer.letterColor || (activeShape === 'none'
-                    ? activeNodeColor
+                    ? '#000000'
                     : (activeFillColor === 'transparent' ? '#ffffff' : (isLightColor(activeFillColor) ? '#000000' : '#ffffff')));
 
                   return (

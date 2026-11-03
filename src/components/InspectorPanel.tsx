@@ -105,13 +105,13 @@ export const InspectorPanel: React.FC<InspectorPanelProps> = ({
   };
 
   const getPlayerRosterBadgeStyle = (pl: Player) => {
-    const shape = pl.shape || (pl.side === 'offense' ? 'round' : 'square');
+    const shape = pl.shape || 'none';
     const nodeColor = pl.nodeColor || pl.color || '#000000';
     const fillColor = shape === 'none'
       ? 'transparent'
       : (pl.fillColor !== undefined ? pl.fillColor : (pl.color || '#000000'));
     const letterColor = pl.letterColor || (shape === 'none'
-      ? nodeColor
+      ? '#000000'
       : (fillColor === 'transparent' ? (isLight ? '#000000' : '#ffffff') : (isLightColor(fillColor) ? '#000000' : '#ffffff')));
 
     return {
@@ -414,13 +414,13 @@ export const InspectorPanel: React.FC<InspectorPanelProps> = ({
                 <div className={`flex items-center justify-between pb-2 border-b ${isLight ? 'border-slate-200' : 'border-slate-700'}`}>
                   <div className="flex items-center gap-2">
                     {(() => {
-                      const pShape = selectedPlayer.shape || (selectedPlayer.side === 'offense' ? 'round' : 'square');
+                      const pShape = selectedPlayer.shape || 'none';
                       const pNodeColor = selectedPlayer.nodeColor || selectedPlayer.color || '#000000';
                       const pFillColor = pShape === 'none'
                         ? 'transparent'
                         : (selectedPlayer.fillColor !== undefined ? selectedPlayer.fillColor : (selectedPlayer.color || '#000000'));
                       const pLetterColor = selectedPlayer.letterColor || (pShape === 'none'
-                        ? pNodeColor
+                        ? '#000000'
                         : (pFillColor === 'transparent' ? (isLight ? '#000000' : '#ffffff') : (isLightColor(pFillColor) ? '#000000' : '#ffffff')));
 
                       return (
@@ -505,7 +505,7 @@ export const InspectorPanel: React.FC<InspectorPanelProps> = ({
                       type="button"
                       onClick={() => onUpdatePlayer({ ...selectedPlayer, shape: 'round' })}
                       className={`flex flex-col items-center justify-center gap-1 py-1.5 px-1 rounded border text-[11px] font-semibold transition-all cursor-pointer ${
-                        (selectedPlayer.shape || (selectedPlayer.side === 'offense' ? 'round' : 'square')) === 'round'
+                        selectedPlayer.shape === 'round'
                           ? isLight ? 'bg-sky-100 border-sky-400 text-sky-800 shadow-sm' : 'bg-sky-600/30 border-sky-400 text-sky-200 shadow-sm'
                           : isLight ? 'bg-white border-slate-300 text-slate-600 hover:bg-slate-100' : 'bg-[#161b22] border-slate-700 text-slate-400 hover:text-slate-200 hover:bg-slate-800'
                       }`}
@@ -519,7 +519,7 @@ export const InspectorPanel: React.FC<InspectorPanelProps> = ({
                       type="button"
                       onClick={() => onUpdatePlayer({ ...selectedPlayer, shape: 'square' })}
                       className={`flex flex-col items-center justify-center gap-1 py-1.5 px-1 rounded border text-[11px] font-semibold transition-all cursor-pointer ${
-                        (selectedPlayer.shape || (selectedPlayer.side === 'offense' ? 'round' : 'square')) === 'square'
+                        selectedPlayer.shape === 'square'
                           ? isLight ? 'bg-sky-100 border-sky-400 text-sky-800 shadow-sm' : 'bg-sky-600/30 border-sky-400 text-sky-200 shadow-sm'
                           : isLight ? 'bg-white border-slate-300 text-slate-600 hover:bg-slate-100' : 'bg-[#161b22] border-slate-700 text-slate-400 hover:text-slate-200 hover:bg-slate-800'
                       }`}
@@ -547,7 +547,7 @@ export const InspectorPanel: React.FC<InspectorPanelProps> = ({
                       type="button"
                       onClick={() => onUpdatePlayer({ ...selectedPlayer, shape: 'none' })}
                       className={`flex flex-col items-center justify-center gap-1 py-1.5 px-1 rounded border text-[11px] font-semibold transition-all cursor-pointer ${
-                        selectedPlayer.shape === 'none'
+                        (selectedPlayer.shape || 'none') === 'none'
                           ? isLight ? 'bg-sky-100 border-sky-400 text-sky-800 shadow-sm' : 'bg-sky-600/30 border-sky-400 text-sky-200 shadow-sm'
                           : isLight ? 'bg-white border-slate-300 text-slate-600 hover:bg-slate-100' : 'bg-[#161b22] border-slate-700 text-slate-400 hover:text-slate-200 hover:bg-slate-800'
                       }`}
@@ -561,13 +561,13 @@ export const InspectorPanel: React.FC<InspectorPanelProps> = ({
 
                 {/* PLAYER COLOR PARAMETERS (3 Color Parameters: Letter Color, Node Color, Fill Color + Optional Hover Color) */}
                 {(() => {
-                  const pShape = selectedPlayer.shape || (selectedPlayer.side === 'offense' ? 'round' : 'square');
+                  const pShape = selectedPlayer.shape || 'none';
                   const pNodeColor = selectedPlayer.nodeColor || selectedPlayer.color || '#000000';
                   const pFillColor = pShape === 'none'
                     ? 'transparent'
                     : (selectedPlayer.fillColor !== undefined ? selectedPlayer.fillColor : (selectedPlayer.color || '#000000'));
                   const pLetterColor = selectedPlayer.letterColor || (pShape === 'none'
-                    ? pNodeColor
+                    ? '#000000'
                     : (pFillColor === 'transparent' ? (isLight ? '#000000' : '#ffffff') : (isLightColor(pFillColor) ? '#000000' : '#ffffff')));
 
                   return (
@@ -581,9 +581,10 @@ export const InspectorPanel: React.FC<InspectorPanelProps> = ({
                           type="button"
                           onClick={() => onUpdatePlayer({
                             ...selectedPlayer,
+                            shape: 'none',
                             nodeColor: '#000000',
-                            fillColor: '#000000',
-                            letterColor: '#ffffff',
+                            fillColor: 'transparent',
+                            letterColor: '#000000',
                             hoverColor: undefined,
                             color: undefined
                           })}
@@ -592,7 +593,7 @@ export const InspectorPanel: React.FC<InspectorPanelProps> = ({
                               ? 'bg-white hover:bg-slate-100 text-slate-700 border-slate-300'
                               : 'bg-slate-800 hover:bg-slate-700 text-slate-300 border-slate-700'
                           }`}
-                          title="Set black with no shade as default setting"
+                          title="Set default black 0/0/0 with no node shape"
                         >
                           <RotateCcw className="w-2.5 h-2.5" />
                           <span>Default Black</span>
@@ -1161,11 +1162,11 @@ export const InspectorPanel: React.FC<InspectorPanelProps> = ({
                         >
                           <span
                             className={`w-5 h-5 font-bold text-[10px] flex items-center justify-center shrink-0 shadow-sm ${
-                              (player.shape || (player.side === 'offense' ? 'round' : 'square')) === 'round'
+                              (player.shape || 'none') === 'round'
                                 ? 'rounded-full'
-                                : (player.shape || (player.side === 'offense' ? 'round' : 'square')) === 'rounded_square'
+                                : (player.shape || 'none') === 'rounded_square'
                                 ? 'rounded-sm'
-                                : (player.shape || (player.side === 'offense' ? 'round' : 'square')) === 'square'
+                                : (player.shape || 'none') === 'square'
                                 ? 'rounded-none'
                                 : 'rounded-sm border border-dashed'
                             }`}
@@ -1211,11 +1212,11 @@ export const InspectorPanel: React.FC<InspectorPanelProps> = ({
                         >
                           <span
                             className={`w-5 h-5 font-bold text-[10px] flex items-center justify-center shrink-0 shadow-sm ${
-                              (player.shape || (player.side === 'offense' ? 'round' : 'square')) === 'round'
+                              (player.shape || 'none') === 'round'
                                 ? 'rounded-full'
-                                : (player.shape || (player.side === 'offense' ? 'round' : 'square')) === 'rounded_square'
+                                : (player.shape || 'none') === 'rounded_square'
                                 ? 'rounded-sm'
-                                : (player.shape || (player.side === 'offense' ? 'round' : 'square')) === 'square'
+                                : (player.shape || 'none') === 'square'
                                 ? 'rounded-none'
                                 : 'rounded-sm border border-dashed'
                             }`}

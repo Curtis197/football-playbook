@@ -16,11 +16,11 @@ export interface Player {
   id: string;              // e.g. "off_y", "def_w"
   label: string;           // "Y", "H", "Z", "W", "M", "NT"
   side: Side;
-  shape?: PlayerShape;     // 'round', 'square', 'rounded_square', or 'none' (bare text)
+  shape?: PlayerShape;     // 'round', 'square', 'rounded_square', or 'none' (default: 'none' / no node shape for both offense and defense)
   color?: string;          // Legacy custom hex color fallback
-  letterColor?: string;    // Custom position label / text color (default: black '#000000' or contrasting '#ffffff')
-  nodeColor?: string;      // Custom node stroke / border color (default: pure black '#000000')
-  fillColor?: string;      // Custom node background fill color (default: pure black '#000000')
+  letterColor?: string;    // Custom position label / text color (default: black '#000000' / rgb 0,0,0)
+  nodeColor?: string;      // Custom node stroke / border color (default: black '#000000' / rgb 0,0,0)
+  fillColor?: string;      // Custom node background fill color (default: 'transparent' when no node)
   hoverColor?: string;     // Optional custom hover accent color
   x: number;               // Normalized X coordinate
   y: number;               // Normalized Y coordinate

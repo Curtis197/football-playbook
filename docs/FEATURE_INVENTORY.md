@@ -46,16 +46,17 @@ Comprehensive catalog of capabilities and features supported in the Football Pla
   - Fully reactive light mode styling across Toolbar, ModeSwitcher, InspectorPanel, and game planning matrix cards.
 
 - **Custom Color Picking & Node Shape Geometry for Players & Lines**:
-  - Player Node Shape Selector:
+  - Player Node Shape Selector & Default Bare Label Presentation:
     - 4 selectable node shape profiles per player: `round` (classic circle), `square` (traditional block), `rounded_square` (modern squircle), and `none` (bare text label).
+    - Default player representation: Set to `none` (no node shape) and pure black 0/0/0 (`#000000`) for both offense and defense, delivering authentic minimalist playbook typography directly on the chalkboard or whiteboard.
     - `none` shape renders cleanly as bare high-contrast text in player's schematic/custom color with an invisible responsive hit box (`fill="transparent"`) for seamless click, drag-and-drop, and hover detection.
     - Subtle dashed bounding rectangle on selection and dashed tooltip badge for bare text players.
   - Multi-Parameter Player Color Engine (Spec: 3 Color Parameters + Optional Hover Color):
-    - **Letter Color**: Customizable position label / text color (defaults to high-contrast white `#ffffff` against black fill, or `#000000` when bare text).
-    - **Node Color (Border)**: Customizable perimeter outline/stroke color (defaults to pure black `#000000` with no shade).
-    - **Fill Color (Interior)**: Customizable node body background color (defaults to pure black `#000000` with no shade, with 1-click 'None' transparent fill option).
+    - **Letter Color**: Customizable position label / text color (defaults to pure black 0/0/0 `#000000` for bare text, or high-contrast white `#ffffff` on filled shapes).
+    - **Node Color (Border)**: Customizable perimeter outline/stroke color (defaults to pure black 0/0/0 `#000000`).
+    - **Fill Color (Interior)**: Customizable node body background color (defaults to transparent when `none`, with 1-click 'None' transparent fill option).
     - **Hover Color (Optional)**: Optional interactive accent color highlighting the player's border and halo on canvas hover in both build and view modes.
-    - **Default Black Setting**: All player node and fill geometries default to pure solid black `#000000` with no shade. 1-click "Default Black" quick-reset button restores the solid black standard instantly.
+    - **Default Black 0/0/0 with No Node**: All unconfigured players for both offense and defense default to bare text (`none`) in pure solid black 0/0/0. 1-click "Default Black" quick-reset button restores this standard instantly.
     - Comprehensive swatches for all 4 parameters plus native HTML5 color pickers (`<input type="color" />`).
     - Synchronized live preview across chalkboard canvas nodes, Thought Partner hover tooltip badges, inspector header badges, and offensive/defensive roster lists.
   - Vector Line & Terminal Marker Color Picker:
