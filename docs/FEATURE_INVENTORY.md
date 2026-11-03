@@ -27,7 +27,11 @@ Comprehensive catalog of capabilities and features supported in the Football Pla
     - Mode 2: Draw Route (Click player -> click waypoints -> Enter/Double-click to finish with Arrowhead)
     - Mode 3: Draw Block (Click player -> click target point -> Enter/Double-click to finish with T-Bar)
     - Mode 4: Draw Motion (Click player -> waypoints -> Finish with Motion styling)
-  - Thought Partner Interactive Hover: Floating assignment tooltip overlay with player badge, assignment title, assignment notes, and coaching keys
+  - Dedicated Build Mode vs View Mode Separation:
+    - Build Mode: Clean, unobstructed play building where hovering does not display any blocking overlay; clicking players opens the dedicated Side Annotation Form for configuring assignments, notes, and coaching keys; quick player roster in side panel.
+    - View Mode: Review & presentation mode where hovering over any player displays the Thought Partner interactive explanation overlay (badge, assignment, technique, coaching cues) and illuminates associated route vectors with glowing highlights.
+    - Dual mode toggles in both Top Toolbar and Left Mode Switcher with real-time status cues and 1-click mode switching.
+  - Thought Partner Interactive Hover: Floating assignment tooltip overlay with player badge, assignment title, assignment notes, and coaching keys in View Mode
   - Drag-and-drop repositioning with live coordinate updates and bounded field positioning
 
 - **Philosophy & Game Planning Companion (Spec 3)**:

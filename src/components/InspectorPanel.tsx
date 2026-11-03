@@ -1,13 +1,13 @@
 import React, { useState } from 'react';
-import type { Player, PathAction, Play, ActionType } from '../types/playbook';
+import type { Player, PathAction, Play, ActionType, AppMode } from '../types/playbook';
 import { 
   Compass, 
   Shield, 
-  HelpCircle, 
   Tag, 
   Plus, 
   X, 
   Lightbulb, 
+  FileEdit,
   Sliders
 } from 'lucide-react';
 
@@ -15,6 +15,8 @@ interface InspectorPanelProps {
   currentPlay: Play;
   selectedPlayer: Player | null;
   selectedAction: PathAction | null;
+  appMode?: AppMode;
+  onSelectPlayer?: (playerId: string | null) => void;
   onUpdatePlayer: (updated: Player) => void;
   onUpdateAction: (updated: PathAction) => void;
   onUpdatePlayNotes: (notes: Play['notes']) => void;
@@ -32,6 +34,8 @@ export const InspectorPanel: React.FC<InspectorPanelProps> = ({
   currentPlay,
   selectedPlayer,
   selectedAction,
+  appMode = 'build',
+  onSelectPlayer,
   onUpdatePlayer,
   onUpdateAction,
   onUpdatePlayNotes,
@@ -39,9 +43,19 @@ export const InspectorPanel: React.FC<InspectorPanelProps> = ({
   onUpdatePlayFormations
 }) => {
   const [activeTab, setActiveTab] = useState<'inspector' | 'philosophy' | 'read_flow'>('philosophy');
+  const [prevSelectedId, setPrevSelectedId] = useState<string | null>(null);
   const [newTagInput, setNewTagInput] = useState('');
   const [newSituationInput, setNewSituationInput] = useState('');
   const [newCoachingKeyInput, setNewCoachingKeyInput] = useState('');
+
+  // Automatically switch to annotation form when a player or action is newly selected
+  const currentSelectedId = selectedPlayer?.id || selectedAction?.id || null;
+  if (currentSelectedId && currentSelectedId !== prevSelectedId) {
+    setPrevSelectedId(currentSelectedId);
+    setActiveTab('inspector');
+  } else if (!currentSelectedId && prevSelectedId) {
+    setPrevSelectedId(null);
+  }
 
   // Strategy Matrix options
   const runConcepts = ['Inside Zone', 'Split-Zone Read', 'Pin & Pull', 'Fold Trap', 'Outside Zone', 'Duo', 'Power / Counter'];
@@ -96,6 +110,23 @@ export const InspectorPanel: React.FC<InspectorPanelProps> = ({
 
   return (
     <aside className="w-80 lg:w-96 bg-[#161b22] border-l border-[#30363d] flex flex-col h-full select-none shrink-0 overflow-hidden text-slate-200">
+      {/* MODE STATUS HEADER */}
+      <div className="px-3.5 py-1.5 bg-[#0d1117] border-b border-[#30363d] flex items-center justify-between text-xs">
+        <span className="text-slate-400 font-semibold flex items-center gap-1.5">
+          <FileEdit className="w-3.5 h-3.5 text-sky-400" />
+          <span>Side Annotation Form</span>
+        </span>
+        <span
+          className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider ${
+            appMode === 'view'
+              ? 'bg-emerald-950/80 text-emerald-400 border border-emerald-500/40'
+              : 'bg-sky-950/80 text-sky-400 border border-sky-500/40'
+          }`}
+        >
+          {appMode === 'view' ? '👁️ View Mode' : '🛠️ Build Mode'}
+        </span>
+      </div>
+
       {/* PANEL TABS */}
       <div className="flex items-center border-b border-[#30363d] bg-[#0d1117]/80 text-xs font-semibold">
         <button
@@ -118,8 +149,8 @@ export const InspectorPanel: React.FC<InspectorPanelProps> = ({
               : 'border-transparent text-slate-400 hover:text-slate-200'
           }`}
         >
-          <Sliders className="w-3.5 h-3.5" />
-          <span>{selectedPlayer ? `Player: ${selectedPlayer.label}` : selectedAction ? 'Vector Path' : 'Inspector'}</span>
+          <FileEdit className="w-3.5 h-3.5" />
+          <span>{selectedPlayer ? `Player: ${selectedPlayer.label}` : selectedAction ? 'Vector Path' : 'Annotation Form'}</span>
         </button>
 
         <button
@@ -340,13 +371,25 @@ export const InspectorPanel: React.FC<InspectorPanelProps> = ({
                       {selectedPlayer.label}
                     </span>
                     <div>
-                      <h3 className="text-xs font-bold text-white">Player Inspector</h3>
-                      <p className="text-[10px] text-slate-400 capitalize">{selectedPlayer.side}</p>
+                      <h3 className="text-xs font-bold text-white">Player Annotation Form</h3>
+                      <p className="text-[10px] text-slate-400 capitalize">{selectedPlayer.side} • Side Form</p>
                     </div>
                   </div>
-                  <span className="text-[10px] font-mono text-slate-500">
-                    ({selectedPlayer.x}, {selectedPlayer.y})
-                  </span>
+                  <div className="flex items-center gap-2">
+                    <span className="text-[10px] font-mono text-slate-500">
+                      ({selectedPlayer.x}, {selectedPlayer.y})
+                    </span>
+                    {onSelectPlayer && (
+                      <button
+                        type="button"
+                        onClick={() => onSelectPlayer(null)}
+                        className="text-slate-400 hover:text-white p-1 rounded hover:bg-slate-800 transition-colors"
+                        title="Close player form / Deselect"
+                      >
+                        <X className="w-3.5 h-3.5" />
+                      </button>
+                    )}
+                  </div>
                 </div>
 
                 {/* Player Label & Side */}
@@ -585,12 +628,80 @@ export const InspectorPanel: React.FC<InspectorPanelProps> = ({
                 </div>
               </div>
             ) : (
-              <div className="flex flex-col items-center justify-center py-12 text-center text-slate-500 space-y-2">
-                <HelpCircle className="w-8 h-8 text-slate-600" />
-                <p className="text-xs">No player or vector line selected.</p>
-                <p className="text-[11px] text-slate-600 max-w-[200px]">
-                  Click any player node or route path on the chalkboard to inspect and configure assignments.
-                </p>
+              <div className="space-y-4">
+                <div className="bg-slate-900/80 p-3 rounded-lg border border-slate-800 text-center space-y-1">
+                  <h4 className="text-xs font-bold text-white flex items-center justify-center gap-1.5">
+                    <FileEdit className="w-3.5 h-3.5 text-sky-400" />
+                    Player Annotation Form
+                  </h4>
+                  <p className="text-[11px] text-slate-400">
+                    Select any player on the chalkboard or roster below to edit their assignments & coaching notes:
+                  </p>
+                </div>
+
+                {/* Offense Players Roster */}
+                <div className="space-y-1.5">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-sky-400 flex items-center justify-between">
+                    <span>Offense</span>
+                    <span className="text-slate-500 font-mono text-[9px]">{currentPlay.players.filter(p => p.side === 'offense').length} players</span>
+                  </span>
+                  <div className="grid grid-cols-2 gap-1.5">
+                    {currentPlay.players.filter(p => p.side === 'offense').map(player => (
+                      <button
+                        key={player.id}
+                        type="button"
+                        onClick={() => onSelectPlayer?.(player.id)}
+                        className="flex items-center gap-2 p-1.5 bg-[#161b22] hover:bg-slate-800 border border-slate-700 hover:border-sky-500/50 rounded text-left transition-all group"
+                      >
+                        <span className="w-5 h-5 rounded bg-sky-600 group-hover:bg-sky-500 text-white font-bold text-[10px] flex items-center justify-center shrink-0">
+                          {player.label}
+                        </span>
+                        <div className="overflow-hidden">
+                          <div className="text-[10px] font-semibold text-slate-200 truncate leading-tight">
+                            {player.assignmentTitle || 'Assignment'}
+                          </div>
+                          {player.technique && (
+                            <div className="text-[9px] text-amber-400 truncate leading-tight">
+                              {player.technique}
+                            </div>
+                          )}
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Defense Players Roster */}
+                <div className="space-y-1.5 pt-2 border-t border-slate-800">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-rose-400 flex items-center justify-between">
+                    <span>Defense</span>
+                    <span className="text-slate-500 font-mono text-[9px]">{currentPlay.players.filter(p => p.side === 'defense').length} defenders</span>
+                  </span>
+                  <div className="grid grid-cols-2 gap-1.5">
+                    {currentPlay.players.filter(p => p.side === 'defense').map(player => (
+                      <button
+                        key={player.id}
+                        type="button"
+                        onClick={() => onSelectPlayer?.(player.id)}
+                        className="flex items-center gap-2 p-1.5 bg-[#161b22] hover:bg-slate-800 border border-slate-700 hover:border-rose-500/50 rounded text-left transition-all group"
+                      >
+                        <span className="w-5 h-5 rounded bg-rose-600 group-hover:bg-rose-500 text-white font-bold text-[10px] flex items-center justify-center shrink-0">
+                          {player.label}
+                        </span>
+                        <div className="overflow-hidden">
+                          <div className="text-[10px] font-semibold text-slate-200 truncate leading-tight">
+                            {player.assignmentTitle || 'Defend Gap'}
+                          </div>
+                          {player.technique && (
+                            <div className="text-[9px] text-amber-400 truncate leading-tight">
+                              {player.technique}
+                            </div>
+                          )}
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                </div>
               </div>
             )}
           </div>

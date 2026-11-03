@@ -1,5 +1,5 @@
 import React from 'react';
-import type { CanvasMode } from '../types/playbook';
+import type { CanvasMode, AppMode } from '../types/playbook';
 import { 
   MousePointer, 
   CornerUpRight, 
@@ -8,12 +8,16 @@ import {
   PlusCircle, 
   Shield, 
   Trash2,
-  Info
+  Info,
+  Eye,
+  Wrench
 } from 'lucide-react';
 
 interface ModeSwitcherProps {
   currentMode: CanvasMode;
   onSetMode: (mode: CanvasMode) => void;
+  appMode?: AppMode;
+  onSetAppMode?: (mode: AppMode) => void;
   selectedPlayerId: string | null;
   selectedActionId: string | null;
   onDeleteSelected: () => void;
@@ -22,6 +26,8 @@ interface ModeSwitcherProps {
 export const ModeSwitcher: React.FC<ModeSwitcherProps> = ({
   currentMode,
   onSetMode,
+  appMode = 'build',
+  onSetAppMode,
   selectedPlayerId,
   selectedActionId,
   onDeleteSelected
@@ -71,20 +77,59 @@ export const ModeSwitcher: React.FC<ModeSwitcherProps> = ({
     }
   ];
 
+  const handleToolClick = (toolId: CanvasMode) => {
+    if (onSetAppMode && appMode !== 'build') {
+      onSetAppMode('build');
+    }
+    onSetMode(toolId);
+  };
+
   return (
     <aside className="w-16 md:w-56 bg-[#161b22] border-r border-[#30363d] flex flex-col justify-between p-2 select-none z-10 shrink-0">
       <div className="flex flex-col gap-1">
+        {/* APP MODE TOGGLE (BUILD VS VIEW) */}
+        {onSetAppMode && (
+          <div className="flex items-center bg-[#0d1117] p-1 rounded-lg border border-slate-700/60 mb-2">
+            <button
+              type="button"
+              onClick={() => onSetAppMode('build')}
+              className={`flex-1 py-1.5 px-2 rounded text-[11px] font-bold uppercase tracking-wider flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+                appMode === 'build'
+                  ? 'bg-sky-600 text-white shadow-sm'
+                  : 'text-slate-400 hover:text-slate-200'
+              }`}
+              title="Build Mode: Draw routes, move players, edit annotations on side panel"
+            >
+              <Wrench className="w-3.5 h-3.5" />
+              <span className="hidden md:inline">Build</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => onSetAppMode('view')}
+              className={`flex-1 py-1.5 px-2 rounded text-[11px] font-bold uppercase tracking-wider flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+                appMode === 'view'
+                  ? 'bg-emerald-600 text-white shadow-sm'
+                  : 'text-slate-400 hover:text-slate-200'
+              }`}
+              title="View Mode: Hover over players to inspect coaching explanations"
+            >
+              <Eye className="w-3.5 h-3.5" />
+              <span className="hidden md:inline">View</span>
+            </button>
+          </div>
+        )}
+
         <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500 px-2 py-1 hidden md:block">
-          Tool Mode
+          {appMode === 'view' ? 'Chalkboard Tools' : 'Build Tools'}
         </span>
 
         {modes.map((m) => {
-          const isActive = currentMode === m.id;
+          const isActive = appMode === 'build' && currentMode === m.id;
           return (
             <button
               key={m.id}
-              onClick={() => onSetMode(m.id)}
-              className={`flex items-center gap-3 p-2.5 rounded-lg text-left transition-all group ${
+              onClick={() => handleToolClick(m.id)}
+              className={`flex items-center gap-3 p-2.5 rounded-lg text-left transition-all group cursor-pointer ${
                 isActive
                   ? 'bg-sky-600/20 border border-sky-500/50 text-sky-300 shadow-sm'
                   : 'hover:bg-slate-800/80 text-slate-400 hover:text-slate-200 border border-transparent'
@@ -105,7 +150,7 @@ export const ModeSwitcher: React.FC<ModeSwitcherProps> = ({
           <div className="mt-3 pt-3 border-t border-slate-700">
             <button
               onClick={onDeleteSelected}
-              className="w-full flex items-center gap-2 p-2.5 rounded-lg bg-rose-950/40 hover:bg-rose-900/60 border border-rose-800/50 text-rose-300 transition-all text-left"
+              className="w-full flex items-center gap-2 p-2.5 rounded-lg bg-rose-950/40 hover:bg-rose-900/60 border border-rose-800/50 text-rose-300 transition-all text-left cursor-pointer"
               title="Delete selected player or vector path"
             >
               <Trash2 className="w-5 h-5 text-rose-400 shrink-0" />
@@ -124,14 +169,22 @@ export const ModeSwitcher: React.FC<ModeSwitcherProps> = ({
       <div className="hidden md:flex flex-col gap-1.5 p-2 bg-slate-900/70 border border-slate-800 rounded-lg text-[11px] text-slate-400">
         <div className="flex items-center gap-1 text-slate-300 font-semibold">
           <Info className="w-3.5 h-3.5 text-sky-400" />
-          <span>Quick Tips</span>
+          <span>{appMode === 'view' ? 'View Mode Tips' : 'Build Mode Tips'}</span>
         </div>
-        <p className="leading-tight text-[10px] text-slate-400">
-          • Double-click field or press <strong>Enter</strong> to complete a route.
-        </p>
-        <p className="leading-tight text-[10px] text-slate-400">
-          • Hover over any player to review coaching keys.
-        </p>
+        {appMode === 'view' ? (
+          <p className="leading-tight text-[10px] text-emerald-300/90">
+            • Hover over any player to review coaching keys and live explanations without blocking canvas building.
+          </p>
+        ) : (
+          <>
+            <p className="leading-tight text-[10px] text-slate-400">
+              • Hover overlays are hidden during building so you can draw cleanly.
+            </p>
+            <p className="leading-tight text-[10px] text-slate-400">
+              • Click any player to view and edit assignments in the side panel.
+            </p>
+          </>
+        )}
       </div>
     </aside>
   );

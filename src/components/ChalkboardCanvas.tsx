@@ -1,11 +1,12 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
-import type { Player, PathAction, CanvasMode, Point } from '../types/playbook';
+import type { Player, PathAction, CanvasMode, Point, AppMode } from '../types/playbook';
 import { generatePathString, getSvgCoordinates, clampFieldCoordinates, getDistance } from '../utils/geometry';
 
 interface ChalkboardCanvasProps {
   players: Player[];
   actions: PathAction[];
   mode: CanvasMode;
+  appMode?: AppMode;
   selectedPlayerId: string | null;
   selectedActionId: string | null;
   onSelectPlayer: (id: string | null) => void;
@@ -14,12 +15,14 @@ interface ChalkboardCanvasProps {
   onAddAction: (action: PathAction) => void;
   onUpdateActionPoints: (actionId: string, points: Point[]) => void;
   onAddPlayerAtPoint: (x: number, y: number, side: 'offense' | 'defense') => void;
+  onSwitchToBuildMode?: () => void;
 }
 
 export const ChalkboardCanvas: React.FC<ChalkboardCanvasProps> = ({
   players,
   actions,
   mode,
+  appMode = 'build',
   selectedPlayerId,
   selectedActionId,
   onSelectPlayer,
@@ -27,7 +30,8 @@ export const ChalkboardCanvas: React.FC<ChalkboardCanvasProps> = ({
   onUpdatePlayerPosition,
   onAddAction,
   onUpdateActionPoints,
-  onAddPlayerAtPoint
+  onAddPlayerAtPoint,
+  onSwitchToBuildMode
 }) => {
   const svgRef = useRef<SVGSVGElement | null>(null);
 
@@ -43,15 +47,24 @@ export const ChalkboardCanvas: React.FC<ChalkboardCanvasProps> = ({
   const [drawingPlayerId, setDrawingPlayerId] = useState<string | null>(null);
   const [cursorPos, setCursorPos] = useState<Point | null>(null);
 
-  // Hover state for Thought Partner tooltip
+  // Hover state for Thought Partner tooltip (Active only in View Mode)
   const [hoveredPlayerId, setHoveredPlayerId] = useState<string | null>(null);
   const [tooltipPos, setTooltipPos] = useState<{ x: number; y: number } | null>(null);
 
-  const activeHoveredPlayer = players.find(p => p.id === (hoveredPlayerId || selectedPlayerId));
+  const activeHoveredPlayer = appMode === 'view' 
+    ? players.find(p => p.id === (hoveredPlayerId || selectedPlayerId))
+    : null;
 
   // Handle pointer down on player
   const handlePlayerPointerDown = (e: React.PointerEvent, player: Player) => {
     e.stopPropagation();
+    if (appMode === 'view') {
+      onSelectPlayer(player.id);
+      onSelectAction(null);
+      setTooltipPos({ x: player.x, y: player.y });
+      return;
+    }
+
     if (mode === 'select') {
       onSelectPlayer(player.id);
       onSelectAction(null);
@@ -114,6 +127,13 @@ export const ChalkboardCanvas: React.FC<ChalkboardCanvasProps> = ({
   // Handle SVG background click
   const handleCanvasClick = (e: React.MouseEvent) => {
     if (!svgRef.current) return;
+
+    if (appMode === 'view') {
+      onSelectPlayer(null);
+      onSelectAction(null);
+      return;
+    }
+
     const pt = getSvgCoordinates(e, svgRef.current);
 
     if (mode === 'add_offense') {
@@ -153,6 +173,7 @@ export const ChalkboardCanvas: React.FC<ChalkboardCanvasProps> = ({
 
   // Double click finishes route drawing
   const handleDoubleClick = () => {
+    if (appMode === 'view') return;
     if (drawingPoints.length >= 2) {
       finishDrawing(drawingPoints);
     }
@@ -163,6 +184,8 @@ export const ChalkboardCanvas: React.FC<ChalkboardCanvasProps> = ({
     if (!svgRef.current) return;
     const pt = getSvgCoordinates(e, svgRef.current);
     setCursorPos(pt);
+
+    if (appMode === 'view') return;
 
     if (draggingPlayerId) {
       const newX = pt.x - dragOffset.x;
@@ -389,8 +412,9 @@ export const ChalkboardCanvas: React.FC<ChalkboardCanvasProps> = ({
           <g className="actions-layer">
             {actions.map(act => {
               const isSelected = selectedActionId === act.id;
+              const isPlayerHoveredInView = appMode === 'view' && hoveredPlayerId === act.playerId;
               const pathD = generatePathString(act.points, act.isCurved ?? false);
-              const strokeColor = getActionStroke(act, isSelected);
+              const strokeColor = getActionStroke(act, isSelected || isPlayerHoveredInView);
 
               let markerEnd = 'none';
               if (act.endMarker === 'arrow') {
@@ -424,11 +448,12 @@ export const ChalkboardCanvas: React.FC<ChalkboardCanvasProps> = ({
                     d={pathD}
                     fill="none"
                     stroke={strokeColor}
-                    strokeWidth={isSelected ? "4.5" : "3"}
+                    strokeWidth={isSelected || isPlayerHoveredInView ? "5" : "3"}
                     strokeDasharray={act.type === 'motion' ? "7 5" : undefined}
                     strokeLinecap="round"
                     strokeLinejoin="round"
                     markerEnd={markerEnd}
+                    filter={isPlayerHoveredInView ? "url(#glow)" : undefined}
                     className="transition-all duration-150 group-hover:brightness-125"
                   />
 
@@ -578,21 +603,26 @@ export const ChalkboardCanvas: React.FC<ChalkboardCanvasProps> = ({
           <g className="players-layer">
             {players.map(player => {
               const isSelected = selectedPlayerId === player.id;
-              const isHovered = hoveredPlayerId === player.id;
+              const isHovered = appMode === 'view' && hoveredPlayerId === player.id;
               const isOffense = player.side === 'offense';
+              const isView = appMode === 'view';
 
               return (
                 <g
                   key={player.id}
                   transform={`translate(${player.x}, ${player.y})`}
-                  className="cursor-grab active:cursor-grabbing transition-transform duration-75"
+                  className={isView ? "cursor-pointer transition-transform duration-75" : "cursor-grab active:cursor-grabbing transition-transform duration-75"}
                   onPointerDown={(e) => handlePlayerPointerDown(e, player)}
                   onPointerEnter={() => {
-                    setHoveredPlayerId(player.id);
-                    setTooltipPos({ x: player.x, y: player.y });
+                    if (isView) {
+                      setHoveredPlayerId(player.id);
+                      setTooltipPos({ x: player.x, y: player.y });
+                    }
                   }}
                   onPointerLeave={() => {
-                    setHoveredPlayerId(null);
+                    if (isView) {
+                      setHoveredPlayerId(null);
+                    }
                   }}
                   onClick={(e) => {
                     e.stopPropagation();
@@ -688,8 +718,8 @@ export const ChalkboardCanvas: React.FC<ChalkboardCanvasProps> = ({
           </g>
         </svg>
 
-        {/* THOUGHT PARTNER INTERACTIVE HOVER OVERLAY (Spec 2.2) */}
-        {activeHoveredPlayer && tooltipPos && (
+        {/* THOUGHT PARTNER INTERACTIVE HOVER OVERLAY - ONLY SHOWN IN VIEW MODE (Spec 2.2) */}
+        {appMode === 'view' && activeHoveredPlayer && tooltipPos && (
           <div
             className="absolute z-30 pointer-events-none transition-all duration-150 transform -translate-x-1/2 -translate-y-full mb-3"
             style={{
@@ -697,8 +727,8 @@ export const ChalkboardCanvas: React.FC<ChalkboardCanvasProps> = ({
               top: `${(tooltipPos.y / 700) * 100}%`
             }}
           >
-            <div className="bg-[#0f172a]/95 backdrop-blur-md border border-[#38bdf8]/40 text-slate-100 rounded-lg p-3 shadow-2xl min-w-[220px] max-w-[280px] pointer-events-auto">
-              <div className="flex items-center gap-2 mb-1">
+            <div className="bg-[#0f172a]/95 backdrop-blur-md border border-[#38bdf8]/50 text-slate-100 rounded-lg p-3 shadow-2xl min-w-[240px] max-w-[300px] pointer-events-auto">
+              <div className="flex items-center gap-2 mb-1.5">
                 <span className={`inline-flex items-center justify-center w-6 h-6 text-xs font-bold rounded ${
                   activeHoveredPlayer.side === 'offense' ? 'bg-sky-600 text-white' : 'bg-rose-600 text-white'
                 }`}>
@@ -730,28 +760,54 @@ export const ChalkboardCanvas: React.FC<ChalkboardCanvasProps> = ({
               )}
             </div>
             {/* Small tooltip pointer arrow */}
-            <div className="w-3 h-3 bg-[#0f172a] border-r border-b border-[#38bdf8]/40 transform rotate-45 mx-auto -mt-1.5"></div>
+            <div className="w-3 h-3 bg-[#0f172a] border-r border-b border-[#38bdf8]/50 transform rotate-45 mx-auto -mt-1.5"></div>
           </div>
         )}
 
         {/* BOTTOM CANVAS STATUS BAR */}
-        <div className="absolute bottom-2 left-3 right-3 flex items-center justify-between text-xs text-slate-400 bg-slate-900/85 backdrop-blur-sm px-3 py-1.5 rounded-md border border-slate-700/50 pointer-events-none">
-          <div className="flex items-center gap-4">
-            <span>
-              Mode: <strong className="text-sky-400 capitalize">{mode.replace('_', ' ')}</strong>
-            </span>
-            {drawingPlayerId ? (
-              <span className="text-amber-400 font-semibold flex items-center gap-2">
-                <span>Click: <strong className="text-sky-300">Smooth Arc</strong></span>
-                <span>•</span>
-                <span>Shift+Click: <strong className="text-amber-300">Sharp Cut</strong> (Dig / Post / Out)</span>
-                <span>•</span>
-                <span>Double-Click/Enter: <strong>Finish</strong></span>
-              </span>
+        <div className="absolute bottom-2 left-3 right-3 flex items-center justify-between text-xs text-slate-400 bg-slate-900/90 backdrop-blur-sm px-3 py-1.5 rounded-md border border-slate-700/50 pointer-events-none">
+          <div className="flex items-center gap-3">
+            {appMode === 'view' ? (
+              <>
+                <span className="flex items-center gap-1.5 px-2 py-0.5 rounded bg-emerald-950/90 border border-emerald-500/50 text-emerald-300 font-bold text-[11px]">
+                  <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+                  VIEW MODE
+                </span>
+                <span className="text-slate-300 text-xs">
+                  Hover over players to inspect assignments & coaching keys.
+                </span>
+                {onSwitchToBuildMode && (
+                  <button
+                    onClick={onSwitchToBuildMode}
+                    className="pointer-events-auto px-2.5 py-0.5 text-xs font-semibold bg-sky-600 hover:bg-sky-500 text-white rounded transition-all shadow-sm cursor-pointer ml-1"
+                  >
+                    🛠️ Switch to Build Mode
+                  </button>
+                )}
+              </>
             ) : (
-              <span className="text-slate-500 text-[11px]">
-                Tip: Click selected waypoint handles to toggle between Smooth Arc and Sharp Cut Break
-              </span>
+              <>
+                <span className="flex items-center gap-1.5 px-2 py-0.5 rounded bg-sky-950/90 border border-sky-500/40 text-sky-300 font-bold text-[11px]">
+                  <span className="w-2 h-2 rounded-full bg-sky-400"></span>
+                  BUILD MODE
+                </span>
+                <span>
+                  Tool: <strong className="text-sky-300 capitalize">{mode.replace('_', ' ')}</strong>
+                </span>
+                {drawingPlayerId ? (
+                  <span className="text-amber-400 font-semibold flex items-center gap-2">
+                    <span>Click: <strong className="text-sky-300">Smooth Arc</strong></span>
+                    <span>•</span>
+                    <span>Shift+Click: <strong className="text-amber-300">Sharp Cut</strong></span>
+                    <span>•</span>
+                    <span>Double-Click/Enter: <strong>Finish</strong></span>
+                  </span>
+                ) : (
+                  <span className="text-slate-400 text-[11px] hidden sm:inline">
+                    Click player to edit assignments on side panel • Hover overlays hidden during building
+                  </span>
+                )}
+              </>
             )}
           </div>
           <div className="flex items-center gap-3">

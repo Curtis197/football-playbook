@@ -1,5 +1,5 @@
 import React, { useRef } from 'react';
-import type { Play, PlayCategory } from '../types/playbook';
+import type { Play, PlayCategory, AppMode } from '../types/playbook';
 import { 
   Download, 
   Upload, 
@@ -14,7 +14,9 @@ import {
   Check,
   RefreshCw,
   AlertCircle,
-  Users
+  Users,
+  Eye,
+  PenTool
 } from 'lucide-react';
 
 export type CloudSyncStatus = 'idle' | 'saving' | 'saved' | 'error';
@@ -22,6 +24,8 @@ export type CloudSyncStatus = 'idle' | 'saving' | 'saved' | 'error';
 interface ToolbarProps {
   currentPlay: Play;
   allPlays: Play[];
+  appMode?: AppMode;
+  onSetAppMode?: (mode: AppMode) => void;
   onSelectPlay: (playId: string) => void;
   onUpdatePlayName: (name: string) => void;
   onUpdateCategory: (category: PlayCategory) => void;
@@ -42,6 +46,8 @@ interface ToolbarProps {
 export const Toolbar: React.FC<ToolbarProps> = ({
   currentPlay,
   allPlays,
+  appMode = 'build',
+  onSetAppMode,
   onSelectPlay,
   onUpdatePlayName,
   onUpdateCategory,
@@ -227,6 +233,38 @@ export const Toolbar: React.FC<ToolbarProps> = ({
           <option value="screen" className="bg-[#161b22] text-emerald-300">Screen</option>
           <option value="blitz_pickup" className="bg-[#161b22] text-rose-300">Blitz Pickup</option>
         </select>
+
+        {/* BUILD MODE VS VIEW MODE SEGMENTED TOGGLE */}
+        {onSetAppMode && (
+          <div className="flex items-center bg-[#0d1117] p-1 rounded-lg border border-[#30363d] ml-1 shadow-inner">
+            <button
+              type="button"
+              onClick={() => onSetAppMode('build')}
+              className={`flex items-center gap-1.5 px-3 py-1 rounded-md text-xs font-bold transition-all cursor-pointer ${
+                appMode === 'build'
+                  ? 'bg-sky-600 text-white shadow-sm'
+                  : 'text-slate-400 hover:text-slate-200'
+              }`}
+              title="Build Mode: Diagram plays, move players, draw routes, and edit annotations on side panel without popup interruptions"
+            >
+              <PenTool className="w-3.5 h-3.5" />
+              <span>Build Mode</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => onSetAppMode('view')}
+              className={`flex items-center gap-1.5 px-3 py-1 rounded-md text-xs font-bold transition-all cursor-pointer ${
+                appMode === 'view'
+                  ? 'bg-emerald-600 text-white shadow-sm'
+                  : 'text-slate-400 hover:text-slate-200'
+              }`}
+              title="View Mode: Hover over players on chalkboard to inspect coaching explanations and assignments"
+            >
+              <Eye className="w-3.5 h-3.5" />
+              <span>View Mode</span>
+            </button>
+          </div>
+        )}
       </div>
 
       {/* RIGHT SECTION: Cloud Sync, Game Plan Tools, Operations & Exports */}

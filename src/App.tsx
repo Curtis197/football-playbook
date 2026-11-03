@@ -5,7 +5,8 @@ import type {
   Player, 
   PathAction, 
   CanvasMode, 
-  PlayCategory 
+  PlayCategory,
+  AppMode 
 } from './types/playbook';
 import { DEFAULT_WISHBONE_PLAY } from './data/presets';
 import { 
@@ -28,6 +29,7 @@ import { isFirebaseConfigured } from './services/firebase';
 export const App: React.FC = () => {
   const [playbook, setPlaybook] = useState<PlaybookFile>(() => loadPlaybookFromStorage());
   const [activePlayId, setActivePlayId] = useState<string>(() => playbook.plays[0]?.id || DEFAULT_WISHBONE_PLAY.id);
+  const [appMode, setAppMode] = useState<AppMode>('build');
   const [mode, setMode] = useState<CanvasMode>('select');
   const [selectedPlayerId, setSelectedPlayerId] = useState<string | null>(null);
   const [selectedActionId, setSelectedActionId] = useState<string | null>(null);
@@ -36,6 +38,15 @@ export const App: React.FC = () => {
   const [isFormationsModalOpen, setIsFormationsModalOpen] = useState(false);
   const [cloudSyncStatus, setCloudSyncStatus] = useState<CloudSyncStatus>('idle');
   const [notification, setNotification] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);
+
+  const handleSetAppMode = (nextMode: AppMode) => {
+    setAppMode(nextMode);
+    if (nextMode === 'view') {
+      showNotification('View Mode: Hover over players to inspect coaching explanations', 'info');
+    } else {
+      showNotification('Build Mode: Canvas uncluttered, side annotation form active', 'info');
+    }
+  };
 
   // Sync state to LocalStorage
   useEffect(() => {
@@ -368,6 +379,8 @@ export const App: React.FC = () => {
       <Toolbar
         currentPlay={currentPlay}
         allPlays={playbook.plays}
+        appMode={appMode}
+        onSetAppMode={handleSetAppMode}
         onSelectPlay={handleSelectPlay}
         onUpdatePlayName={handleUpdatePlayName}
         onUpdateCategory={handleUpdateCategory}
@@ -391,6 +404,8 @@ export const App: React.FC = () => {
         <ModeSwitcher
           currentMode={mode}
           onSetMode={setMode}
+          appMode={appMode}
+          onSetAppMode={handleSetAppMode}
           selectedPlayerId={selectedPlayerId}
           selectedActionId={selectedActionId}
           onDeleteSelected={handleDeleteSelected}
@@ -402,6 +417,7 @@ export const App: React.FC = () => {
             players={currentPlay.players}
             actions={currentPlay.actions}
             mode={mode}
+            appMode={appMode}
             selectedPlayerId={selectedPlayerId}
             selectedActionId={selectedActionId}
             onSelectPlayer={setSelectedPlayerId}
@@ -410,6 +426,7 @@ export const App: React.FC = () => {
             onAddAction={handleAddAction}
             onUpdateActionPoints={handleUpdateActionPoints}
             onAddPlayerAtPoint={handleAddPlayerAtPoint}
+            onSwitchToBuildMode={() => handleSetAppMode('build')}
           />
         </main>
 
@@ -418,6 +435,8 @@ export const App: React.FC = () => {
           currentPlay={currentPlay}
           selectedPlayer={selectedPlayer}
           selectedAction={selectedAction}
+          appMode={appMode}
+          onSelectPlayer={setSelectedPlayerId}
           onUpdatePlayer={(updated) => {
             updateCurrentPlay(p => ({
               ...p,
