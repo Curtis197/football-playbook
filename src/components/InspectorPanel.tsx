@@ -363,7 +363,13 @@ export const InspectorPanel: React.FC<InspectorPanelProps> = ({
                 <div className="flex items-center justify-between pb-2 border-b border-slate-700">
                   <div className="flex items-center gap-2">
                     <span
-                      className={`w-7 h-7 rounded flex items-center justify-center font-bold text-xs ${
+                      className={`w-7 h-7 flex items-center justify-center font-bold text-xs ${
+                        (selectedPlayer.shape || (selectedPlayer.side === 'offense' ? 'round' : 'square')) === 'round'
+                          ? 'rounded-full'
+                          : (selectedPlayer.shape || (selectedPlayer.side === 'offense' ? 'round' : 'square')) === 'rounded_square'
+                          ? 'rounded-md'
+                          : 'rounded-none'
+                      } ${
                         selectedPlayer.side === 'offense'
                           ? 'bg-sky-600 text-white'
                           : 'bg-rose-600 text-white'
@@ -417,6 +423,56 @@ export const InspectorPanel: React.FC<InspectorPanelProps> = ({
                       }
                       className="w-full bg-[#161b22] text-xs text-amber-300 px-2.5 py-1.5 rounded border border-slate-700 focus:border-amber-500 outline-none"
                     />
+                  </div>
+                </div>
+
+                {/* Player Node Shape Selector (Round, Square, Rounded Square) */}
+                <div>
+                  <label className="text-[11px] text-slate-400 block mb-1">
+                    Player Node Shape
+                  </label>
+                  <div className="grid grid-cols-3 gap-1.5">
+                    <button
+                      type="button"
+                      onClick={() => onUpdatePlayer({ ...selectedPlayer, shape: 'round' })}
+                      className={`flex items-center justify-center gap-1.5 py-1.5 px-2 rounded border text-xs font-semibold transition-all cursor-pointer ${
+                        (selectedPlayer.shape || (selectedPlayer.side === 'offense' ? 'round' : 'square')) === 'round'
+                          ? 'bg-sky-600/30 border-sky-400 text-sky-200 shadow-sm'
+                          : 'bg-[#161b22] border-slate-700 text-slate-400 hover:text-slate-200 hover:bg-slate-800'
+                      }`}
+                      title="Round: Traditional circle node"
+                    >
+                      <span className="w-3.5 h-3.5 rounded-full border-2 border-current inline-block shrink-0"></span>
+                      <span>Round</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => onUpdatePlayer({ ...selectedPlayer, shape: 'square' })}
+                      className={`flex items-center justify-center gap-1.5 py-1.5 px-2 rounded border text-xs font-semibold transition-all cursor-pointer ${
+                        (selectedPlayer.shape || (selectedPlayer.side === 'offense' ? 'round' : 'square')) === 'square'
+                          ? 'bg-sky-600/30 border-sky-400 text-sky-200 shadow-sm'
+                          : 'bg-[#161b22] border-slate-700 text-slate-400 hover:text-slate-200 hover:bg-slate-800'
+                      }`}
+                      title="Square: Crisp square box"
+                    >
+                      <span className="w-3.5 h-3.5 rounded-none border-2 border-current inline-block shrink-0"></span>
+                      <span>Square</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => onUpdatePlayer({ ...selectedPlayer, shape: 'rounded_square' })}
+                      className={`flex items-center justify-center gap-1.5 py-1.5 px-2 rounded border text-xs font-semibold transition-all cursor-pointer ${
+                        (selectedPlayer.shape || (selectedPlayer.side === 'offense' ? 'round' : 'square')) === 'rounded_square'
+                          ? 'bg-sky-600/30 border-sky-400 text-sky-200 shadow-sm'
+                          : 'bg-[#161b22] border-slate-700 text-slate-400 hover:text-slate-200 hover:bg-slate-800'
+                      }`}
+                      title="Rounded Square: Squircle node with rounded corners"
+                    >
+                      <span className="w-3.5 h-3.5 rounded-md border-2 border-current inline-block shrink-0"></span>
+                      <span>Rounded Sq</span>
+                    </button>
                   </div>
                 </div>
 
@@ -698,7 +754,13 @@ export const InspectorPanel: React.FC<InspectorPanelProps> = ({
                         onClick={() => onSelectPlayer?.(player.id)}
                         className="flex items-center gap-2 p-1.5 bg-[#161b22] hover:bg-slate-800 border border-slate-700 hover:border-sky-500/50 rounded text-left transition-all group"
                       >
-                        <span className="w-5 h-5 rounded bg-sky-600 group-hover:bg-sky-500 text-white font-bold text-[10px] flex items-center justify-center shrink-0">
+                        <span className={`w-5 h-5 bg-sky-600 group-hover:bg-sky-500 text-white font-bold text-[10px] flex items-center justify-center shrink-0 ${
+                          (player.shape || (player.side === 'offense' ? 'round' : 'square')) === 'round'
+                            ? 'rounded-full'
+                            : (player.shape || (player.side === 'offense' ? 'round' : 'square')) === 'rounded_square'
+                            ? 'rounded-sm'
+                            : 'rounded-none'
+                        }`}>
                           {player.label}
                         </span>
                         <div className="overflow-hidden">
@@ -730,7 +792,13 @@ export const InspectorPanel: React.FC<InspectorPanelProps> = ({
                         onClick={() => onSelectPlayer?.(player.id)}
                         className="flex items-center gap-2 p-1.5 bg-[#161b22] hover:bg-slate-800 border border-slate-700 hover:border-rose-500/50 rounded text-left transition-all group"
                       >
-                        <span className="w-5 h-5 rounded bg-rose-600 group-hover:bg-rose-500 text-white font-bold text-[10px] flex items-center justify-center shrink-0">
+                        <span className={`w-5 h-5 bg-rose-600 group-hover:bg-rose-500 text-white font-bold text-[10px] flex items-center justify-center shrink-0 ${
+                          (player.shape || (player.side === 'offense' ? 'round' : 'square')) === 'round'
+                            ? 'rounded-full'
+                            : (player.shape || (player.side === 'offense' ? 'round' : 'square')) === 'rounded_square'
+                            ? 'rounded-sm'
+                            : 'rounded-none'
+                        }`}>
                           {player.label}
                         </span>
                         <div className="overflow-hidden">

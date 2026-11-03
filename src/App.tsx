@@ -128,6 +128,7 @@ export const App: React.FC = () => {
       id: `${side}_${Date.now()}_${Math.random().toString(36).substring(2, 5)}`,
       label,
       side,
+      shape: side === 'offense' ? 'round' : 'square',
       x,
       y,
       assignmentTitle: side === 'offense' ? 'Route / Assignment' : 'Coverage / Gap',

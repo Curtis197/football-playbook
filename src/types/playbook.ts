@@ -10,10 +10,13 @@ export interface Point {
 export type RoutePoint = Point;
 
 // 2. Player Entity
+export type PlayerShape = 'round' | 'square' | 'rounded_square';
+
 export interface Player {
   id: string;              // e.g. "off_y", "def_w"
   label: string;           // "Y", "H", "Z", "W", "M", "NT"
   side: Side;
+  shape?: PlayerShape;     // 'round', 'square', or 'rounded_square'
   x: number;               // Normalized X coordinate
   y: number;               // Normalized Y coordinate
   assignmentTitle: string; // e.g. "Seam Attack / Clearout"

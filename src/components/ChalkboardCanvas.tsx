@@ -617,13 +617,25 @@ export const ChalkboardCanvas: React.FC<ChalkboardCanvasProps> = ({
             )}
           </g>
 
-          {/* RENDER PLAYERS (Offense Circles & Defense Squares) */}
+          {/* RENDER PLAYERS (Round, Square, or Rounded Square) */}
           <g className="players-layer">
             {players.map(player => {
               const isSelected = selectedPlayerId === player.id;
               const isHovered = appMode === 'view' && hoveredPlayerId === player.id;
               const isOffense = player.side === 'offense';
               const isView = appMode === 'view';
+              const shape = player.shape || (isOffense ? 'round' : 'square');
+
+              const fillColor = isOffense
+                ? (isSelected ? "#0284c7" : "#0f172a")
+                : (isSelected ? "#e11d48" : "#1e1b2e");
+              const strokeColor = isOffense
+                ? (isSelected ? "#38bdf8" : "#0ea5e9")
+                : (isSelected ? "#fda4af" : "#f43f5e");
+              const haloStroke = isOffense ? "#38bdf8" : "#f43f5e";
+              const glowFilter = isSelected
+                ? (isOffense ? "url(#glow)" : "url(#defense-glow)")
+                : undefined;
 
               return (
                 <g
@@ -648,88 +660,100 @@ export const ChalkboardCanvas: React.FC<ChalkboardCanvasProps> = ({
                     onSelectAction(null);
                   }}
                 >
-                  {isOffense ? (
-                    // OFFENSE: Circle with ring
-                    <g filter={isSelected ? "url(#glow)" : undefined}>
-                      {/* Outer pulse if selected */}
-                      {isSelected && (
+                  <g filter={glowFilter}>
+                    {/* Selection Halo */}
+                    {isSelected && (
+                      shape === 'round' ? (
                         <circle
                           cx="0"
                           cy="0"
                           r="22"
                           fill="none"
-                          stroke="#38bdf8"
+                          stroke={haloStroke}
                           strokeWidth="2"
                           strokeDasharray="4 2"
                           className="animate-spin"
                           style={{ animationDuration: '6s' }}
                         />
-                      )}
-                      <circle
-                        cx="0"
-                        cy="0"
-                        r={isHovered ? "18" : "16"}
-                        fill={isSelected ? "#0284c7" : "#0f172a"}
-                        stroke={isSelected ? "#38bdf8" : "#0ea5e9"}
-                        strokeWidth={isHovered ? "3" : "2.2"}
-                        className="transition-all"
-                      />
-                      <text
-                        x="0"
-                        y="1"
-                        fill="#ffffff"
-                        fontSize={player.label.length > 2 ? "10" : "12"}
-                        fontWeight="bold"
-                        fontFamily="sans-serif"
-                        textAnchor="middle"
-                        alignmentBaseline="middle"
-                        pointerEvents="none"
-                      >
-                        {player.label}
-                      </text>
-                    </g>
-                  ) : (
-                    // DEFENSE: Square with crimson border
-                    <g filter={isSelected ? "url(#defense-glow)" : undefined}>
-                      {isSelected && (
+                      ) : shape === 'square' ? (
                         <rect
                           x="-18"
                           y="-18"
                           width="36"
                           height="36"
-                          rx="4"
+                          rx="0"
                           fill="none"
-                          stroke="#f43f5e"
+                          stroke={haloStroke}
                           strokeWidth="2"
                           strokeDasharray="4 2"
                         />
-                      )}
-                      <rect
-                        x="-14"
-                        y="-14"
-                        width="28"
-                        height="28"
-                        rx="4"
-                        fill={isSelected ? "#e11d48" : "#1e1b2e"}
-                        stroke={isSelected ? "#fda4af" : "#f43f5e"}
-                        strokeWidth={isHovered ? "3" : "2"}
+                      ) : (
+                        <rect
+                          x="-18"
+                          y="-18"
+                          width="36"
+                          height="36"
+                          rx="8"
+                          fill="none"
+                          stroke={haloStroke}
+                          strokeWidth="2"
+                          strokeDasharray="4 2"
+                        />
+                      )
+                    )}
+
+                    {/* Main Node Body (Round, Square, or Rounded Square) */}
+                    {shape === 'round' ? (
+                      <circle
+                        cx="0"
+                        cy="0"
+                        r={isHovered ? "18" : "16"}
+                        fill={fillColor}
+                        stroke={strokeColor}
+                        strokeWidth={isHovered ? "3" : "2.2"}
                         className="transition-all"
                       />
-                      <text
-                        x="0"
-                        y="1"
-                        fill="#ffffff"
-                        fontSize={player.label.length > 2 ? "10" : "11"}
-                        fontWeight="bold"
-                        fontFamily="sans-serif"
-                        textAnchor="middle"
-                        alignmentBaseline="middle"
-                        pointerEvents="none"
-                      >
-                        {player.label}
-                      </text>
-                    </g>
-                  )}
+                    ) : shape === 'square' ? (
+                      <rect
+                        x={isHovered ? "-15" : "-14"}
+                        y={isHovered ? "-15" : "-14"}
+                        width={isHovered ? "30" : "28"}
+                        height={isHovered ? "30" : "28"}
+                        rx="0"
+                        fill={fillColor}
+                        stroke={strokeColor}
+                        strokeWidth={isHovered ? "3" : "2.2"}
+                        className="transition-all"
+                      />
+                    ) : (
+                      <rect
+                        x={isHovered ? "-15" : "-14"}
+                        y={isHovered ? "-15" : "-14"}
+                        width={isHovered ? "30" : "28"}
+                        height={isHovered ? "30" : "28"}
+                        rx="6"
+                        fill={fillColor}
+                        stroke={strokeColor}
+                        strokeWidth={isHovered ? "3" : "2.2"}
+                        className="transition-all"
+                      />
+                    )}
+
+                    {/* Player Label */}
+                    <text
+                      x="0"
+                      y="1"
+                      fill="#ffffff"
+                      fontSize={player.label.length > 2 ? "10" : "11"}
+                      fontWeight="bold"
+                      fontFamily="sans-serif"
+                      textAnchor="middle"
+                      alignmentBaseline="middle"
+                      pointerEvents="none"
+                    >
+                      {player.label}
+                    </text>
+                  </g>
                 </g>
               );
             })}
@@ -747,7 +771,13 @@ export const ChalkboardCanvas: React.FC<ChalkboardCanvasProps> = ({
           >
             <div className="bg-[#0f172a]/95 backdrop-blur-md border border-[#38bdf8]/50 text-slate-100 rounded-lg p-3 shadow-2xl min-w-[240px] max-w-[300px] pointer-events-auto">
               <div className="flex items-center gap-2 mb-1.5">
-                <span className={`inline-flex items-center justify-center w-6 h-6 text-xs font-bold rounded ${
+                <span className={`inline-flex items-center justify-center w-6 h-6 text-xs font-bold ${
+                  (activeHoveredPlayer.shape || (activeHoveredPlayer.side === 'offense' ? 'round' : 'square')) === 'round'
+                    ? 'rounded-full'
+                    : (activeHoveredPlayer.shape || (activeHoveredPlayer.side === 'offense' ? 'round' : 'square')) === 'rounded_square'
+                    ? 'rounded'
+                    : 'rounded-none'
+                } ${
                   activeHoveredPlayer.side === 'offense' ? 'bg-sky-600 text-white' : 'bg-rose-600 text-white'
                 }`}>
                   {activeHoveredPlayer.label}
