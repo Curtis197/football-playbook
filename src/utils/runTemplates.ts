@@ -1,12 +1,16 @@
-import type { BlockAssignment, BlockKind, BlockPlan, BlockSlot, BlockTarget, PlaySide, Player, RunTemplate, TemplateOverride } from '../types/playbook';
+import type {
+  BlockAssignment, BlockKind, BlockPlan, BlockSlot, BlockTarget, PlaySide, Player, RunCall, RunTemplate, TemplateOverride
+} from '../types/playbook';
 import { assignBlockSlots, firstLevelDefenders, resolveStrongSide, secondLevelDefenders } from './blockSlots';
+import { callPlaySide, gapIdOf, holeX, leadBack } from './runHoles';
 
 /** How far behind a blocker a defender may be and still count as "on him" (about half a gap). */
 const TOL = 30;
+/** A defender within this distance of the hole's x is "in the hole"; a kickout goes outside it, a trap inside. */
+const HOLE_TOL = 15;
 
 const SLOT_ORDER: BlockSlot[] = ['te_ps', 'ot_ps', 'og_ps', 'c', 'og_bs', 'ot_bs', 'te_bs', 'fb'];
 const KNOWN_KINDS: readonly BlockKind[] = ['zone', 'down', 'kickout', 'trap', 'wrap', 'seal', 'lead'];
-const PULL_KINDS: readonly BlockKind[] = ['kickout', 'trap', 'wrap'];
 
 const defenderTarget = (player: Player): BlockTarget => ({ type: 'defender', playerId: player.id });
 const nearestTo = (x: number, list: Player[]): Player | undefined =>
@@ -21,67 +25,75 @@ interface Blocker {
 interface Context {
   players: Player[];
   playSide: PlaySide;
-  dir: 1 | -1;                // +1 when the play side is to the right
-  firstLevel: Player[];
-  /** Defenders a pulling lineman is already assigned to; nobody else blocks them. */
-  pulled: Set<string>;
+  dir: 1 | -1;                 // +1 when the play side is to the right
+  holeX: number;
+  firstLevel: Player[];        // Defenders on the line
+  secondLevel: Player[];
+  pulled: Set<string>;         // On-the-line defenders a pulling lineman already has; nobody else blocks them
+  taken: Set<string>;          // Second-level defenders already given to a climb, Wrap or Lead
 }
 
-function climbFor(player: Player, ctx: Context): BlockTarget {
-  const nearest = nearestTo(player.x, secondLevelDefenders(ctx.players));
-  return nearest ? defenderTarget(nearest) : { type: 'none' };
+/** The second-level defender nearest x that nobody has yet; the nearest anyway once all are taken. */
+function pickSecondLevel(x: number, ctx: Context): BlockTarget {
+  const free = ctx.secondLevel.filter(d => !ctx.taken.has(d.id));
+  const pick = nearestTo(x, free.length > 0 ? free : ctx.secondLevel);
+  if (!pick) return { type: 'none' };
+  ctx.taken.add(pick.id);
+  return defenderTarget(pick);
+}
+
+/** Kickout goes to the first defender outside the hole; Trap to the first on the line inside it. */
+function pullTarget(blocker: Blocker, ctx: Context): Player | undefined {
+  const open = ctx.firstLevel.filter(d => !ctx.pulled.has(d.id));
+  const outside = (d: Player) => ctx.dir * (d.x - ctx.holeX) > HOLE_TOL;
+  return nearestTo(ctx.holeX, open.filter(d => (blocker.kind === 'kickout' ? outside(d) : !outside(d))));
+}
+
+/** Zone and Seal look toward the play side, Down looks away from it. */
+function primaryTarget(blocker: Blocker, ctx: Context): Player | undefined {
+  const open = ctx.firstLevel.filter(d => !ctx.pulled.has(d.id));
+  const reach = (d: Player) => ctx.dir * (d.x - blocker.player.x);
+  return nearestTo(blocker.player.x, open.filter(d => (blocker.kind === 'down' ? reach(d) <= TOL : reach(d) >= -TOL)));
 }
 
 /**
- * Zone, down and seal blocks, applied outermost-first toward the play side:
- * 1. take the nearest candidate defender (zone/seal: at or toward the play side; down: strictly inside);
- * 2. with no candidate, help the nearest blocker toward the play side who has a defender, then climb;
- * 3. a defender already taken stays with the blocker nearest the play side; the rest combo, then climb.
+ * Zone, Down and Seal, in two passes. Pass 1 gives every blocker his primary defender (play side outward; a
+ * defender can be chosen by several blockers, which is a double team). Pass 2 handles blockers with no defender:
+ * Zone and Down combo with the nearest blocker away from the play side who has one, then climb; Seal, or a blocker
+ * with no partner, climbs straight to the second level.
  */
 function resolveGroup(blockers: Blocker[], ctx: Context): BlockAssignment[] {
-  const { dir } = ctx;
-  const ordered = [...blockers].sort((a, b) => dir * (b.player.x - a.player.x));
-  const open = ctx.firstLevel.filter(d => !ctx.pulled.has(d.id));
-  const keeperOf = new Map<string, Blocker>();
+  const ordered = [...blockers].sort((a, b) => ctx.dir * (b.player.x - a.player.x));
+  const primary = new Map<string, Player | undefined>(ordered.map(b => [b.player.id, primaryTarget(b, ctx)]));
   const assignments: BlockAssignment[] = [];
-  let lastDefender: Player | undefined;
 
   for (const blocker of ordered) {
     const { player, slot, kind } = blocker;
-    const eligible = kind === 'down'
-      ? open.filter(d => dir * (d.x - player.x) < 0)
-      : open.filter(d => dir * (d.x - player.x) >= -TOL);
-    const defender = nearestTo(player.x, eligible) ?? lastDefender;
-
     const base = { id: `${player.id}-block`, playerId: player.id, slot, kind };
-    if (!defender) {
-      const hasLevels = open.length > 0 && secondLevelDefenders(ctx.players).length > 0;
-      assignments.push({ ...base, target: hasLevels ? { type: 'level', level: 'second' } : { type: 'none' } });
+    const own = primary.get(player.id);
+    if (own) {
+      assignments.push({ ...base, target: defenderTarget(own) });
       continue;
     }
-    const keeper = keeperOf.get(defender.id);
-    if (keeper) {
-      assignments.push({ ...base, target: defenderTarget(defender), comboWith: keeper.player.id, climbTo: climbFor(player, ctx) });
+
+    const partner = kind === 'seal'
+      ? undefined
+      : ordered
+        .filter(other => other !== blocker && primary.get(other.player.id) && ctx.dir * (other.player.x - player.x) < 0)
+        .sort((a, b) => Math.abs(a.player.x - player.x) - Math.abs(b.player.x - player.x))[0];
+
+    if (partner) {
+      assignments.push({
+        ...base,
+        target: defenderTarget(primary.get(partner.player.id)!),
+        comboWith: partner.player.id,
+        climbTo: pickSecondLevel(player.x, ctx)
+      });
     } else {
-      keeperOf.set(defender.id, blocker);
-      assignments.push({ ...base, target: defenderTarget(defender) });
+      assignments.push({ ...base, target: pickSecondLevel(player.x, ctx) });
     }
-    lastDefender = defender;
   }
   return assignments;
-}
-
-/** Kickout hits the outermost man on the line toward the play side; trap hits the first lineman beyond the play-side guard. */
-function resolvePull(blocker: Blocker, ctx: Context, slots: Partial<Record<BlockSlot, Player>>): Player | undefined {
-  const { dir, firstLevel } = ctx;
-  if (blocker.kind === 'kickout') {
-    return [...firstLevel].sort((a, b) => dir * (b.x - a.x))[0];
-  }
-  const anchor = slots.og_ps ?? slots.c;
-  if (!anchor) return undefined;
-  return [...firstLevel]
-    .filter(d => dir * (d.x - anchor.x) > 0)
-    .sort((a, b) => dir * (a.x - b.x))[0];
 }
 
 const opposite = (side: PlaySide): PlaySide => (side === 'right' ? 'left' : 'right');
@@ -127,8 +139,15 @@ function applyOverride(
   } else if (rule?.by === 'level') {
     result.target = { type: 'level', level: 'second' };
   } else if (rule?.by === 'gap') {
-    const away: PlaySide = ctx.playSide === 'right' ? 'left' : 'right';
-    result.target = { type: 'gap', gap: rule.gap, side: rule.relativeSide === 'playside' ? ctx.playSide : away };
+    // The on-the-line defender in that gap on that side of the play (the center counts as the A gap on both sides)
+    const wanted: PlaySide = rule.relativeSide === 'playside' ? ctx.playSide : opposite(ctx.playSide);
+    const blocker = ctx.players.find(p => p.id === assignment.playerId);
+    const inGap = ctx.firstLevel.filter(d => {
+      const id = gapIdOf(d, ctx.players);
+      return id.gap === rule.gap && (id.side === wanted || id.side === 'center');
+    });
+    const match = nearestTo(blocker?.x ?? ctx.holeX, inGap);
+    if (match) result.target = defenderTarget(match);
   }
 
   if (override.comboWithSlot === null) {
@@ -146,51 +165,57 @@ function applyOverride(
 }
 
 /**
- * Turns a template into concrete assignments for the players on the board.
- * Pure: the same players, template and play side always give the same plan.
+ * Turns a template and a call (runner + hole) into concrete assignments for the players on the board.
+ * Pure: the same players, template and call always give the same plan. The rules never read a technique name.
  */
-export function resolveBlockPlan(template: RunTemplate, players: Player[], playSide: PlaySide): BlockPlan {
+export function resolveBlockPlan(template: RunTemplate, players: Player[], call: RunCall): BlockPlan {
   for (const rule of Object.values(template.rules)) {
     if (rule && !KNOWN_KINDS.includes(rule.kind)) throw new Error(`Unknown block rule kind "${String(rule.kind)}"`);
   }
 
+  const playSide = callPlaySide(call);
   const slots = assignBlockSlots(players, playSide);
   const blockers: Blocker[] = SLOT_ORDER
-    .filter(slot => template.rules[slot] && slots[slot])
+    .filter(slot => slot !== 'fb' && template.rules[slot] && slots[slot])
     .map(slot => ({ slot, kind: template.rules[slot]!.kind, player: slots[slot]! }));
+
+  // The back slot is never a line position: it is whoever is not carrying the ball
+  const lead = template.rules.fb ? leadBack(players, call.runner) : undefined;
+  if (lead && template.rules.fb) blockers.push({ slot: 'fb', kind: template.rules.fb.kind, player: lead });
 
   const ctx: Context = {
     players,
     playSide,
     dir: playSide === 'right' ? 1 : -1,
+    holeX: holeX(players, call.hole),
     firstLevel: firstLevelDefenders(players),
-    pulled: new Set()
+    secondLevel: secondLevelDefenders(players),
+    pulled: new Set(),
+    taken: new Set()
   };
   const assignments: BlockAssignment[] = [];
   const base = (b: Blocker) => ({ id: `${b.player.id}-block`, playerId: b.player.id, slot: b.slot, kind: b.kind });
 
-  // Pulls first: their targets are off limits to everyone else
-  let pointOfAttackX: number | undefined;
+  // Pulls first: their targets leave the pool
   for (const blocker of blockers.filter(b => b.kind === 'kickout' || b.kind === 'trap')) {
-    const target = resolvePull(blocker, ctx, slots);
+    const target = pullTarget(blocker, ctx);
     if (target) {
       ctx.pulled.add(target.id);
-      pointOfAttackX ??= target.x;
+      assignments.push({ ...base(blocker), pulls: true, target: defenderTarget(target) });
+    } else {
+      assignments.push({ ...base(blocker), pulls: true, target: pickSecondLevel(ctx.holeX, ctx) });
     }
-    assignments.push({ ...base(blocker), pulls: true, target: target ? defenderTarget(target) : { type: 'none' } });
   }
 
-  const groupBlockers = blockers.filter(b => b.kind === 'zone' || b.kind === 'down' || b.kind === 'seal');
-  assignments.push(...resolveGroup(groupBlockers, ctx));
-  pointOfAttackX ??= groupBlockers.sort((a, b) => ctx.dir * (b.player.x - a.player.x))[0]?.player.x;
+  assignments.push(...resolveGroup(blockers.filter(b => b.kind === 'zone' || b.kind === 'down' || b.kind === 'seal'), ctx));
 
   for (const blocker of blockers.filter(b => b.kind === 'wrap' || b.kind === 'lead')) {
-    const linebacker = pointOfAttackX === undefined ? undefined : nearestTo(pointOfAttackX, secondLevelDefenders(players));
-    assignments.push({
-      ...base(blocker),
-      ...(PULL_KINDS.includes(blocker.kind) ? { pulls: true } : {}),
-      target: linebacker ? defenderTarget(linebacker) : { type: 'none' }
-    });
+    let target = pickSecondLevel(ctx.holeX, ctx);
+    if (target.type === 'none' && blocker.kind === 'lead') {
+      const online = nearestTo(ctx.holeX, ctx.firstLevel);
+      if (online) target = defenderTarget(online);
+    }
+    assignments.push({ ...base(blocker), ...(blocker.kind === 'wrap' ? { pulls: true } : {}), target });
   }
 
   for (const override of template.overrides ?? []) {
@@ -199,5 +224,5 @@ export function resolveBlockPlan(template: RunTemplate, players: Player[], playS
   }
 
   assignments.sort((a, b) => SLOT_ORDER.indexOf(a.slot) - SLOT_ORDER.indexOf(b.slot));
-  return { templateId: template.id, playSide, assignments };
+  return { templateId: template.id, playSide, hole: call.hole, runner: call.runner, assignments };
 }

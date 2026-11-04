@@ -112,9 +112,18 @@ export interface BlockAssignment {
   stale?: boolean;         // Overridden, but its target defender no longer exists
 }
 
+/** How a run is called: a runner number and a hole number. Hole 0 (over the center) needs a side. */
+export interface RunCall {
+  hole: number;   // 0-8: odd right, even left; 1/2 A gap, 3/4 B, 5/6 C, 7/8 D, 0 center
+  runner: number; // 1 QB, 2 fullback, 3 tailback, 4 remaining back
+  side?: PlaySide; // Only for hole 0
+}
+
 export interface BlockPlan {
   templateId: string;
-  playSide: PlaySide;
+  playSide: PlaySide;     // Derived from the hole (chosen by the coach for hole 0)
+  hole?: number;          // Absent only on plans saved before runs were called by hole
+  runner?: number;
   assignments: BlockAssignment[];
 }
 
@@ -143,6 +152,7 @@ export interface RunTemplate {
   builtIn?: boolean;
   reviewed: boolean;        // False until the coach has signed off the rules; unreviewed templates cannot be applied
   description?: string;
+  defaultHole?: number;     // Preselected in the picker
   rules: Partial<Record<BlockSlot, BlockRule>>;
   overrides?: TemplateOverride[];
   updatedAt?: string;

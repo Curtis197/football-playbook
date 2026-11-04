@@ -164,7 +164,10 @@ function normalizeBlockPlan(raw: unknown): BlockPlan | undefined {
   const assignments = Array.isArray(raw.assignments)
     ? raw.assignments.map(normalizeAssignment).filter((a): a is BlockAssignment => a !== undefined)
     : [];
-  return { templateId: raw.templateId, playSide: raw.playSide as PlaySide, assignments };
+  const plan: BlockPlan = { templateId: raw.templateId, playSide: raw.playSide as PlaySide, assignments };
+  if (Number.isInteger(raw.hole) && (raw.hole as number) >= 0 && (raw.hole as number) <= 8) plan.hole = raw.hole as number;
+  if (Number.isInteger(raw.runner) && (raw.runner as number) >= 1 && (raw.runner as number) <= 4) plan.runner = raw.runner as number;
+  return plan;
 }
 
 function buildPlay(raw: unknown, warnings: string[], formations: Formation[]): Play {

@@ -51,6 +51,7 @@ export function normalizeRunTemplate(raw: unknown): RunTemplate | undefined {
 
   const template: RunTemplate = { id: raw.id, name: raw.name, scheme: raw.scheme, reviewed: raw.reviewed === true, rules };
   if (typeof raw.description === 'string') template.description = raw.description;
+  if (Number.isInteger(raw.defaultHole) && (raw.defaultHole as number) >= 0 && (raw.defaultHole as number) <= 8) template.defaultHole = raw.defaultHole as number;
   if (typeof raw.updatedAt === 'string') template.updatedAt = raw.updatedAt;
   if (Array.isArray(raw.overrides)) {
     const overrides = raw.overrides.map(normalizeOverride).filter((o): o is TemplateOverride => o !== undefined);

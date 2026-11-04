@@ -1,6 +1,7 @@
-import type { BlockAssignment, BlockPlan, BlockTarget, PathAction, Play, PlaySide, Player, RunTemplate, TargetRule, TemplateOverride } from '../types/playbook';
+import type { BlockAssignment, BlockPlan, BlockTarget, PathAction, Play, Player, RunCall, RunTemplate, TargetRule, TemplateOverride } from '../types/playbook';
 import { buildBlockActions } from './blockActions';
-import { hasClearStrength, resolveStrongSide } from './blockSlots';
+import { firstLevelDefenders, resolveStrongSide } from './blockSlots';
+import { gapIdOf } from './runHoles';
 import { relativeTechnique, resolveBlockPlan } from './runTemplates';
 
 const isBlockLine = (action: PathAction) => action.type === 'run_block' || action.type === 'pull_block';
@@ -16,14 +17,23 @@ export interface AssignmentChange {
  * Puts a run template on a play: every blocking line on the play (generated or hand-drawn) is replaced
  * by the template's lines. Routes and motions are untouched.
  */
-export function applyRunTemplate(play: Play, template: RunTemplate, playSide: PlaySide): Play {
-  const blockPlan = resolveBlockPlan(template, play.players, playSide);
+export function applyRunTemplate(play: Play, template: RunTemplate, call: RunCall): Play {
+  const blockPlan = resolveBlockPlan(template, play.players, call);
   return {
     ...play,
     primaryRunConcept: template.name,
     blockPlan,
     actions: [...play.actions.filter(a => !isBlockLine(a)), ...buildBlockActions(blockPlan, play.players, play.actions)]
   };
+}
+
+/**
+ * The call a plan was made with. A plan saved before runs were called by hole has only a side: it is read
+ * as hole 3 (right) or 4 (left) with the tailback carrying it.
+ */
+export function callOf(plan: BlockPlan): RunCall {
+  const hole = plan.hole ?? (plan.playSide === 'right' ? 3 : 4);
+  return { hole, runner: plan.runner ?? 3, side: hole === 0 ? plan.playSide : undefined };
 }
 
 const defenderExists = (target: BlockTarget, players: Player[]) =>
@@ -40,7 +50,7 @@ export function reaimBlocks(play: Play, templates: RunTemplate[]): Play {
   const template = templates.find(t => t.id === current.templateId);
   if (!template) return play;
 
-  const fresh = resolveBlockPlan(template, play.players, current.playSide);
+  const fresh = resolveBlockPlan(template, play.players, callOf(current));
   // A hand edit belongs to a slot, not to a player id: swapping the offense for a formation with new ids
   // must carry the edit to whoever now stands in that slot.
   const editedBySlot = new Map(current.assignments.filter(a => a.override).map(a => [a.slot, a]));
@@ -68,7 +78,7 @@ export function reaimBlocks(play: Play, templates: RunTemplate[]): Play {
     return kept;
   });
 
-  const blockPlan: BlockPlan = { ...current, assignments };
+  const blockPlan: BlockPlan = { ...current, hole: fresh.hole, runner: fresh.runner, assignments };
   return {
     ...play,
     blockPlan,
@@ -119,25 +129,16 @@ export function editAssignment(play: Play, assignmentId: string, change: Assignm
   };
 }
 
-/**
- * Left and right pass through. Strong and weak become left or right using the formation's strength,
- * or null when the formation has no clear strong side (the coach must pick left or right).
- */
-export function resolvePlaySide(
-  requested: 'left' | 'right' | 'strong' | 'weak',
-  players: Player[]
-): PlaySide | null {
-  if (requested === 'left' || requested === 'right') return requested;
-  if (!hasClearStrength(players)) return null;
-  const strong = resolveStrongSide(players);
-  if (requested === 'strong') return strong;
-  return strong === 'right' ? 'left' : 'right';
-}
-
 const targetRuleOf = (target: BlockTarget, plan: BlockPlan, players: Player[]): TargetRule | undefined => {
   if (target.type === 'none') return { by: 'none' };
   if (target.type === 'defender') {
-    const technique = players.find(p => p.id === target.playerId)?.technique;
+    const defender = players.find(p => p.id === target.playerId);
+    // A defender on the line is named by the gap he lines up in, so the same edit works against any front
+    if (defender && firstLevelDefenders(players).some(d => d.id === defender.id)) {
+      const id = gapIdOf(defender, players);
+      return { by: 'gap', gap: id.gap, relativeSide: id.side === plan.playSide || id.side === 'center' ? 'playside' : 'backside' };
+    }
+    const technique = defender?.technique;
     return technique
       ? { by: 'technique', technique: relativeTechnique(technique, resolveStrongSide(players), plan.playSide) }
       : { by: 'level' };
@@ -155,7 +156,7 @@ const targetRuleOf = (target: BlockTarget, plan: BlockPlan, players: Player[]): 
 export function captureRunTemplate(play: Play, base: RunTemplate, name: string, existingId?: string): RunTemplate {
   const plan = play.blockPlan;
   const captured: TemplateOverride[] = [];
-  const untouched = plan ? resolveBlockPlan(base, play.players, plan.playSide).assignments : [];
+  const untouched = plan ? resolveBlockPlan(base, play.players, callOf(plan)).assignments : [];
   const sameTarget = (a: BlockTarget, b: BlockTarget) => JSON.stringify(a) === JSON.stringify(b);
   for (const a of plan?.assignments ?? []) {
     if (!plan || !a.override || a.stale) continue;

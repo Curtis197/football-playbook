@@ -1,9 +1,12 @@
 import React, { useState } from 'react';
 import { X, Trash2, Lock } from 'lucide-react';
-import type { Player, RunTemplate, Theme } from '../types/playbook';
-import { hasClearStrength } from '../utils/blockSlots';
+import type { PlaySide, Player, RunCall, RunTemplate, Theme } from '../types/playbook';
+import { holeAfterPicking, holeName, isValidCall, runnerPlayer } from '../utils/runHoles';
 
-export type RequestedPlaySide = 'left' | 'right' | 'strong' | 'weak';
+/** "3 · B gap, right": the number a coach calls, and where it is. */
+const holeLabel = (hole: number) => `${hole} · ${holeName(hole)}`;
+
+const RUNNER_ROLES = ['QB', 'Fullback', 'Tailback', 'Other back'];
 
 interface RunTemplateModalProps {
   isOpen: boolean;
@@ -11,40 +14,43 @@ interface RunTemplateModalProps {
   templates: RunTemplate[];
   players: Player[];
   currentTemplateId?: string;
-  onApply: (template: RunTemplate, playSide: RequestedPlaySide) => void;
+  /** The call the play currently has, so the picker opens on it */
+  currentCall?: RunCall;
+  onApply: (template: RunTemplate, call: RunCall) => void;
   onDeleteTemplate: (id: string) => void;
   theme?: Theme;
 }
 
-const SIDES: { value: RequestedPlaySide; label: string }[] = [
+const SIDES: { value: PlaySide; label: string }[] = [
   { value: 'left', label: 'Left' },
-  { value: 'right', label: 'Right' },
-  { value: 'strong', label: 'Strong' },
-  { value: 'weak', label: 'Weak' }
+  { value: 'right', label: 'Right' }
 ];
 
-export const RunTemplateModal: React.FC<RunTemplateModalProps> = ({
-  isOpen,
+const RunPicker: React.FC<RunTemplateModalProps> = ({
   onClose,
   templates,
   players,
   currentTemplateId,
+  currentCall,
   onApply,
   onDeleteTemplate,
   theme = 'dark'
 }) => {
-  const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [side, setSide] = useState<RequestedPlaySide>('right');
-  if (!isOpen) return null;
+  // Mounted fresh on every opening, so it starts from the play's own call with no template picked
+  // The template already on the play starts selected, so its call can be changed without picking again
+  const [selectedId, setSelectedId] = useState<string | null>(
+    templates.some(t => t.id === currentTemplateId) ? currentTemplateId ?? null : null
+  );
+  const [hole, setHole] = useState(currentCall?.hole ?? 3);
+  const [runner, setRunner] = useState(currentCall?.runner ?? 3);
+  const [side, setSide] = useState<PlaySide | null>(currentCall?.hole === 0 ? currentCall.side ?? null : null);
 
   const isLight = theme === 'light';
-  const clearStrength = hasClearStrength(players);
-  // A strong/weak choice that the formation cannot answer falls back to a side the coach can actually apply
-  const effectiveSide: RequestedPlaySide = !clearStrength && (side === 'strong' || side === 'weak') ? 'right' : side;
+  const call: RunCall = { hole, runner, side: hole === 0 ? side ?? undefined : undefined };
   const builtIn = templates.filter(t => t.builtIn);
   const mine = templates.filter(t => !t.builtIn);
   const selected = templates.find(t => t.id === selectedId) ?? null;
-  const canApply = selected !== null && selected.reviewed;
+  const canApply = selected !== null && selected.reviewed && isValidCall(call);
 
   const panel = isLight ? 'bg-white text-slate-900 border-slate-500' : 'bg-[#0d1117] text-slate-100 border-slate-500';
   const muted = isLight ? 'text-slate-700' : 'text-slate-300';
@@ -64,7 +70,10 @@ export const RunTemplateModal: React.FC<RunTemplateModalProps> = ({
         <button
           type="button"
           disabled={locked}
-          onClick={() => setSelectedId(template.id)}
+          onClick={() => {
+            setSelectedId(template.id);
+            setHole(holeAfterPicking(template, currentTemplateId, hole));
+          }}
           className={`block w-full min-w-0 break-words text-left cursor-pointer disabled:cursor-not-allowed outline-none focus-visible:ring-2 focus-visible:ring-sky-500 rounded ${template.builtIn ? '' : 'pr-7'}`}
           aria-pressed={isSelected}
         >
@@ -116,31 +125,57 @@ export const RunTemplateModal: React.FC<RunTemplateModalProps> = ({
         </section>
 
         <section className="space-y-2">
-          <h3 className="text-[11px] font-bold uppercase tracking-wider">Play side</h3>
-          <div role="group" aria-label="Play side" className="flex flex-wrap gap-1.5">
-            {SIDES.map(option => {
-              const needsStrength = option.value === 'strong' || option.value === 'weak';
-              const disabled = needsStrength && !clearStrength;
-              return (
-                <button
-                  key={option.value}
-                  type="button"
-                  disabled={disabled}
-                  aria-pressed={effectiveSide === option.value}
-                  title={disabled ? 'This formation has no clear strong side' : undefined}
-                  onClick={() => setSide(option.value)}
-                  className={`px-3 py-1 rounded border text-xs font-bold cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed ${
-                    effectiveSide === option.value
-                      ? isLight ? 'bg-sky-700 text-white border-sky-800' : 'bg-sky-700 text-white border-sky-300'
-                      : isLight ? 'bg-slate-100 border-slate-500' : 'bg-slate-800 border-slate-500'
-                  }`}
-                >
-                  {option.label}
-                </button>
-              );
-            })}
+          <h3 className="text-[11px] font-bold uppercase tracking-wider">The call</h3>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+            <label className="block">
+              <span className="block text-[11px] font-bold mb-1">Hole</span>
+              <select
+                aria-label="Hole"
+                value={hole}
+                onChange={(e) => setHole(Number(e.target.value))}
+                className={`w-full px-2 py-1 rounded border text-xs ${isLight ? 'bg-white border-slate-500 text-slate-900' : 'bg-slate-900 border-slate-500 text-slate-100'}`}
+              >
+                {[0, 1, 2, 3, 4, 5, 6, 7, 8].map(h => <option key={h} value={h}>{holeLabel(h)}</option>)}
+              </select>
+            </label>
+            <label className="block">
+              <span className="block text-[11px] font-bold mb-1">Runner</span>
+              <select
+                aria-label="Runner"
+                value={runner}
+                onChange={(e) => setRunner(Number(e.target.value))}
+                className={`w-full px-2 py-1 rounded border text-xs ${isLight ? 'bg-white border-slate-500 text-slate-900' : 'bg-slate-900 border-slate-500 text-slate-100'}`}
+              >
+                {[1, 2, 3, 4].map(n => {
+                  const who = runnerPlayer(players, n);
+                  return <option key={n} value={n}>{n} · {RUNNER_ROLES[n - 1]}{who ? ` (${who.label})` : ' (none)'}</option>;
+                })}
+              </select>
+            </label>
           </div>
-          {!clearStrength && <p className={`text-[11px] ${muted}`}>Strong and weak are off: this formation has no clear strong side.</p>}
+          {hole === 0 && (
+            <div role="group" aria-label="Side for hole 0" className="space-y-1.5">
+              <span className="block text-[11px] font-bold">Hole 0 is over the center: which way does it go?</span>
+              <div className="flex flex-wrap gap-1.5">
+                {SIDES.map(option => (
+                  <button
+                    key={option.value}
+                    type="button"
+                    aria-pressed={side === option.value}
+                    onClick={() => setSide(option.value)}
+                    className={`px-3 py-1 rounded border text-xs font-bold cursor-pointer ${
+                      side === option.value
+                        ? isLight ? 'bg-sky-700 text-white border-sky-800' : 'bg-sky-700 text-white border-sky-300'
+                        : isLight ? 'bg-slate-100 border-slate-500' : 'bg-slate-800 border-slate-500'
+                    }`}
+                  >
+                    {option.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+          <p className={`text-[11px] ${muted}`}>Odd holes go right, even holes go left.</p>
         </section>
 
         <div className="flex items-center justify-end gap-2">
@@ -150,7 +185,7 @@ export const RunTemplateModal: React.FC<RunTemplateModalProps> = ({
           <button
             type="button"
             disabled={!canApply}
-            onClick={() => selected && onApply(selected, effectiveSide)}
+            onClick={() => selected && onApply(selected, call)}
             className="px-3 py-1.5 rounded text-xs font-bold text-white bg-sky-700 hover:bg-sky-800 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
           >
             Apply to play
@@ -160,3 +195,6 @@ export const RunTemplateModal: React.FC<RunTemplateModalProps> = ({
     </div>
   );
 };
+
+export const RunTemplateModal: React.FC<RunTemplateModalProps> = (props) =>
+  props.isOpen ? <RunPicker {...props} /> : null;

@@ -8,13 +8,13 @@ const idsOf = (slots: ReturnType<typeof assignBlockSlots>) =>
 describe('assignBlockSlots', () => {
   it('maps slots relative to a right play side', () => {
     expect(idsOf(assignBlockSlots(OFFENSE_TE_RIGHT, 'right'))).toEqual({
-      te_ps: 'TE', ot_ps: 'RT', og_ps: 'RG', c: 'C', og_bs: 'LG', ot_bs: 'LT', fb: 'RB'
+      te_ps: 'TE', ot_ps: 'RT', og_ps: 'RG', c: 'C', og_bs: 'LG', ot_bs: 'LT'
     });
   });
 
   it('mirrors for a left play side, so the right TE becomes the backside TE', () => {
     expect(idsOf(assignBlockSlots(OFFENSE_TE_RIGHT, 'left'))).toEqual({
-      te_bs: 'TE', ot_ps: 'LT', og_ps: 'LG', c: 'C', og_bs: 'RG', ot_bs: 'RT', fb: 'RB'
+      te_bs: 'TE', ot_ps: 'LT', og_ps: 'LG', c: 'C', og_bs: 'RG', ot_bs: 'RT'
     });
   });
 

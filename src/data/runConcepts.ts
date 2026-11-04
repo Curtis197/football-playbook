@@ -17,7 +17,8 @@ export const BUILT_IN_RUN_TEMPLATES: RunTemplate[] = [
     scheme: 'zone',
     builtIn: true,
     reviewed: true,
-    description: 'Each lineman takes the first defender toward the play side; uncovered linemen combo away from the play side, then climb to the second level.',
+    defaultHole: 3,
+    description: 'Zone block: take the first defender toward the play side; with nobody on the line, combo away from the play side, then climb.',
     rules: zoneRules()
   },
   {
@@ -26,7 +27,8 @@ export const BUILT_IN_RUN_TEMPLATES: RunTemplate[] = [
     scheme: 'zone',
     builtIn: true,
     reviewed: true,
-    description: 'Same zone rules as Inside Zone in this version; the stretch aiming point is not modelled yet.',
+    defaultHole: 5,
+    description: 'Same zone blocks as Inside Zone; it differs only in the hole it is called to.',
     rules: zoneRules()
   }
 ];
@@ -43,7 +45,8 @@ BUILT_IN_RUN_TEMPLATES.push(
     scheme: 'gap',
     builtIn: true,
     reviewed: false,
-    description: 'Play side down-blocks (doubles the interior lineman), backside guard pulls and kicks out the end man, backside tackle seals, fullback leads.',
+    defaultHole: 3,
+    description: 'Play side down-blocks, backside guard pulls and kicks out the first defender outside the hole, backside tackle seals, the other back leads.',
     rules: rules({ te_ps: 'down', ot_ps: 'down', og_ps: 'down', c: 'down', og_bs: 'kickout', ot_bs: 'seal', fb: 'lead' })
   },
   {
@@ -52,7 +55,8 @@ BUILT_IN_RUN_TEMPLATES.push(
     scheme: 'gap',
     builtIn: true,
     reviewed: false,
-    description: 'Play side down-blocks, center seals, backside guard kicks out the end man, backside tackle wraps to the linebacker, fullback leads.',
+    defaultHole: 3,
+    description: 'Play side down-blocks, center seals, backside guard kicks out, backside tackle wraps to the linebacker nearest the hole, the other back leads.',
     rules: rules({ te_ps: 'down', ot_ps: 'down', og_ps: 'down', c: 'seal', og_bs: 'kickout', ot_bs: 'wrap', fb: 'lead' })
   },
   {
@@ -61,7 +65,8 @@ BUILT_IN_RUN_TEMPLATES.push(
     scheme: 'gap',
     builtIn: true,
     reviewed: false,
-    description: 'Backside guard traps the first lineman past the play-side guard; tight end and tackle seal outside, guard and center down-block, backside tackle seals, fullback leads.',
+    defaultHole: 1,
+    description: 'Backside guard traps the first defender on the line inside the hole; tight end and tackle seal, guard and center down-block, backside tackle seals, the other back leads.',
     rules: rules({ te_ps: 'seal', ot_ps: 'seal', og_ps: 'down', c: 'down', og_bs: 'trap', ot_bs: 'seal', fb: 'lead' })
   }
 );

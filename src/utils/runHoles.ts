@@ -1,0 +1,153 @@
+import type { PlaySide, Player, RunCall } from '../types/playbook';
+import { getOffenseReference, resolveOffensePosition } from './playMigrations';
+
+/** Distance between neighbouring line bodies; also the spacing of the virtual bodies past the end of the line. */
+const SPACING = 60;
+/** A tight end farther than this from the tackle is split out and is not part of the line. */
+const ATTACHED_MAX = 90;
+/** How many holes lie on each side of the center (1/2 A, 3/4 B, 5/6 C, 7/8 D). */
+const HOLES_PER_SIDE = 4;
+
+export type GapLetter = 'A' | 'B' | 'C' | 'D';
+export interface GapId {
+  hole: number;
+  gap: GapLetter;
+  side: PlaySide | 'center';
+}
+
+/** Odd holes run right, even holes left. Hole 0 has no side of its own: the coach chooses (right if unspecified). */
+export function callPlaySide(call: RunCall): PlaySide {
+  if (call.hole === 0) return call.side ?? 'right';
+  return call.hole % 2 === 1 ? 'right' : 'left';
+}
+
+export function isValidCall(call: RunCall): boolean {
+  const { hole, runner, side } = call;
+  if (!Number.isInteger(hole) || hole < 0 || hole > 8) return false;
+  if (!Number.isInteger(runner) || runner < 1 || runner > 4) return false;
+  if (hole === 0 && side !== 'left' && side !== 'right') return false;
+  return true;
+}
+
+/**
+ * x of the centre, then the line bodies outward on one side: linemen, an attached tight end, then virtual
+ * bodies 60 apart so every side has four holes whatever the formation.
+ */
+function bodiesOnSide(players: Player[], side: PlaySide): number[] {
+  const offense = players.filter(p => p.side === 'offense');
+  const reference = getOffenseReference(offense);
+  const centerX = reference.centerX;
+  const sign = side === 'right' ? 1 : -1;
+  const outward = (p: Player) => sign * (p.x - centerX);
+
+  const linemen = offense.filter(p => resolveOffensePosition(p, reference) === 'OL' && outward(p) > 0);
+  const bodies = linemen.map(outward).sort((a, b) => a - b);
+
+  const edge = bodies.length > 0 ? bodies[bodies.length - 1] : 0;
+  const tightEnd = offense
+    .filter(p => resolveOffensePosition(p, reference) === 'TE' && outward(p) > edge && outward(p) - edge <= ATTACHED_MAX)
+    .sort((a, b) => outward(a) - outward(b))[0];
+  if (tightEnd) bodies.push(outward(tightEnd));
+
+  while (bodies.length < HOLES_PER_SIDE) bodies.push((bodies.length > 0 ? bodies[bodies.length - 1] : 0) + SPACING);
+  return [0, ...bodies].map(offset => centerX + sign * offset);
+}
+
+/** x of a hole: the midpoint of the two line bodies it sits between. Hole 0 is the centre's own x. */
+export function holeX(players: Player[], hole: number): number {
+  const reference = getOffenseReference(players.filter(p => p.side === 'offense'));
+  if (hole === 0) return reference.centerX;
+  const side: PlaySide = hole % 2 === 1 ? 'right' : 'left';
+  const bodies = bodiesOnSide(players, side);
+  const k = Math.ceil(hole / 2);
+  return (bodies[k - 1] + bodies[k]) / 2;
+}
+
+// Real formations number their backs (FB1, FB2, RB1, H1), so a label counts with or without a trailing number
+const FULLBACK_LABEL = /^(FB|F)\d*$/;
+const TAILBACK_LABEL = /^(TB|HB|RB|B)\d*$/;
+
+function backsOf(players: Player[]): { qb: Player | undefined; backs: Player[] } {
+  const offense = players.filter(p => p.side === 'offense');
+  const reference = getOffenseReference(offense);
+  const qb = offense.find(p => resolveOffensePosition(p, reference) === 'QB');
+  const backs = offense.filter(p => resolveOffensePosition(p, reference) === 'RB');
+  // Nearest the QB first. With no QB, shallowest first (the back closest to the line is the closest to the ball).
+  const distanceToQb = (p: Player) => (qb ? Math.hypot(p.x - qb.x, p.y - qb.y) : p.y);
+  return { qb, backs: backs.sort((a, b) => distanceToQb(a) - distanceToQb(b)) };
+}
+
+const labelOf = (p: Player) => p.label.trim().toUpperCase();
+
+/** The tailback, then the fullback, then whoever is left. A single back is both the fullback and the tailback. */
+function backRoles(backs: Player[]): { fullback?: Player; tailback?: Player; other?: Player } {
+  if (backs.length === 0) return {};
+  const labelledTailbacks = backs.filter(p => TAILBACK_LABEL.test(labelOf(p)));
+  const tailback = labelledTailbacks[labelledTailbacks.length - 1] ?? backs[backs.length - 1];
+  const rest = backs.filter(p => p !== tailback);
+  const fullback = rest.find(p => FULLBACK_LABEL.test(labelOf(p))) ?? rest[0] ?? tailback;
+  const other = backs.find(p => p !== tailback && p !== fullback);
+  return { fullback, tailback, other };
+}
+
+/** 1 QB, 2 fullback, 3 tailback, 4 the remaining back. Undefined when the formation has no such player. */
+export function runnerPlayer(players: Player[], runner: number): Player | undefined {
+  const { qb, backs } = backsOf(players);
+  if (runner === 1) return qb;
+  const roles = backRoles(backs);
+  if (runner === 2) return roles.fullback;
+  if (runner === 3) return roles.tailback;
+  if (runner === 4) return roles.other;
+  return undefined;
+}
+
+/**
+ * The back who blocks for the runner: any back that is not the runner, nearest the QB first.
+ * When the runner does not exist on the field there is nobody to lead for, so there is no lead back.
+ */
+export function leadBack(players: Player[], runner: number): Player | undefined {
+  const carrier = runnerPlayer(players, runner);
+  if (!carrier) return undefined;
+  const { backs } = backsOf(players);
+  return backs.find(p => p !== carrier);
+}
+
+/**
+ * The hole to use after the coach clicks a template: its default hole, unless it is the template already on
+ * the play (then the play's own hole stays) or it has no default.
+ */
+export function holeAfterPicking(
+  template: { id: string; defaultHole?: number },
+  currentTemplateId: string | undefined,
+  currentHole: number
+): number {
+  if (template.id === currentTemplateId || template.defaultHole === undefined) return currentHole;
+  return template.defaultHole;
+}
+
+const GAP_LETTERS: GapLetter[] = ['A', 'B', 'C', 'D'];
+
+/** A defender's gap: the nearest hole to his x (ties go to the lower hole number). */
+export function gapIdOf(defender: Player, players: Player[]): GapId {
+  let best = 0;
+  let bestDistance = Infinity;
+  for (let hole = 0; hole <= 8; hole++) {
+    const distance = Math.abs(defender.x - holeX(players, hole));
+    if (distance < bestDistance) {
+      best = hole;
+      bestDistance = distance;
+    }
+  }
+  if (best === 0) return { hole: 0, gap: 'A', side: 'center' };
+  return { hole: best, gap: GAP_LETTERS[Math.ceil(best / 2) - 1], side: best % 2 === 1 ? 'right' : 'left' };
+}
+
+export function gapLabel(id: GapId): string {
+  return `${id.gap} gap, ${id.side}`;
+}
+
+/** Where a hole is, in words: "B gap, right"; hole 0 is "over the center". */
+export function holeName(hole: number): string {
+  if (hole === 0) return 'over the center';
+  return `${GAP_LETTERS[Math.ceil(hole / 2) - 1]} gap, ${hole % 2 === 1 ? 'right' : 'left'}`;
+}

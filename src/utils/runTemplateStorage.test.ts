@@ -74,3 +74,13 @@ describe('normalizeRunTemplate', () => {
     expect(normalized?.overrides).toEqual([{ slot: 'c', pulls: true }]);
   });
 });
+
+describe('default hole', () => {
+  it('keeps a default hole from 0 to 8 and drops anything else', () => {
+    expect(normalizeRunTemplate({ ...tpl('t'), defaultHole: 5 })?.defaultHole).toBe(5);
+    expect(normalizeRunTemplate({ ...tpl('t'), defaultHole: 0 })?.defaultHole).toBe(0);
+    expect(normalizeRunTemplate({ ...tpl('t'), defaultHole: 9 })?.defaultHole).toBeUndefined();
+    expect(normalizeRunTemplate({ ...tpl('t'), defaultHole: 2.5 })?.defaultHole).toBeUndefined();
+    expect(normalizeRunTemplate({ ...tpl('t') })?.defaultHole).toBeUndefined();
+  });
+});

@@ -10,6 +10,7 @@ import type {
   Theme,
   Point,
   Formation,
+  RunCall,
   RunTemplate,
   RouteAdaptationMode
 } from './types/playbook';
@@ -33,7 +34,7 @@ import { SituationMatrixModal } from './components/SituationMatrixModal';
 import { PlayLibraryModal } from './components/PlayLibraryModal';
 import { FormationSwitcherModal } from './components/FormationSwitcherModal';
 import { DefenseFrontModal } from './components/DefenseFrontModal';
-import { RunTemplateModal, type RequestedPlaySide } from './components/RunTemplateModal';
+import { RunTemplateModal } from './components/RunTemplateModal';
 import { shiftDefensiveFront, realignAllDefenders, analyzeOffense } from './utils/defensiveAlignment';
 import { applyFormationToPlay, buildFormationFromPlay, captureFormationPlayers, formationHasPlayers } from './utils/formationApply';
 import { morphBackfieldAlignment, detectCurrentQBPosition, type SnapAlignment } from './utils/formationBackfield';
@@ -51,7 +52,8 @@ import {
   type PlaybookHistory
 } from './utils/playbookHistory';
 import { useRunTemplateLibrary } from './hooks/useRunTemplateLibrary';
-import { applyRunTemplate, captureRunTemplate, clearBlocks, editAssignment, reaimBlocks, resolvePlaySide, templateMissing, type AssignmentChange } from './utils/blockPlanApply';
+import { callPlaySide, holeName, isValidCall } from './utils/runHoles';
+import { applyRunTemplate, captureRunTemplate, clearBlocks, editAssignment, callOf, reaimBlocks, templateMissing, type AssignmentChange } from './utils/blockPlanApply';
 
 export const App: React.FC = () => {
   const [history, setHistory] = useState<PlaybookHistory>(() => createHistory(loadPlaybookFromStorage()));
@@ -579,19 +581,19 @@ export const App: React.FC = () => {
     updateCurrentPlay(updater);
   };
 
-  const handleApplyRunTemplate = (template: RunTemplate, requested: RequestedPlaySide) => {
-    const side = resolvePlaySide(requested, currentPlay.players);
-    if (!side) {
-      showNotification('This formation has no clear strong side. Pick left or right.', 'error');
+  const handleApplyRunTemplate = (template: RunTemplate, call: RunCall) => {
+    if (!isValidCall(call)) {
+      showNotification('Pick a hole from 0 to 8 and a runner from 1 to 4 (hole 0 also needs left or right).', 'error');
       return;
     }
+    const side = callPlaySide(call);
     const replaced = currentPlay.actions.filter(a => a.type === 'run_block' || a.type === 'pull_block').length;
-    updateCurrentPlay(p => applyRunTemplate(p, template, side));
+    updateCurrentPlay(p => applyRunTemplate(p, template, call));
     setSelectedPlayerId(null);
     setSelectedActionId(null);
     setIsRunModalOpen(false);
     const replacedNote = replaced > 0 ? ` Replaced ${replaced} existing blocking line${replaced === 1 ? '' : 's'}.` : '';
-    showNotification(`Applied "${template.name}" to the ${side}.${replacedNote}`, 'success');
+    showNotification(`Applied "${template.name}" to hole ${call.hole} (${holeName(call.hole)}), runner ${call.runner}, going ${side}.${replacedNote}`, 'success');
   };
 
   const handleClearBlocks = () => {
@@ -1010,6 +1012,7 @@ export const App: React.FC = () => {
         templates={runTemplates}
         players={currentPlay.players}
         currentTemplateId={currentPlay.blockPlan?.templateId}
+        currentCall={currentPlay.blockPlan ? callOf(currentPlay.blockPlan) : undefined}
         onApply={handleApplyRunTemplate}
         onDeleteTemplate={(id) => {
           const inUse = currentPlay.blockPlan?.templateId === id;
