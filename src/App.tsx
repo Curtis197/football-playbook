@@ -26,6 +26,7 @@ import { newerCopy, resolveFormation, upgradePlayers } from './utils/playMigrati
 import { ChalkboardCanvas } from './components/ChalkboardCanvas';
 import { Toolbar, type CloudSyncStatus, type CloudSaveTarget } from './components/Toolbar';
 import { ModeSwitcher } from './components/ModeSwitcher';
+import { PlayBar } from './components/PlayBar';
 import { InspectorPanel } from './components/InspectorPanel';
 import { SituationMatrixModal } from './components/SituationMatrixModal';
 import { PlayLibraryModal } from './components/PlayLibraryModal';
@@ -269,7 +270,8 @@ export const App: React.FC = () => {
   // Ctrl/Cmd+Z undo, Ctrl/Cmd+Shift+Z or Ctrl/Cmd+Y redo. Text fields keep their own native undo.
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (!(e.ctrlKey || e.metaKey) || e.altKey || isAnyModalOpen) return;
+      // View mode is read-only, so the history shortcuts are off there too
+      if (!(e.ctrlKey || e.metaKey) || e.altKey || isAnyModalOpen || appMode !== 'build') return;
       const target = e.target as HTMLElement | null;
       if (target && (target.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName))) return;
       const key = e.key.toLowerCase();
@@ -283,7 +285,7 @@ export const App: React.FC = () => {
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [handleUndo, handleRedo, isAnyModalOpen]);
+  }, [handleUndo, handleRedo, isAnyModalOpen, appMode]);
 
   // Current active play
   const currentPlay = playbook.plays.find(p => p.id === activePlayId) || playbook.plays[0] || INITIAL_PLAYBOOK.plays[0];
@@ -765,7 +767,7 @@ export const App: React.FC = () => {
 
   return (
     <div className={`flex flex-col h-screen w-screen overflow-hidden ${theme === 'light' ? 'bg-slate-100 text-slate-900' : 'bg-[#0d1117] text-slate-100'} transition-colors`}>
-      {/* TOP TOOLBAR */}
+      {/* TOP TOOLBAR: app-level actions only; play-level controls live in the PlayBar above the board */}
       <Toolbar
         currentPlay={currentPlay}
         allPlays={playbook.plays}
@@ -773,12 +775,6 @@ export const App: React.FC = () => {
         onSetAppMode={handleSetAppMode}
         theme={theme}
         onToggleTheme={handleToggleTheme}
-        onSelectPlay={handleSelectPlay}
-        onUpdatePlayName={handleUpdatePlayName}
-        onUpdateCategory={handleUpdateCategory}
-        onResetCanvas={handleResetCanvas}
-        onNewPlay={handleNewPlay}
-        onDuplicatePlay={handleDuplicatePlay}
         onExportSvg={handleExportSvg}
         onExportPlayJson={handleExportPlayJson}
         onExportPlaybookJson={handleExportPlaybookJson}
@@ -786,7 +782,6 @@ export const App: React.FC = () => {
         onOpenSituationMatrix={() => setIsMatrixModalOpen(true)}
         onOpenPlayLibrary={() => setIsLibraryModalOpen(true)}
         onOpenFormations={() => setIsFormationsModalOpen(true)}
-        onOpenDefense={() => setIsDefenseModalOpen(true)}
         onSaveToCloud={() => handleSaveToCloud('play')}
         onSaveToCloudOption={handleSaveToCloud}
         cloudSyncStatus={cloudSyncStatus}
@@ -810,43 +805,25 @@ export const App: React.FC = () => {
           onRedo={handleRedo}
         />
 
-        {/* CENTER STAGE: CHALKBOARD SVG CANVAS */}
-        <main className={`flex-1 flex flex-col items-center justify-center relative overflow-hidden ${theme === 'light' ? 'bg-slate-200/90' : 'bg-[#10141a]'} transition-colors`}>
-          <ChalkboardCanvas
-            players={currentPlay.players}
-            actions={currentPlay.actions}
-            mode={mode}
-            appMode={appMode}
+        {/* CENTER STAGE: play controls above the chalkboard; the board gets the remaining room */}
+        <main className={`flex-1 min-w-0 min-h-0 flex flex-col overflow-hidden ${theme === 'light' ? 'bg-slate-200/90' : 'bg-[#10141a]'} transition-colors`}>
+          <PlayBar
             theme={theme}
-            showGaps={showGaps}
-            onToggleShowGaps={handleToggleShowGaps}
-            onOpenDefenseModal={() => setIsDefenseModalOpen(true)}
-            onShiftDefense={handleShiftDefense}
-            onRealignDefense={handleRealignDefense}
-            formations={formations}
+            isView={appMode === 'view'}
+            currentPlay={currentPlay}
             allPlays={playbook.plays}
-            activePlayId={currentPlay.id}
+            formations={formations}
+            showGaps={showGaps}
+            currentQBAlignment={currentQBAlignment}
+            routeAdaptationMode={routeAdaptationMode}
             onSelectPlay={handleSelectPlay}
-            activeOffenseFormation={currentPlay.formationOffense}
-            activeOffenseFormationId={currentPlay.formationOffenseId}
-            activeDefenseFront={currentPlay.frontDefense}
-            activeDefenseFrontId={currentPlay.frontDefenseId}
+            onUpdatePlayName={handleUpdatePlayName}
+            onUpdateCategory={handleUpdateCategory}
+            onNewPlay={handleNewPlay}
+            onDuplicatePlay={handleDuplicatePlay}
+            onResetCanvas={handleResetCanvas}
             onSelectOffenseFormation={handleSelectOffenseFormation}
             onSelectDefenseFront={handleSelectDefenseFront}
-            currentQBAlignment={currentQBAlignment}
-            onMorphBackfield={handleMorphBackfield}
-            routeAdaptationMode={routeAdaptationMode}
-            onToggleRouteAdaptationMode={() => {
-              setRouteAdaptationMode(prev => {
-                const next = prev === 'player_relative' ? 'concept_numbered' : 'player_relative';
-                showNotification(`Route Adaptation: ${next === 'player_relative' ? 'Relative to Player' : '#1/#2/#3 Concept Outside'}`, 'info');
-                return next;
-              });
-            }}
-            onSetRouteAdaptationMode={(mode) => {
-              setRouteAdaptationMode(mode);
-              showNotification(`Route Adaptation: ${mode === 'player_relative' ? 'Relative to Player' : '#1/#2/#3 Concept Outside'}`, 'info');
-            }}
             onUpdateOffenseFormation={() => {
               const f = resolveFormation(formations, 'offense', currentPlay.formationOffenseId, currentPlay.formationOffense);
               if (f) handleUpdateFormation(f.id, 'offense');
@@ -855,20 +832,38 @@ export const App: React.FC = () => {
               const f = resolveFormation(formations, 'defense', currentPlay.frontDefenseId, currentPlay.frontDefense);
               if (f) handleUpdateFormation(f.id, 'defense');
             }}
-            selectedPlayerId={selectedPlayerId}
-            selectedActionId={selectedActionId}
-            onSelectPlayer={setSelectedPlayerId}
-
-            onSelectAction={setSelectedActionId}
-            onUpdatePlayerPosition={handleUpdatePlayerPosition}
-            onAddAction={handleAddAction}
-            onUpdateActionPoints={handleUpdateActionPoints}
-            onAddPlayerAtPoint={handleAddPlayerAtPoint}
-            onSwitchToBuildMode={() => handleSetAppMode('build')}
-            onSetMode={setMode}
-            restartBlockRequest={restartBlockRequest}
-            onClearRestartBlockRequest={() => setRestartBlockRequest(null)}
+            onMorphBackfield={handleMorphBackfield}
+            onToggleRouteAdaptationMode={() => {
+              const next: RouteAdaptationMode = routeAdaptationMode === 'player_relative' ? 'concept_numbered' : 'player_relative';
+              setRouteAdaptationMode(next);
+              showNotification(`Route Adaptation: ${next === 'player_relative' ? 'Relative to Player' : '#1/#2/#3 Concept Outside'}`, 'info');
+            }}
+            onToggleShowGaps={handleToggleShowGaps}
+            onShiftDefense={handleShiftDefense}
+            onRealignDefense={handleRealignDefense}
+            onOpenDefensePackages={() => setIsDefenseModalOpen(true)}
           />
+          <div className="flex-1 min-h-0">
+            <ChalkboardCanvas
+              players={currentPlay.players}
+              actions={currentPlay.actions}
+              mode={mode}
+              appMode={appMode}
+              theme={theme}
+              showGaps={showGaps}
+              selectedPlayerId={selectedPlayerId}
+              selectedActionId={selectedActionId}
+              onSelectPlayer={setSelectedPlayerId}
+              onSelectAction={setSelectedActionId}
+              onUpdatePlayerPosition={handleUpdatePlayerPosition}
+              onAddAction={handleAddAction}
+              onUpdateActionPoints={handleUpdateActionPoints}
+              onAddPlayerAtPoint={handleAddPlayerAtPoint}
+              onSetMode={setMode}
+              restartBlockRequest={restartBlockRequest}
+              onClearRestartBlockRequest={() => setRestartBlockRequest(null)}
+            />
+          </div>
         </main>
 
         {/* RIGHT INSPECTOR & PHILOSOPHY PANEL */}

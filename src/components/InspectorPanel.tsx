@@ -84,6 +84,11 @@ export const InspectorPanel: React.FC<InspectorPanelProps> = ({
   formations = []
 }) => {
   const isLight = theme === 'light';
+  // View mode is read-only. Forms sit inside a disabled fieldset: text stays fully readable (their colours are
+  // set on the elements), buttons are dimmed, and nothing can be typed or clicked into the play.
+  const isView = appMode === 'view';
+  const formFieldsetClass =
+    'min-w-0 border-0 p-0 m-0 space-y-4 [&:disabled_button]:opacity-50 [&:disabled_button]:cursor-default [&:disabled_input]:cursor-default [&:disabled_select]:cursor-default [&:disabled_textarea]:cursor-default';
   const [activeTab, setActiveTab] = useState<'inspector' | 'philosophy' | 'read_flow'>('philosophy');
   const [prevSelectedId, setPrevSelectedId] = useState<string | null>(null);
   const [newTagInput, setNewTagInput] = useState('');
@@ -249,7 +254,7 @@ export const InspectorPanel: React.FC<InspectorPanelProps> = ({
   };
 
   return (
-    <aside className={`w-80 lg:w-96 ${isLight ? 'bg-white border-l border-slate-200 text-slate-800' : 'bg-[#161b22] border-l border-[#30363d] text-slate-200'} flex flex-col h-full select-none shrink-0 overflow-hidden`}>
+    <aside className={`w-80 min-[1800px]:w-96 ${isLight ? 'bg-white border-l border-slate-200 text-slate-800' : 'bg-[#161b22] border-l border-[#30363d] text-slate-200'} flex flex-col h-full select-none shrink-0 overflow-hidden`}>
       {/* MODE STATUS HEADER */}
       <div className={`px-3.5 py-1.5 ${isLight ? 'bg-slate-50 border-b border-slate-200' : 'bg-[#0d1117] border-b border-[#30363d]'} flex items-center justify-between text-xs`}>
         <span className={`${isLight ? 'text-slate-600' : 'text-slate-400'} font-semibold flex items-center gap-1.5`}>
@@ -307,9 +312,15 @@ export const InspectorPanel: React.FC<InspectorPanelProps> = ({
       </div>
 
       <div className="flex-1 overflow-y-auto p-4 space-y-5">
+        {isView && (
+          <p className={`text-[11px] leading-snug ${isLight ? 'text-slate-600' : 'text-slate-400'}`}>
+            Read-only in View mode. Switch to Build in the top bar to edit.
+          </p>
+        )}
+
         {/* TAB 1: PHILOSOPHY & GAME PLANNING COMPANION (Spec 3) */}
         {activeTab === 'philosophy' && (
-          <div className="space-y-4">
+          <fieldset disabled={isView} className={formFieldsetClass}>
             {/* Formations Header */}
             <div className={`${isLight ? 'bg-slate-50 border-slate-200' : 'bg-slate-900/80 border-slate-800'} rounded-lg p-3 border space-y-2`}>
               <span className={`text-[10px] font-bold tracking-wider uppercase ${isLight ? 'text-slate-500' : 'text-slate-400'} block`}>
@@ -489,7 +500,7 @@ export const InspectorPanel: React.FC<InspectorPanelProps> = ({
                 </button>
               </div>
             </div>
-          </div>
+          </fieldset>
         )}
 
         {/* TAB 2: INSPECTOR (PLAYER OR VECTOR) */}
@@ -552,6 +563,7 @@ export const InspectorPanel: React.FC<InspectorPanelProps> = ({
                   </div>
                 </div>
 
+                <fieldset disabled={isView} className={formFieldsetClass}>
                 {/* Player Label */}
                 <div>
                   <label className={`text-[11px] ${isLight ? 'text-slate-600' : 'text-slate-400'} block mb-1 font-semibold`}>Position Label</label>
@@ -1203,6 +1215,7 @@ export const InspectorPanel: React.FC<InspectorPanelProps> = ({
                     </button>
                   </div>
                 </div>
+                </fieldset>
               </div>
             ) : selectedAction ? (
               <div className="space-y-4">
@@ -1216,6 +1229,7 @@ export const InspectorPanel: React.FC<InspectorPanelProps> = ({
                   </span>
                 </div>
 
+                <fieldset disabled={isView} className={formFieldsetClass}>
                 {/* Action Type */}
                 <div>
                   <label className={`text-[11px] ${isLight ? 'text-slate-600' : 'text-slate-400'} block mb-1 font-semibold`}>Vector Action Type</label>
@@ -1473,6 +1487,7 @@ export const InspectorPanel: React.FC<InspectorPanelProps> = ({
                     </div>
                   )}
                 </div>
+                </fieldset>
               </div>
             ) : (
               <div className="space-y-4">
@@ -1592,7 +1607,7 @@ export const InspectorPanel: React.FC<InspectorPanelProps> = ({
 
         {/* TAB 3: QB READ FLOW & BLOCKING RULES (Spec 1.2 / Spec 3) */}
         {activeTab === 'read_flow' && (
-          <div className="space-y-4">
+          <fieldset disabled={isView} className={formFieldsetClass}>
             {/* QB Read Progression */}
             <div className={`${isLight ? 'bg-slate-50 border-slate-200' : 'bg-slate-900/80 border-slate-800'} rounded-lg p-3 border space-y-2`}>
               <span className="text-[11px] font-bold uppercase tracking-wider text-sky-500 flex items-center gap-1.5">
@@ -1646,7 +1661,7 @@ export const InspectorPanel: React.FC<InspectorPanelProps> = ({
                 className={`w-full ${isLight ? 'bg-white text-slate-800 border-slate-300' : 'bg-[#161b22] text-slate-200 border-slate-700'} text-xs px-2.5 py-1.5 rounded border focus:border-purple-500 outline-none`}
               />
             </div>
-          </div>
+          </fieldset>
         )}
       </div>
     </aside>

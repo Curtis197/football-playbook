@@ -1,12 +1,9 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
-import type { Player, PathAction, CanvasMode, Point, AppMode, Theme, Formation, Play, RouteAdaptationMode } from '../types/playbook';
-import type { SnapAlignment } from '../utils/formationBackfield';
+import type { Player, PathAction, CanvasMode, Point, AppMode, Theme } from '../types/playbook';
 import { generatePathString, getSvgCoordinates, clampFieldCoordinates, getDistance, insertPointIntoAction } from '../utils/geometry';
 import { resolvePlayerColors } from '../utils/colors';
-import { Shield, ChevronLeft, ChevronRight, RotateCcw, Save } from 'lucide-react';
 import { analyzeOffense, calculateDefensiveAlignmentPosition } from '../utils/defensiveAlignment';
 import { translateActionPoints } from '../utils/routeAdaptation';
-import { resolveFormation } from '../utils/playMigrations';
 
 interface ChalkboardCanvasProps {
   players: Player[];
@@ -15,27 +12,6 @@ interface ChalkboardCanvasProps {
   appMode?: AppMode;
   theme?: Theme;
   showGaps?: boolean;
-  onToggleShowGaps?: () => void;
-  onOpenDefenseModal?: () => void;
-  onShiftDefense?: (direction: 'left' | 'right' | 'over' | 'under' | 'pinch' | 'fan') => void;
-  onRealignDefense?: () => void;
-  formations?: Formation[];
-  activeOffenseFormation?: string;
-  activeOffenseFormationId?: string;
-  activeDefenseFront?: string;
-  activeDefenseFrontId?: string;
-  allPlays?: Play[];
-  activePlayId?: string;
-  onSelectPlay?: (playId: string) => void;
-  onSelectOffenseFormation?: (formationId: string) => void;
-  onSelectDefenseFront?: (formationId: string) => void;
-  currentQBAlignment?: SnapAlignment;
-  onMorphBackfield?: (alignment: SnapAlignment) => void;
-  routeAdaptationMode?: RouteAdaptationMode;
-  onToggleRouteAdaptationMode?: () => void;
-  onSetRouteAdaptationMode?: (mode: RouteAdaptationMode) => void;
-  onUpdateOffenseFormation?: () => void;
-  onUpdateDefenseFront?: () => void;
   selectedPlayerId: string | null;
   selectedActionId: string | null;
   onSelectPlayer: (id: string | null) => void;
@@ -44,7 +20,6 @@ interface ChalkboardCanvasProps {
   onAddAction: (action: PathAction) => void;
   onUpdateActionPoints: (actionId: string, points: Point[]) => void;
   onAddPlayerAtPoint: (x: number, y: number, side: 'offense' | 'defense') => void;
-  onSwitchToBuildMode?: () => void;
   onSetMode?: (mode: CanvasMode) => void;
   restartBlockRequest?: { actionId: string; playerId: string; startPoint: Point } | null;
   onClearRestartBlockRequest?: () => void;
@@ -57,27 +32,6 @@ export const ChalkboardCanvas: React.FC<ChalkboardCanvasProps> = ({
   appMode = 'build',
   theme = 'dark',
   showGaps = true,
-  onToggleShowGaps,
-  onOpenDefenseModal,
-  onShiftDefense,
-  onRealignDefense,
-  formations = [],
-  activeOffenseFormation,
-  activeOffenseFormationId,
-  activeDefenseFront,
-  activeDefenseFrontId,
-  allPlays,
-  activePlayId,
-  onSelectPlay,
-  onSelectOffenseFormation,
-  onSelectDefenseFront,
-  currentQBAlignment = 'shotgun',
-  onMorphBackfield,
-  routeAdaptationMode = 'player_relative',
-  onToggleRouteAdaptationMode,
-  onSetRouteAdaptationMode: _onSetRouteAdaptationMode,
-  onUpdateOffenseFormation,
-  onUpdateDefenseFront,
   selectedPlayerId,
   selectedActionId,
   onSelectPlayer,
@@ -86,7 +40,6 @@ export const ChalkboardCanvas: React.FC<ChalkboardCanvasProps> = ({
   onAddAction,
   onUpdateActionPoints,
   onAddPlayerAtPoint,
-  onSwitchToBuildMode,
   onSetMode,
   restartBlockRequest,
   onClearRestartBlockRequest
@@ -96,46 +49,6 @@ export const ChalkboardCanvas: React.FC<ChalkboardCanvasProps> = ({
 
   // Dynamic analysis of offensive positions to derive LOS, gaps, and formation strength
   const offenseStructure = analyzeOffense(players);
-
-  // Split formations into offensive and defensive groups
-  const offensiveFormations = formations.filter(f => f.side === 'offense' || f.side === 'both');
-  const defensiveFormations = formations.filter(f => f.side === 'defense' || f.side === 'both');
-
-  // The play's template link is the id; a typed name counts only when it matches a template exactly.
-  const activeOffenseId = resolveFormation(formations, 'offense', activeOffenseFormationId, activeOffenseFormation)?.id ?? '';
-  const activeDefenseId = resolveFormation(formations, 'defense', activeDefenseFrontId, activeDefenseFront)?.id ?? '';
-
-  // Group offensive formations by style (Pro Style, Spread, Old School)
-  const proStyleFormations = offensiveFormations.filter(f => f.style === 'pro_style');
-  const spreadFormations = offensiveFormations.filter(f => f.style === 'spread');
-  const oldSchoolFormations = offensiveFormations.filter(f => f.style === 'old_school');
-  const otherOffenseFormations = offensiveFormations.filter(
-    f => !f.style || !['pro_style', 'spread', 'old_school'].includes(f.style)
-  );
-
-  // Group defensive fronts by style (Even Fronts, Odd Fronts, Heavy / Bear)
-  const evenFronts = defensiveFormations.filter(f => f.style === 'even_front');
-  const oddFronts = defensiveFormations.filter(f => f.style === 'odd_front');
-  const heavyFronts = defensiveFormations.filter(f => f.style === 'heavy_front');
-  const otherDefenseFronts = defensiveFormations.filter(
-    f => !f.style || !['even_front', 'odd_front', 'heavy_front'].includes(f.style)
-  );
-
-  // Filter plays belonging to active offensive formation for hierarchical game-planning
-  const playsForFormation = (allPlays || []).filter(p => {
-    if (!activeOffenseId) return false;
-    return resolveFormation(formations, 'offense', p.formationOffenseId, p.formationOffense)?.id === activeOffenseId;
-  });
-
-  const otherPlays = (allPlays || []).filter(p => !playsForFormation.some(pf => pf.id === p.id));
-  const passingPlays = otherPlays.filter(p => p.primaryPassConcept || p.category === 'pass_dropback');
-  const runOptionPlays = otherPlays.filter(p => (p.category === 'run' || p.primaryRunConcept) && !p.primaryPassConcept);
-  const rpoPaPlays = otherPlays.filter(p => (p.category === 'rpo' || p.category === 'pass_action' || p.category === 'screen') && !p.primaryPassConcept);
-  const remainingPlays = otherPlays.filter(p => 
-    !passingPlays.some(pp => pp.id === p.id) &&
-    !runOptionPlays.some(rp => rp.id === p.id) &&
-    !rpoPaPlays.some(pa => pa.id === p.id)
-  );
 
   // Dragging state
   const [draggingPlayerId, setDraggingPlayerId] = useState<string | null>(null);
@@ -379,9 +292,12 @@ export const ChalkboardCanvas: React.FC<ChalkboardCanvasProps> = ({
   };
 
   return (
-    <div className={`relative w-full h-full flex flex-col items-center justify-center ${isLight ? 'bg-slate-200/90' : 'bg-[#10141a]'} p-2 select-none overflow-hidden transition-colors`}>
+    <div className={`relative w-full h-full flex flex-col gap-2 ${isLight ? 'bg-slate-200/90' : 'bg-[#10141a]'} p-2 select-none overflow-hidden transition-colors`}>
+      {/* The field takes whatever room the bar and status line leave: it is as wide as the width allows or
+          as tall as the height allows (100cqw / 100cqh are this wrapper's size), so it is never cropped. */}
+      <div className="flex-1 min-h-0 flex items-center justify-center [container-type:size]">
       {/* Field container with blackboard / whiteboard border */}
-      <div className={`relative w-full max-w-[1100px] aspect-[1000/700] rounded-xl shadow-2xl border-4 ${isLight ? 'border-slate-300 bg-white' : 'border-[#2b3544] bg-[#161c24]'} overflow-hidden transition-colors`}>
+      <div className={`relative aspect-[1000/700] w-[min(100cqw,calc(100cqh*1000/700))] max-w-[1100px] rounded-xl shadow-2xl border-4 ${isLight ? 'border-slate-300 bg-white' : 'border-[#2b3544] bg-[#161c24]'} overflow-hidden transition-colors`}>
         <svg
           ref={svgRef}
           viewBox="0 0 1000 700"
@@ -786,8 +702,8 @@ export const ChalkboardCanvas: React.FC<ChalkboardCanvasProps> = ({
                     </g>
                   )}
 
-                  {/* Waypoint handles if selected */}
-                  {isSelected && act.points.map((pt, idx) => {
+                  {/* Waypoint handles if selected (editing only: View mode is read-only) */}
+                  {isSelected && appMode === 'build' && act.points.map((pt, idx) => {
                     const isStart = idx === 0;
                     const isSharpCut = Boolean(pt.isSharp);
 
@@ -1150,415 +1066,6 @@ export const ChalkboardCanvas: React.FC<ChalkboardCanvasProps> = ({
           </g>
         </svg>
 
-        {/* TOP HUD: OFFENSE & DEFENSE FORMATION PICKERS + DEFENSE SHIFT & GAPS */}
-        <div className={`absolute top-2.5 left-2.5 right-2.5 z-20 flex flex-wrap items-center justify-between gap-2 ${
-          isLight ? 'bg-white/95 border-slate-300' : 'bg-slate-900/90 border-slate-700/80'
-        } backdrop-blur-md px-3 py-1.5 rounded-lg border shadow-lg text-xs pointer-events-auto`}>
-          {/* LEFT: FORMATION PICKERS */}
-          <div className="flex items-center gap-3 flex-wrap">
-            {/* OFFENSE FORMATION PICKER */}
-            <div className="flex items-center gap-1.5">
-              <span className="text-base select-none" role="img" aria-label="football">🏈</span>
-              <label htmlFor="offense-formation-select" className={`text-[11px] font-bold ${
-                isLight ? 'text-slate-700' : 'text-slate-300'
-              }`}>
-                Offense:
-              </label>
-              <select
-                id="offense-formation-select"
-                value={activeOffenseId}
-                onChange={(e) => onSelectOffenseFormation?.(e.target.value)}
-                className={`text-[11px] font-medium rounded px-2 py-1 border transition-colors cursor-pointer outline-none focus:ring-1 focus:ring-amber-500 max-w-[210px] truncate ${
-                  isLight
-                    ? 'bg-slate-100 hover:bg-slate-200 text-slate-900 border-slate-300'
-                    : 'bg-slate-800 hover:bg-slate-700 text-slate-100 border-slate-700'
-                }`}
-                title="Select offensive formation template"
-              >
-                {!activeOffenseId && <option value="" disabled>Select Offense Formation...</option>}
-                {proStyleFormations.length > 0 && (
-                  <optgroup label="Pro Style (Under Center & Heavy)">
-                    {proStyleFormations.map(f => (
-                      <option key={f.id} value={f.id} className={isLight ? 'bg-white text-slate-900' : 'bg-slate-900 text-slate-100'}>
-                        {f.name} {f.personnel ? `(${f.personnel})` : ''}
-                      </option>
-                    ))}
-                  </optgroup>
-                )}
-                {spreadFormations.length > 0 && (
-                  <optgroup label="Spread (10 & 11 Personnel)">
-                    {spreadFormations.map(f => (
-                      <option key={f.id} value={f.id} className={isLight ? 'bg-white text-slate-900' : 'bg-slate-900 text-slate-100'}>
-                        {f.name} {f.personnel ? `(${f.personnel})` : ''}
-                      </option>
-                    ))}
-                  </optgroup>
-                )}
-                {oldSchoolFormations.length > 0 && (
-                  <optgroup label="Old School (Option & Multi-Back)">
-                    {oldSchoolFormations.map(f => (
-                      <option key={f.id} value={f.id} className={isLight ? 'bg-white text-slate-900' : 'bg-slate-900 text-slate-100'}>
-                        {f.name} {f.personnel ? `(${f.personnel})` : ''}
-                      </option>
-                    ))}
-                  </optgroup>
-                )}
-                {otherOffenseFormations.length > 0 && (
-                  <optgroup label="Other Formations">
-                    {otherOffenseFormations.map(f => (
-                      <option key={f.id} value={f.id} className={isLight ? 'bg-white text-slate-900' : 'bg-slate-900 text-slate-100'}>
-                        {f.name} {f.personnel ? `(${f.personnel})` : ''}
-                      </option>
-                    ))}
-                  </optgroup>
-                )}
-              </select>
-              {onUpdateOffenseFormation && activeOffenseId && (
-                <button
-                  type="button"
-                  onClick={onUpdateOffenseFormation}
-                  className={`px-1.5 py-1 rounded text-[10px] font-bold border transition-all cursor-pointer flex items-center gap-1 active:scale-95 ${
-                    isLight
-                      ? 'bg-amber-100 hover:bg-amber-200 text-amber-900 border-amber-300'
-                      : 'bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border-amber-500/40'
-                  }`}
-                  title={`Update "${activeOffenseFormation}" with current chalkboard offensive positions`}
-                >
-                  <Save className="w-3 h-3 text-amber-500" />
-                  <span>Update</span>
-                </button>
-              )}
-
-              {/* DYNAMIC BACKFIELD MORPH TOGGLE (Center / Gun / Pistol) */}
-              {onMorphBackfield && (
-                <div 
-                  className={`flex items-center rounded-lg p-0.5 border text-[10px] shadow-sm ${
-                    isLight ? 'bg-slate-100 border-slate-300' : 'bg-[#090d14] border-[#2a313f]'
-                  }`}
-                  title="Morph backfield alignment between Under Center, Pistol, and Shotgun while preserving perimeter receiver distribution"
-                >
-                  <button
-                    type="button"
-                    onClick={() => onMorphBackfield('down_center')}
-                    className={`px-2 py-0.5 rounded font-bold transition-all cursor-pointer flex items-center gap-1 ${
-                      currentQBAlignment === 'down_center'
-                        ? 'bg-amber-600 text-white shadow-sm'
-                        : isLight
-                        ? 'text-slate-600 hover:text-slate-900'
-                        : 'text-slate-400 hover:text-slate-200'
-                    }`}
-                    title="Under Center (QB direct snap at 1 yard, RB downhill at 6-7 yards)"
-                  >
-                    <span>🏈</span>
-                    <span>Center</span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => onMorphBackfield('pistol')}
-                    className={`px-2 py-0.5 rounded font-bold transition-all cursor-pointer flex items-center gap-1 ${
-                      currentQBAlignment === 'pistol'
-                        ? 'bg-sky-600 text-white shadow-sm'
-                        : isLight
-                        ? 'text-slate-600 hover:text-slate-900'
-                        : 'text-slate-400 hover:text-slate-200'
-                    }`}
-                    title="Pistol (QB at 3.5 yards, RB stacked directly behind at 7 yards)"
-                  >
-                    <span>🎯</span>
-                    <span>Pistol</span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => onMorphBackfield('shotgun')}
-                    className={`px-2 py-0.5 rounded font-bold transition-all cursor-pointer flex items-center gap-1 ${
-                      currentQBAlignment === 'shotgun'
-                        ? 'bg-emerald-600 text-white shadow-sm'
-                        : isLight
-                        ? 'text-slate-600 hover:text-slate-900'
-                        : 'text-slate-400 hover:text-slate-200'
-                    }`}
-                    title="Shotgun (QB at 5-6 yards, RB offset sidecar)"
-                  >
-                    <span>⚡</span>
-                    <span>Gun</span>
-                  </button>
-                </div>
-              )}
-
-              {/* ROUTE ADAPTATION MODE TOGGLE */}
-              {onToggleRouteAdaptationMode && (
-                <button
-                  type="button"
-                  onClick={onToggleRouteAdaptationMode}
-                  className={`px-2 py-1 rounded text-[10px] font-bold border transition-all cursor-pointer flex items-center gap-1 active:scale-95 shadow-sm ${
-                    routeAdaptationMode === 'concept_numbered'
-                      ? isLight
-                        ? 'bg-purple-100 hover:bg-purple-200 text-purple-900 border-purple-300'
-                        : 'bg-purple-900/50 hover:bg-purple-800/60 text-purple-200 border-purple-500/50'
-                      : isLight
-                        ? 'bg-sky-100 hover:bg-sky-200 text-sky-900 border-sky-300'
-                        : 'bg-sky-900/50 hover:bg-sky-800/60 text-sky-200 border-sky-500/50'
-                  }`}
-                  title={`Route adaptation when changing offensive formation:\n• Player-Relative: Translates full vector (stem, breaks, cuts) relative to each player\n• Concept (#1/#2/#3): Maps routes to #1, #2, #3 receivers from outside in\n\nClick to toggle (Currently: ${
-                    routeAdaptationMode === 'concept_numbered' ? '#1/#2/#3 Concept Outside' : 'Relative to Player'
-                  })`}
-                >
-                  {routeAdaptationMode === 'concept_numbered' ? (
-                    <>
-                      <span className="font-mono text-purple-400 font-extrabold text-[11px]">#123</span>
-                      <span>Concept</span>
-                    </>
-                  ) : (
-                    <>
-                      <span>🎯</span>
-                      <span>Player-Rel</span>
-                    </>
-                  )}
-                </button>
-              )}
-            </div>
-
-            {/* PLAY / CONCEPT PICKER (Hierarchical flow: Formation ➔ Play ➔ Defense) */}
-            {allPlays && onSelectPlay && (
-              <>
-                <div className={`h-4 w-[1px] ${isLight ? 'bg-slate-300' : 'bg-slate-700'}`} />
-                <div className="flex items-center gap-1.5">
-                  <span className="text-xs select-none" role="img" aria-label="play">📋</span>
-                  <label htmlFor="play-concept-select" className={`text-[11px] font-bold ${
-                    isLight ? 'text-slate-700' : 'text-slate-300'
-                  }`}>
-                    Play:
-                  </label>
-                  <select
-                    id="play-concept-select"
-                    value={activePlayId || ''}
-                    onChange={(e) => onSelectPlay(e.target.value)}
-                    className={`text-[11px] font-medium rounded px-2 py-1 border transition-colors cursor-pointer outline-none focus:ring-1 focus:ring-sky-500 max-w-[210px] truncate ${
-                      isLight
-                        ? 'bg-slate-100 hover:bg-slate-200 text-slate-900 border-slate-300'
-                        : 'bg-slate-800 hover:bg-slate-700 text-slate-100 border-slate-700'
-                    }`}
-                    title="Select play / concept belonging to this formation or test across playbook"
-                  >
-                    {playsForFormation.length > 0 && (
-                      <optgroup label={`Plays for this Formation (${playsForFormation.length})`}>
-                        {playsForFormation.map(p => (
-                          <option key={p.id} value={p.id} className={isLight ? 'bg-white text-slate-900' : 'bg-slate-900 text-slate-100'}>
-                            🏈 {p.name}
-                          </option>
-                        ))}
-                      </optgroup>
-                    )}
-                    {passingPlays.length > 0 && (
-                      <optgroup label={`Passing Concepts (${passingPlays.length})`}>
-                        {passingPlays.map(p => (
-                          <option key={p.id} value={p.id} className={isLight ? 'bg-white text-slate-900' : 'bg-slate-900 text-slate-100'}>
-                            🎯 {p.name}
-                          </option>
-                        ))}
-                      </optgroup>
-                    )}
-                    {runOptionPlays.length > 0 && (
-                      <optgroup label={`Run & Option Schemes (${runOptionPlays.length})`}>
-                        {runOptionPlays.map(p => (
-                          <option key={p.id} value={p.id} className={isLight ? 'bg-white text-slate-900' : 'bg-slate-900 text-slate-100'}>
-                            🏃 {p.name}
-                          </option>
-                        ))}
-                      </optgroup>
-                    )}
-                    {rpoPaPlays.length > 0 && (
-                      <optgroup label={`RPO & Play-Action (${rpoPaPlays.length})`}>
-                        {rpoPaPlays.map(p => (
-                          <option key={p.id} value={p.id} className={isLight ? 'bg-white text-slate-900' : 'bg-slate-900 text-slate-100'}>
-                            ⚡ {p.name}
-                          </option>
-                        ))}
-                      </optgroup>
-                    )}
-                    {remainingPlays.length > 0 && (
-                      <optgroup label={`Other Playbook Plays (${remainingPlays.length})`}>
-                        {remainingPlays.map(p => (
-                          <option key={p.id} value={p.id} className={isLight ? 'bg-white text-slate-900' : 'bg-slate-900 text-slate-100'}>
-                            {p.name}
-                          </option>
-                        ))}
-                      </optgroup>
-                    )}
-                  </select>
-                </div>
-              </>
-            )}
-
-            <div className={`h-4 w-[1px] ${isLight ? 'bg-slate-300' : 'bg-slate-700'}`} />
-
-            {/* DEFENSE FRONT PICKER */}
-            <div className="flex items-center gap-1.5">
-              <Shield className="w-3.5 h-3.5 text-rose-500 flex-shrink-0" />
-              <label htmlFor="defense-front-select" className={`text-[11px] font-bold ${
-                isLight ? 'text-slate-700' : 'text-slate-300'
-              }`}>
-                Defense:
-              </label>
-              <select
-                id="defense-front-select"
-                value={activeDefenseId}
-                onChange={(e) => onSelectDefenseFront?.(e.target.value)}
-                className={`text-[11px] font-medium rounded px-2 py-1 border transition-colors cursor-pointer outline-none focus:ring-1 focus:ring-rose-500 max-w-[210px] truncate ${
-                  isLight
-                    ? 'bg-slate-100 hover:bg-slate-200 text-slate-900 border-slate-300'
-                    : 'bg-slate-800 hover:bg-slate-700 text-slate-100 border-slate-700'
-                }`}
-                title="Select defensive front (pre-aligns automatically to offensive gaps)"
-              >
-                {!activeDefenseId && <option value="" disabled>Select Defensive Front...</option>}
-                {evenFronts.length > 0 && (
-                  <optgroup label="Even Fronts (4-Down Linemen)">
-                    {evenFronts.map(f => (
-                      <option key={f.id} value={f.id} className={isLight ? 'bg-white text-slate-900' : 'bg-slate-900 text-slate-100'}>
-                        {f.name} {f.personnel ? `(${f.personnel})` : ''}
-                      </option>
-                    ))}
-                  </optgroup>
-                )}
-                {oddFronts.length > 0 && (
-                  <optgroup label="Odd Fronts (3-Down Linemen)">
-                    {oddFronts.map(f => (
-                      <option key={f.id} value={f.id} className={isLight ? 'bg-white text-slate-900' : 'bg-slate-900 text-slate-100'}>
-                        {f.name} {f.personnel ? `(${f.personnel})` : ''}
-                      </option>
-                    ))}
-                  </optgroup>
-                )}
-                {heavyFronts.length > 0 && (
-                  <optgroup label="Heavy / Bear Fronts">
-                    {heavyFronts.map(f => (
-                      <option key={f.id} value={f.id} className={isLight ? 'bg-white text-slate-900' : 'bg-slate-900 text-slate-100'}>
-                        {f.name} {f.personnel ? `(${f.personnel})` : ''}
-                      </option>
-                    ))}
-                  </optgroup>
-                )}
-                {otherDefenseFronts.length > 0 && (
-                  <optgroup label="Other Fronts">
-                    {otherDefenseFronts.map(f => (
-                      <option key={f.id} value={f.id} className={isLight ? 'bg-white text-slate-900' : 'bg-slate-900 text-slate-100'}>
-                        {f.name} {f.personnel ? `(${f.personnel})` : ''}
-                      </option>
-                    ))}
-                  </optgroup>
-                )}
-              </select>
-              {onUpdateDefenseFront && activeDefenseId && (
-                <button
-                  type="button"
-                  onClick={onUpdateDefenseFront}
-                  className={`px-1.5 py-1 rounded text-[10px] font-bold border transition-all cursor-pointer flex items-center gap-1 active:scale-95 ${
-                    isLight
-                      ? 'bg-rose-100 hover:bg-rose-200 text-rose-900 border-rose-300'
-                      : 'bg-rose-500/20 hover:bg-rose-500/30 text-rose-300 border-rose-500/40'
-                  }`}
-                  title={`Update "${activeDefenseFront}" with current chalkboard defensive positions & techniques`}
-                >
-                  <Save className="w-3 h-3 text-rose-500" />
-                  <span>Update</span>
-                </button>
-              )}
-            </div>
-          </div>
-
-          {/* RIGHT: GAPS TOGGLE + SHIFT CONTROLS + MODAL TRIGGER */}
-          <div className="flex items-center gap-1.5 flex-wrap">
-            {onToggleShowGaps && (
-              <button
-                type="button"
-                onClick={onToggleShowGaps}
-                className={`px-2 py-1 rounded text-[11px] font-bold flex items-center gap-1 transition-all cursor-pointer ${
-                  showGaps 
-                    ? isLight ? 'bg-amber-100 text-amber-900 border border-amber-300' : 'bg-amber-500/25 text-amber-300 border border-amber-500/50' 
-                    : isLight ? 'bg-slate-100 text-slate-600 border border-slate-200' : 'bg-slate-800 text-slate-400 hover:text-slate-200 border border-slate-700'
-                }`}
-                title="Toggle offensive gap markers (A, B, C, D) on the line of scrimmage"
-              >
-                <span>Gaps</span>
-                <span className={`text-[9px] px-1 py-0.2 rounded font-black ${
-                  showGaps ? 'bg-amber-500 text-slate-950' : isLight ? 'bg-slate-200 text-slate-700' : 'bg-slate-700 text-slate-300'
-                }`}>
-                  {showGaps ? 'ON' : 'OFF'}
-                </span>
-              </button>
-            )}
-
-            {onShiftDefense && (
-              <div className="flex items-center gap-0.5">
-                <button
-                  type="button"
-                  onClick={() => onShiftDefense('left')}
-                  className={`px-1.5 py-1 rounded text-[10px] font-bold border transition-all cursor-pointer ${
-                    isLight ? 'bg-slate-100 hover:bg-slate-200 text-slate-700 border-slate-300' : 'bg-slate-800 hover:bg-slate-700 text-slate-300 border-slate-700'
-                  }`}
-                  title="Shift front 1 gap left"
-                >
-                  <ChevronLeft className="w-3 h-3 inline" /> Left
-                </button>
-                <button
-                  type="button"
-                  onClick={() => onShiftDefense('right')}
-                  className={`px-1.5 py-1 rounded text-[10px] font-bold border transition-all cursor-pointer ${
-                    isLight ? 'bg-slate-100 hover:bg-slate-200 text-slate-700 border-slate-300' : 'bg-slate-800 hover:bg-slate-700 text-slate-300 border-slate-700'
-                  }`}
-                  title="Shift front 1 gap right"
-                >
-                  Right <ChevronRight className="w-3 h-3 inline" />
-                </button>
-                <button
-                  type="button"
-                  onClick={() => onShiftDefense('over')}
-                  className="px-1.5 py-1 rounded text-[10px] font-bold bg-sky-500/10 hover:bg-sky-500/20 text-sky-400 border border-sky-500/30 transition-all cursor-pointer"
-                  title="Set front to Over (Strongside 3-tech)"
-                >
-                  Over
-                </button>
-                <button
-                  type="button"
-                  onClick={() => onShiftDefense('under')}
-                  className="px-1.5 py-1 rounded text-[10px] font-bold bg-purple-500/10 hover:bg-purple-500/20 text-purple-400 border border-purple-500/30 transition-all cursor-pointer"
-                  title="Set front to Under (Weakside 3-tech)"
-                >
-                  Under
-                </button>
-              </div>
-            )}
-
-            {onRealignDefense && (
-              <button
-                type="button"
-                onClick={onRealignDefense}
-                className={`p-1 rounded text-[10px] font-bold border transition-all cursor-pointer ${
-                  isLight ? 'bg-amber-100 hover:bg-amber-200 text-amber-900 border-amber-300' : 'bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 border-amber-500/30'
-                }`}
-                title="Re-align all defenders to current offensive positions"
-              >
-                <RotateCcw className="w-3 h-3 text-amber-500" />
-              </button>
-            )}
-
-            {onOpenDefenseModal && (
-              <button
-                type="button"
-                onClick={onOpenDefenseModal}
-                className={`px-2 py-1 rounded text-[11px] font-bold ${
-                  isLight ? 'bg-rose-100 hover:bg-rose-200 text-rose-800 border-rose-300' : 'bg-rose-500/20 hover:bg-rose-500/30 text-rose-300 border-rose-500/40'
-                } border flex items-center gap-1 transition-all active:scale-95 cursor-pointer`}
-                title="Open detailed Defensive Fronts modal with techniques & assignments"
-              >
-                <Shield className="w-3.5 h-3.5 text-rose-500" />
-                <span>Fronts Modal</span>
-              </button>
-            )}
-          </div>
-        </div>
-
         {/* THOUGHT PARTNER INTERACTIVE HOVER OVERLAY - ONLY SHOWN IN VIEW MODE (Spec 2.2) */}
         {appMode === 'view' && activeHoveredPlayer && tooltipPos && (
           <div
@@ -1632,68 +1139,62 @@ export const ChalkboardCanvas: React.FC<ChalkboardCanvasProps> = ({
           </div>
         )}
 
-        {/* BOTTOM CANVAS STATUS BAR */}
-        <div className="absolute bottom-2 left-3 right-3 flex items-center justify-between text-xs text-slate-400 bg-slate-900/90 backdrop-blur-sm px-3 py-1.5 rounded-md border border-slate-700/50 pointer-events-none">
-          <div className="flex items-center gap-3">
-            {appMode === 'view' ? (
-              <>
-                <span className="flex items-center gap-1.5 px-2 py-0.5 rounded bg-emerald-950/90 border border-emerald-500/50 text-emerald-300 font-bold text-[11px]">
-                  <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
-                  VIEW MODE
-                </span>
-                <span className="text-slate-300 text-xs">
-                  Hover over players to inspect assignments & coaching keys.
-                </span>
-                {onSwitchToBuildMode && (
-                  <button
-                    onClick={onSwitchToBuildMode}
-                    className="pointer-events-auto px-2.5 py-0.5 text-xs font-semibold bg-sky-600 hover:bg-sky-500 text-white rounded transition-all shadow-sm cursor-pointer ml-1"
-                  >
-                    🛠️ Switch to Build Mode
-                  </button>
-                )}
-              </>
-            ) : (
-              <>
-                <span className="flex items-center gap-1.5 px-2 py-0.5 rounded bg-sky-950/90 border border-sky-500/40 text-sky-300 font-bold text-[11px]">
-                  <span className="w-2 h-2 rounded-full bg-sky-400"></span>
-                  BUILD MODE
-                </span>
-                <span>
-                  Tool: <strong className="text-sky-300 capitalize">{mode.replace('_', ' ')}</strong>
-                </span>
-                {drawingPlayerId ? (
-                  <span className="text-amber-400 font-semibold flex items-center gap-2">
-                    <span>Click: <strong className="text-sky-300">Add Waypoint</strong></span>
-                    <span>•</span>
-                    <span>Shift+Click: <strong className="text-amber-300">Sharp Break / Cut</strong></span>
-                    <span>•</span>
-                    <span>Double-Click/Enter: <strong>Finish</strong></span>
-                  </span>
-                ) : (
-                  <span className="text-slate-400 text-[11px] hidden sm:inline">
-                    Click vector to select • Click selected vector line to insert/decompose waypoints
-                  </span>
-                )}
-              </>
-            )}
-          </div>
-          <div className="flex items-center gap-3">
-            <span className="flex items-center gap-1">
-              <span className="w-2.5 h-2.5 rounded-full bg-sky-400 inline-block"></span> Pass Route
-            </span>
-            <span className="flex items-center gap-1">
-              <span className="w-2.5 h-2.5 rounded-sm bg-amber-400 inline-block"></span> Run Block
-            </span>
-            <span className="flex items-center gap-1">
-              <span className="w-2 h-2 rotate-45 bg-amber-500 inline-block"></span> Sharp Cut
-            </span>
-            {cursorPos && (
-              <span className="font-mono text-[11px] text-slate-500 ml-2">
-                X:{Math.round(cursorPos.x)} Y:{Math.round(cursorPos.y)}
+      </div>
+      </div>
+
+      {/* STATUS LINE: below the field so it never covers the board. One fixed-height row: long hints are cut
+          with an ellipsis instead of wrapping, so starting to draw never changes the board's size. */}
+      <div className="shrink-0 flex items-center justify-between gap-3 overflow-hidden whitespace-nowrap text-xs text-slate-400 bg-slate-900 px-3 py-1.5 rounded-md border border-slate-700">
+        <div className="flex min-w-0 items-center gap-x-3">
+          {appMode === 'view' ? (
+            <>
+              <span className="shrink-0 flex items-center gap-1.5 px-2 py-0.5 rounded bg-emerald-950 border border-emerald-500/50 text-emerald-300 font-bold text-[11px]">
+                <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+                VIEW MODE
               </span>
-            )}
-          </div>
+              <span className="min-w-0 truncate text-slate-300">
+                Read-only: hover over players to inspect assignments & coaching keys.
+              </span>
+            </>
+          ) : (
+            <>
+              <span className="shrink-0 flex items-center gap-1.5 px-2 py-0.5 rounded bg-sky-950 border border-sky-500/40 text-sky-300 font-bold text-[11px]">
+                <span className="w-2 h-2 rounded-full bg-sky-400"></span>
+                BUILD MODE
+              </span>
+              <span className="shrink-0">
+                Tool: <strong className="text-sky-300 capitalize">{mode.replace('_', ' ')}</strong>
+              </span>
+              {drawingPlayerId ? (
+                <span className="min-w-0 truncate text-amber-400 font-semibold">
+                  <span>Click: <strong className="text-sky-300">Add Waypoint</strong></span>
+                  <span className="mx-2">•</span>
+                  <span>Shift+Click: <strong className="text-amber-300">Sharp Break / Cut</strong></span>
+                  <span className="mx-2">•</span>
+                  <span>Double-Click/Enter: <strong>Finish</strong></span>
+                </span>
+              ) : (
+                <span className="min-w-0 truncate text-[11px]">
+                  Click vector to select • Click selected vector line to insert/decompose waypoints
+                </span>
+              )}
+            </>
+          )}
+        </div>
+        <div className="shrink-0 flex items-center gap-x-3">
+          <span className="flex items-center gap-1">
+            <span className="w-2.5 h-2.5 rounded-full bg-sky-400 inline-block"></span> Pass Route
+          </span>
+          <span className="flex items-center gap-1">
+            <span className="w-2.5 h-2.5 rounded-sm bg-amber-400 inline-block"></span> Run Block
+          </span>
+          <span className="flex items-center gap-1">
+            <span className="w-2 h-2 rotate-45 bg-amber-500 inline-block"></span> Sharp Cut
+          </span>
+          {/* Fixed width, so the legend does not shift while the pointer moves over the board */}
+          <span className="inline-block w-20 text-right font-mono text-[11px] text-slate-400">
+            {cursorPos ? `X:${Math.round(cursorPos.x)} Y:${Math.round(cursorPos.y)}` : ''}
+          </span>
         </div>
       </div>
     </div>
