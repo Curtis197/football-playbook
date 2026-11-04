@@ -46,7 +46,7 @@ export const RunTemplateModal: React.FC<RunTemplateModalProps> = ({
   const selected = templates.find(t => t.id === selectedId) ?? null;
   const canApply = selected !== null && selected.reviewed;
 
-  const panel = isLight ? 'bg-white text-slate-900 border-slate-400' : 'bg-[#0d1117] text-slate-100 border-slate-600';
+  const panel = isLight ? 'bg-white text-slate-900 border-slate-500' : 'bg-[#0d1117] text-slate-100 border-slate-500';
   const muted = isLight ? 'text-slate-700' : 'text-slate-300';
 
   const card = (template: RunTemplate) => {
@@ -58,14 +58,14 @@ export const RunTemplateModal: React.FC<RunTemplateModalProps> = ({
         className={`relative rounded-lg border p-2.5 text-left ${
           isSelected
             ? isLight ? 'border-sky-700 bg-sky-50' : 'border-sky-400 bg-sky-950'
-            : isLight ? 'border-slate-400 bg-slate-50' : 'border-slate-600 bg-slate-900'
+            : isLight ? 'border-slate-500 bg-slate-50' : 'border-slate-500 bg-slate-900'
         } ${locked ? 'opacity-70' : ''}`}
       >
         <button
           type="button"
           disabled={locked}
           onClick={() => setSelectedId(template.id)}
-          className={`block w-full text-left cursor-pointer disabled:cursor-not-allowed outline-none focus-visible:ring-2 focus-visible:ring-sky-500 rounded ${template.builtIn ? '' : 'pr-7'}`}
+          className={`block w-full min-w-0 break-words text-left cursor-pointer disabled:cursor-not-allowed outline-none focus-visible:ring-2 focus-visible:ring-sky-500 rounded ${template.builtIn ? '' : 'pr-7'}`}
           aria-pressed={isSelected}
         >
           <span className="flex items-center gap-1.5 text-xs font-bold">
@@ -131,7 +131,7 @@ export const RunTemplateModal: React.FC<RunTemplateModalProps> = ({
                   onClick={() => setSide(option.value)}
                   className={`px-3 py-1 rounded border text-xs font-bold cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed ${
                     effectiveSide === option.value
-                      ? isLight ? 'bg-sky-700 text-white border-sky-800' : 'bg-sky-600 text-white border-sky-300'
+                      ? isLight ? 'bg-sky-700 text-white border-sky-800' : 'bg-sky-700 text-white border-sky-300'
                       : isLight ? 'bg-slate-100 border-slate-500' : 'bg-slate-800 border-slate-500'
                   }`}
                 >
