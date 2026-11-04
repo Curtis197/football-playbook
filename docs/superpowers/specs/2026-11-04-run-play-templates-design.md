@@ -136,3 +136,13 @@ A template is a map **blocker slot → block type** (slots stay `te_ps, ot_ps, o
 
 ## Left to the builder
 Exact module layout; the default hole for outside zone; how the lead blocker is chosen when the runner is the only back; labels in the Inspector for gap ids.
+
+## Calls made by the designer for revision 2 (builder check; the coach can overrule)
+
+- **Pick order and pools:** blockers choose from the play side outward to the away side (by `dir·x` descending). Zone, Down and Seal picks do **not** remove a defender from the pool (a combo shares one on purpose). Kickout and Trap targets **are** removed first. A climb, Wrap or Lead takes the nearest second-level defender **not already taken by another climb, Wrap or Lead**; if every one is taken it takes the nearest anyway.
+- **The back slot (`fb`) is not a line slot.** It is filled dynamically with the lead back (the back who is not the runner, nearest the QB first). Built-in zone templates give it no block type, so a zone call draws no block for the backs. Gap templates give it Lead. With one back who is also the runner, or with runner 1 (QB) and no spare back, nobody leads and no line is drawn.
+- **The hole sets the side and the aiming point for pulls only.** Zone, Down and Seal use the side but not `H`, so Inside Zone to hole 1 and to hole 3 draw the same blocks (this follows the coach's wording of the rules). Outside Zone and Inside Zone therefore differ only in their default hole (`defaultHole`: inside zone 3, outside zone 5, power 3, counter 3, trap 1), preselected when the template is chosen.
+- **Saved gap edits are relative to the play side, keyed by slot:** `{by:'gap', gap:'A'|'B'|'C'|'D', relativeSide:'playside'|'backside'}` plus the defender's gap letter (hole 0 is `A`/center-adjacent and is saved as the A gap). A hole or side change keeps the edit and re-reads it against the new play side, so a template applied mirrored mirrors correctly. A technique-text form is used only for defenders not on the line.
+- **The runner's own path is not drawn** in this version. The runner decides who leads and which back is excluded from blocking. (Offer later: a generated line from the runner to the hole.)
+- **Defensive backs are ignored as defenders; a flex or unattached tight end gets no line slot.**
+- **Legacy plans** (a `blockPlan` with `playSide` but no `hole`/`runner`) are read as hole 3 or 4 by side, runner 3.
