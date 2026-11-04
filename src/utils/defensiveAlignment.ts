@@ -1,4 +1,5 @@
 import type { Player } from '../types/playbook';
+import { categorizeOffensivePlayers } from './routeAdaptation';
 
 /**
  * Standard Offensive Structure deduced from offensive player positions
@@ -52,6 +53,12 @@ export interface TechniqueOption {
   level: '1st Level (LOS)' | '2nd Level (Box)' | '3rd Level (Secondary)';
 }
 
+// Alignment spacing rules (px). Player nodes are 32 wide, so anything under 34 between two defenders overlaps.
+const MIN_STACK_OFFSET = 34;   // 10 stack vs the 00 stack over the center
+const GHOST_9_OFFSET = 58;     // 9-tech off the tackle with no TE: 25 (5-tech) + 33 clearance
+const TE_ONLY_CORNER_OFFSET = 62; // press corner outside a TE that is the only receiver on his side
+const BUNCH_EDGE_RANGE = 70;   // #1 closer than this to the edge => press corner plays outside leverage
+
 export const COMMON_DEFENSIVE_TECHNIQUES: TechniqueOption[] = [
   // 1st Level: Down Linemen & Edge Rushers
   { code: '0-Tech', label: '0-Tech (Head-up Center)', category: 'DL', gapDesc: 'Two-gap nose over Center', level: '1st Level (LOS)' },
@@ -72,7 +79,7 @@ export const COMMON_DEFENSIVE_TECHNIQUES: TechniqueOption[] = [
   { code: '7-Tech Weak', label: '7-Tech / 6i Weak', category: 'DL', gapDesc: 'Inside eye on weak TE / Ghost 7 edge', level: '1st Level (LOS)' },
   { code: '7-Tech Strong', label: '7-Tech / 6i Strong', category: 'DL', gapDesc: 'Inside eye on strong TE', level: '1st Level (LOS)' },
   { code: '6-Tech Strong', label: '6-Tech Strong (Head-up TE)', category: 'DL', gapDesc: 'Head-up on Tight End', level: '1st Level (LOS)' },
-  { code: '9-Tech Weak', label: '9-Tech Weak (Ghost 9 off LT)', category: 'DL', gapDesc: 'Ghost 9 / 45px outside Left Tackle', level: '1st Level (LOS)' },
+  { code: '9-Tech Weak', label: '9-Tech Weak (Ghost 9 off LT)', category: 'DL', gapDesc: 'Ghost 9 / 58px outside Left Tackle', level: '1st Level (LOS)' },
   { code: '9-Tech Strong', label: '9-Tech Strong (Ghost 9 off RT / TE)', category: 'DL', gapDesc: 'Wide-9 edge rush off Tackle / TE', level: '1st Level (LOS)' },
 
   // 2nd Level: Linebackers & Overhangs
@@ -216,24 +223,9 @@ export function analyzeOffense(players: Player[]): OffensiveStructure {
 
   const rightTE = rightTECandidates[0] || null;
 
-  // 3. Classify all perimeter and slot receivers on each side
-  const eligibleReceivers = offense.filter(p => 
-    p !== center && p !== leftGuard && p !== rightGuard && p !== leftTackle && p !== rightTackle &&
-    p !== leftTE && p !== rightTE &&
-    p.label.trim().toUpperCase() !== 'QB' && 
-    p.label.trim().toUpperCase() !== 'RB' && 
-    p.label.trim().toUpperCase() !== 'FB'
-  );
-
-  // Left receivers sorted from outermost (#1) to innermost (#2, #3...)
-  const allReceiversLeft = eligibleReceivers
-    .filter(p => p.x < centerX)
-    .sort((a, b) => a.x - b.x); // smallest X = outermost #1 WR left
-
-  // Right receivers sorted from outermost (#1) to innermost (#2, #3...)
-  const allReceiversRight = eligibleReceivers
-    .filter(p => p.x > centerX)
-    .sort((a, b) => b.x - a.x); // largest X = outermost #1 WR right
+  // 3. Receiver numbering (#1, #2, #3 from outside in) comes from the one shared counter, so the
+  // defense, the Inspector dropdown and route adaptation always agree. Attached TEs count; backs never do.
+  const { leftReceivers: allReceiversLeft, rightReceivers: allReceiversRight } = categorizeOffensivePlayers(offense);
 
   const number1Left = allReceiversLeft[0] || null;
   const number2Left = allReceiversLeft[1] || null;
@@ -425,8 +417,20 @@ export function calculateDefensiveAlignmentPosition(
 
   const wrLX = number1Left ? number1Left.x : (leftWR ? leftWR.x : 120);
   const wrRX = number1Right ? number1Right.x : (rightWR ? rightWR.x : 860);
-  const slotLX = number2Left ? number2Left.x : (leftSlots[0] ? leftSlots[0].x : Math.round((ltX + wrLX) / 2));
-  const slotRX = number2Right ? number2Right.x : (rightSlots[0] ? rightSlots[0].x : Math.round((rtX + wrRX) / 2));
+  // Apex and nickel defenders play off the first receiver outside the attached TE. The TE is already
+  // their inside reference (the edge), so the numbered #2 would collapse them onto the TE itself.
+  const outsideLeft = structure.allReceiversLeft.filter(p => p !== leftTE);
+  const outsideRight = structure.allReceiversRight.filter(p => p !== rightTE);
+  const apexSlotLeft = outsideLeft[1] ?? null;
+  const apexSlotRight = outsideRight[1] ?? null;
+  // With no outside receiver the slot is synthetic: halfway to #1, but never closer than 60 to the edge,
+  // so a TE-only side (#1 is the TE) does not pull the apex defender onto the TE.
+  const slotLX = apexSlotLeft
+    ? apexSlotLeft.x
+    : Math.min(Math.round((ltX + wrLX) / 2), (leftTE ? lteX : ltX) - 60);
+  const slotRX = apexSlotRight
+    ? apexSlotRight.x
+    : Math.max(Math.round((rtX + wrRX) / 2), (rightTE ? rteX : rtX) + 60);
 
   // Depth offsets
   const dlY = losY - 55;       // Down lineman on LOS
@@ -603,9 +607,9 @@ export function calculateDefensiveAlignmentPosition(
   if (raw.includes('9-tech') || raw.includes('9 tech') || raw.includes('wide-9') || raw.includes('wide 9') || raw === '9') {
     let x: number;
     if (targetSide === 'left') {
-      x = leftTE ? leftTE.x - 28 : ltX - 45;
+      x = leftTE ? leftTE.x - 28 : ltX - GHOST_9_OFFSET;
     } else {
-      x = rightTE ? rightTE.x + 28 : rtX + 45;
+      x = rightTE ? rightTE.x + 28 : rtX + GHOST_9_OFFSET;
     }
     return { 
       x, 
@@ -621,7 +625,9 @@ export function calculateDefensiveAlignmentPosition(
   }
 
   if (raw.includes('10 stack') || raw.includes('10') || raw.includes('a-gap stack')) {
-    const x = targetSide === 'left' ? Math.round((lgX + cX) / 2) : Math.round((rgX + cX) / 2);
+    // A-gap midpoint, but never closer than a node width (32) + 2 to the 00 stack over the center
+    const aGap = targetSide === 'left' ? cX - Math.round((lgX + cX) / 2) : Math.round((rgX + cX) / 2) - cX;
+    const x = targetSide === 'left' ? cX - Math.max(aGap, MIN_STACK_OFFSET) : cX + Math.max(aGap, MIN_STACK_OFFSET);
     return { x, y: lbY, matched: true, description: `10 Stack over ${targetSide === 'left' ? 'Left' : 'Right'} A-Gap` };
   }
 
@@ -661,11 +667,21 @@ export function calculateDefensiveAlignmentPosition(
   // --- 3. Defensive Backs / Secondary ---
   // Press CB (Directly references #1 outside receiver with inside shade at line depth)
   if (raw.includes('press cb') || raw.includes('press corner') || raw.includes('press bail')) {
+    // Inside shade on #1, unless #1 is bunched within 70 of the edge (TE or tackle): there the inside
+    // shade lands on the edge rusher and the apex defender, so the corner takes outside leverage.
+    const edgeL = leftTE ? lteX : ltX;
+    const edgeR = rightTE ? rteX : rtX;
+    // If #1 is the attached TE itself (no wide receiver on that side), the 9-tech (28 out) and the apex
+    // (30 out) already occupy his outside shoulder, so the corner plays 62 outside to clear both.
     let x: number;
     if (targetSide === 'left') {
-      x = (number1Left ? number1Left.x : wrLX) + 8;
+      x = number1Left && number1Left === leftTE
+        ? wrLX - TE_ONLY_CORNER_OFFSET
+        : wrLX + (edgeL - wrLX <= BUNCH_EDGE_RANGE ? -10 : 8);
     } else {
-      x = (number1Right ? number1Right.x : wrRX) - 8;
+      x = number1Right && number1Right === rightTE
+        ? wrRX + TE_ONLY_CORNER_OFFSET
+        : wrRX + (wrRX - edgeR <= BUNCH_EDGE_RANGE ? 10 : -8);
     }
     return { x, y: pressY, matched: true, description: `Press Cornerback ${targetSide === 'left' ? 'Left' : 'Right'} over #1 WR` };
   }
@@ -685,14 +701,14 @@ export function calculateDefensiveAlignmentPosition(
   if (raw.includes('nickel') || raw.includes('slot cb') || raw.includes('star') || raw.includes('nb') || raw.includes('nk')) {
     let x: number;
     if (targetSide === 'left') {
-      const refSlot = number2Left || leftSlots[0];
+      const refSlot = apexSlotLeft;
       if (refSlot) {
         x = raw.includes('press') ? refSlot.x + 6 : refSlot.x + 10;
       } else {
         x = Math.round((ltX + wrLX) / 2);
       }
     } else {
-      const refSlot = number2Right || rightSlots[0];
+      const refSlot = apexSlotRight;
       if (refSlot) {
         x = raw.includes('press') ? refSlot.x - 6 : refSlot.x - 10;
       } else {

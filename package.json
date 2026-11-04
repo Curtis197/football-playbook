@@ -9,6 +9,8 @@
     "lint": "oxlint",
     "preview": "vite preview",
     "check:integrity": "node scripts/check-feature-integrity.mjs",
+    "check:receivers": "node scripts/run-ts.mjs scripts/simulate-receiver-numbering.ts",
+    "check:defense": "node scripts/run-ts.mjs scripts/simulate-defensive-alignment.ts",
     "test": "vitest run"
   },
   "dependencies": {
