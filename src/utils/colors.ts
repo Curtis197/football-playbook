@@ -9,21 +9,6 @@ export interface ColorSwatch {
   color: string;
 }
 
-export const PLAYER_COLOR_SWATCHES: ColorSwatch[] = [
-  { label: 'Solid Black', color: '#000000' },
-  { label: 'Clean White', color: '#ffffff' },
-  { label: 'Offense Sky', color: '#0284c7' },
-  { label: 'Defense Rose', color: '#e11d48' },
-  { label: 'Amber Gold', color: '#f59e0b' },
-  { label: 'Emerald Green', color: '#10b981' },
-  { label: 'Royal Purple', color: '#8b5cf6' },
-  { label: 'Electric Cyan', color: '#06b6d4' },
-  { label: 'Vivid Orange', color: '#ea580c' },
-  { label: 'Crimson Maroon', color: '#991b1b' },
-  { label: 'Midnight Navy', color: '#1e3a8a' },
-  { label: 'Deep Charcoal', color: '#334155' },
-];
-
 export const LINE_COLOR_SWATCHES: ColorSwatch[] = [
   { label: 'Pass Route Sky', color: '#38bdf8' },
   { label: 'Run Block Amber', color: '#f59e0b' },
@@ -67,7 +52,7 @@ export function isLightColor(colorHex: string): boolean {
 
 /**
  * What a player is drawn on, which decides the letter colour when none is set:
- * - 'field': the chalkboard canvas (keeps the black 0/0/0 default; the canvas adds its own clearance and outline)
+ * - 'field': the chalkboard canvas (keeps the black 0/0/0 default; the canvas draws a readable backdrop behind it)
  * - 'light' / 'dark': UI chrome such as the Inspector and the hover card
  */
 export type ColorSurface = 'field' | 'light' | 'dark';
@@ -102,4 +87,42 @@ export function resolvePlayerColors(
     else letterColor = isLightColor(fillColor) ? '#000000' : '#ffffff';
   }
   return { shape, nodeColor, fillColor, letterColor };
+}
+
+// ---- WCAG contrast, used to put each bare-text label on whichever backdrop reads best ----
+
+function parseHex(color: string): [number, number, number] | null {
+  const hex = color.replace('#', '').trim();
+  const full = hex.length === 3 ? hex.split('').map(c => c + c).join('') : hex.length >= 6 ? hex.slice(0, 6) : '';
+  if (!/^[0-9a-fA-F]{6}$/.test(full)) return null;
+  return [parseInt(full.slice(0, 2), 16), parseInt(full.slice(2, 4), 16), parseInt(full.slice(4, 6), 16)];
+}
+
+/** WCAG relative luminance (0 black .. 1 white). Anything that is not a hex colour counts as black. */
+export function relativeLuminance(color: string): number {
+  const channels = parseHex(color) ?? [0, 0, 0];
+  const [r, g, b] = channels.map(value => {
+    const s = value / 255;
+    return s <= 0.03928 ? s / 12.92 : ((s + 0.055) / 1.055) ** 2.4;
+  });
+  return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+}
+
+/** WCAG contrast ratio between two colours, 1 (identical) to 21 (black on white). */
+export function contrastRatio(a: string, b: string): number {
+  const [light, dark] = [relativeLuminance(a), relativeLuminance(b)].sort((x, y) => y - x);
+  return (light + 0.05) / (dark + 0.05);
+}
+
+export const LABEL_BACKDROP_LIGHT = '#f1f5f9';
+export const LABEL_BACKDROP_DARK = '#1a1f26';
+
+/**
+ * The backdrop for a bare-text label: light or dark, whichever contrasts more with the label colour. The stored
+ * colour is never changed, so the black 0/0/0 default stays black and is simply drawn on a light disc.
+ */
+export function readableBackdrop(letterColor: string): string {
+  return contrastRatio(letterColor, LABEL_BACKDROP_LIGHT) >= contrastRatio(letterColor, LABEL_BACKDROP_DARK)
+    ? LABEL_BACKDROP_LIGHT
+    : LABEL_BACKDROP_DARK;
 }

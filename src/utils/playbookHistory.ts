@@ -1,5 +1,4 @@
 import type { Play, PlaybookFile } from '../types/playbook';
-import { INITIAL_PLAYBOOK } from '../data/presets';
 
 /**
  * Undo/redo keeps whole-playbook snapshots. Edits that arrive within COALESCE_MS of each other
@@ -74,10 +73,12 @@ export function replacePresent(history: PlaybookHistory, present: PlaybookFile):
   return { ...history, present };
 }
 
-/** Local edits always win; the cloud only contributes plays this device does not have. */
+/**
+ * Local edits always win; the cloud only contributes plays this device does not have. The built-in plays are
+ * not re-added here: they arrive with a fresh install, and a built-in play the user deleted must stay deleted.
+ */
 export function mergeCloudPlays(local: PlaybookFile, remote: Play[]): PlaybookFile {
   const merged = new Map<string, Play>();
-  INITIAL_PLAYBOOK.plays.forEach(p => merged.set(p.id, p));
   local.plays.forEach(p => merged.set(p.id, p));
   const localIds = new Set(local.plays.map(p => p.id));
   remote.forEach(p => {

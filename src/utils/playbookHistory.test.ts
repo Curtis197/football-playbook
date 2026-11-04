@@ -157,6 +157,20 @@ describe('mergeCloudPlays', () => {
     expect(merged.plays.find(p => p.id === cloudCopy.id)?.name).toBe('My local edit');
   });
 
+  it('does not bring back a built-in play the user deleted', () => {
+    const withoutFirst: PlaybookFile = { ...INITIAL_PLAYBOOK, plays: INITIAL_PLAYBOOK.plays.slice(1) };
+    const merged = mergeCloudPlays(withoutFirst, []);
+    expect(merged.plays.map(p => p.id)).toEqual(withoutFirst.plays.map(p => p.id));
+    expect(merged.plays.some(p => p.id === INITIAL_PLAYBOOK.plays[0].id)).toBe(false);
+  });
+
+  it('does not bring it back when the cloud has other plays either', () => {
+    const withoutFirst: PlaybookFile = { ...INITIAL_PLAYBOOK, plays: INITIAL_PLAYBOOK.plays.slice(1) };
+    const merged = mergeCloudPlays(withoutFirst, [remoteOnly]);
+    expect(merged.plays.some(p => p.id === INITIAL_PLAYBOOK.plays[0].id)).toBe(false);
+    expect(merged.plays.some(p => p.id === 'cloud-only')).toBe(true);
+  });
+
   it('adds plays that exist only in the cloud', () => {
     const merged = mergeCloudPlays(INITIAL_PLAYBOOK, [remoteOnly]);
     expect(merged.plays.some(p => p.id === 'cloud-only')).toBe(true);

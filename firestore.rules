@@ -1,0 +1,84 @@
+rules_version = '2';
+
+// Firestore rules for the Antigravity Football Playbook.
+//
+// WHAT THEY DO
+//   - Only the three collections the app uses can be touched (plays, formations, runTemplates).
+//     Everything else is closed.
+//   - Every write must look like the thing it claims to be: the document id matches the id inside it, the name is
+//     real text, the lists and the number of fields stay within sane limits. Junk and oversized documents are refused.
+//
+// WHAT THEY CANNOT DO
+//   The app has no sign-in, so these rules have no idea WHO is writing. Anyone who has the app's web configuration
+//   (it ships inside the page) can still read, overwrite or delete plays, formations and run templates. Closing that
+//   needs sign-in (for example Firebase Anonymous or Google sign-in plus an owner field on every document). That is a
+//   product decision, not a rules tweak, and it changes how the app is used.
+//
+// KEEP IN STEP WITH THE APP
+//   src/repoHygiene.test.ts checks that these collections match src/services/playbookDb.ts and that the limits
+//   below are not smaller than the largest built-in play, formation and template.
+//
+// BEFORE DEPLOYING
+//   Try a typical save in the Firebase console's Rules Playground or the emulator first: rules cannot be run from
+//   this repository's tests. Deploy with:  firebase deploy --only firestore:rules
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isText(value, maxLength) {
+      return value is string && value.size() > 0 && value.size() <= maxLength;
+    }
+
+    function isShortList(value, maxItems) {
+      return value is list && value.size() <= maxItems;
+    }
+
+    match /plays/{playId} {
+      function validPlay(data) {
+        return data.keys().size() <= 40
+          && data.id == playId
+          && isText(data.name, 200)
+          && isShortList(data.players, 60)
+          && isShortList(data.actions, 300);
+      }
+
+      allow read: if true;
+      allow create, update: if validPlay(request.resource.data);
+      allow delete: if true;
+    }
+
+    match /formations/{formationId} {
+      function validFormation(data) {
+        return data.keys().size() <= 30
+          && data.id == formationId
+          && isText(data.name, 200)
+          && data.side in ['offense', 'defense', 'both']
+          && isShortList(data.players, 60);
+      }
+
+      allow read: if true;
+      allow create, update: if validFormation(request.resource.data);
+      allow delete: if true;
+    }
+
+    match /runTemplates/{templateId} {
+      function validTemplate(data) {
+        return data.keys().size() <= 20
+          && data.id == templateId
+          && isText(data.name, 200)
+          && data.scheme in ['zone', 'gap']
+          && data.reviewed is bool
+          && data.rules is map;
+      }
+
+      allow read: if true;
+      allow create, update: if validTemplate(request.resource.data);
+      allow delete: if true;
+    }
+
+    // Anything not listed above is closed
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

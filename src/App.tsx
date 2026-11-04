@@ -40,6 +40,7 @@ import { morphBackfieldAlignment, detectCurrentQBPosition, type SnapAlignment } 
 import { savePlay, fetchAllPlays } from './services/playbookDb';
 import { isFirebaseConfigured } from './services/firebase';
 import { useFormationLibrary } from './hooks/useFormationLibrary';
+import { toolForKey } from './utils/toolShortcuts';
 import {
   applyEdit,
   createHistory,
@@ -238,6 +239,23 @@ export const App: React.FC = () => {
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [handleUndo, handleRedo, isAnyModalOpen, appMode]);
+
+  // V / R / B / M / O / D pick a tool. Picking a tool is a decision to edit, so it also leaves View mode, just
+  // like clicking a tool on the rail. Ignored while typing, in a modal, or with a modifier held (Ctrl+Z etc.).
+  useEffect(() => {
+    const handleToolKey = (e: KeyboardEvent) => {
+      if (e.ctrlKey || e.metaKey || e.altKey || e.shiftKey || e.repeat || isAnyModalOpen) return;
+      const target = e.target as HTMLElement | null;
+      if (target && (target.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName))) return;
+      const tool = toolForKey(e.key);
+      if (!tool) return;
+      e.preventDefault();
+      setAppMode('build');
+      setMode(tool);
+    };
+    window.addEventListener('keydown', handleToolKey);
+    return () => window.removeEventListener('keydown', handleToolKey);
+  }, [isAnyModalOpen]);
 
   // Current active play
   const currentPlay = playbook.plays.find(p => p.id === activePlayId) || playbook.plays[0] || INITIAL_PLAYBOOK.plays[0];
@@ -935,7 +953,7 @@ export const App: React.FC = () => {
         <div
           className={`fixed bottom-6 right-6 z-50 px-4 py-2.5 rounded-xl shadow-2xl text-xs font-semibold flex items-center gap-2 transition-all transform animate-bounce ${
             notification.type === 'success'
-              ? 'bg-emerald-600 text-white border border-emerald-400/40'
+              ? 'bg-emerald-700 text-white border border-emerald-400/40'
               : notification.type === 'error'
               ? 'bg-rose-700 text-white border border-rose-400/40'
               : 'bg-slate-800 text-sky-300 border border-slate-600'

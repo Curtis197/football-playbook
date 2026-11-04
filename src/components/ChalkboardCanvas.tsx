@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import type { Player, PathAction, CanvasMode, Point, AppMode, Theme } from '../types/playbook';
 import { generatePathString, getSvgCoordinates, clampFieldCoordinates, getDistance, insertPointIntoAction } from '../utils/geometry';
-import { resolvePlayerColors } from '../utils/colors';
+import { readableBackdrop, resolvePlayerColors } from '../utils/colors';
 import { analyzeOffense, calculateDefensiveAlignmentPosition } from '../utils/defensiveAlignment';
 import { translateActionPoints } from '../utils/routeAdaptation';
 
@@ -1023,7 +1023,7 @@ export const ChalkboardCanvas: React.FC<ChalkboardCanvasProps> = ({
                           cx="0"
                           cy="0"
                           r="15"
-                          fill={isLight ? "#ffffff" : "#1a1f26"}
+                          fill={readableBackdrop(textFill)}
                           opacity="0.92"
                           className="pointer-events-none"
                         />
@@ -1047,9 +1047,6 @@ export const ChalkboardCanvas: React.FC<ChalkboardCanvasProps> = ({
                       x="0"
                       y="1"
                       fill={textFill}
-                      stroke={!isLight && textFill === '#000000' && shape === 'none' ? 'rgba(255, 255, 255, 0.45)' : undefined}
-                      strokeWidth={!isLight && textFill === '#000000' && shape === 'none' ? '0.75' : undefined}
-                      style={{ paintOrder: 'stroke fill' }}
                       fontSize={shape === 'none' ? (player.label.length > 2 ? "12" : "14") : (player.label.length > 2 ? "10" : "11")}
                       fontWeight={shape === 'none' ? "900" : "bold"}
                       fontFamily="sans-serif"

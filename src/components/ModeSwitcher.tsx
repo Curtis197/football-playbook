@@ -13,6 +13,7 @@ import {
   Redo2,
   type LucideIcon
 } from 'lucide-react';
+import { TOOL_SHORTCUTS } from '../utils/toolShortcuts';
 
 interface ModeSwitcherProps {
   currentMode: CanvasMode;
@@ -127,6 +128,7 @@ export const ModeSwitcher: React.FC<ModeSwitcherProps> = ({
               type="button"
               onClick={() => handleToolClick(id)}
               aria-label={label}
+              aria-keyshortcuts={TOOL_SHORTCUTS[id]}
               aria-pressed={isActive}
               className={`flex items-center gap-3 p-2.5 rounded-lg text-left transition-all group cursor-pointer ${
                 isActive
@@ -137,11 +139,20 @@ export const ModeSwitcher: React.FC<ModeSwitcherProps> = ({
                   ? 'hover:bg-slate-100 text-slate-700 border border-transparent'
                   : 'hover:bg-slate-800/80 text-slate-400 hover:text-slate-200 border border-transparent'
               }`}
-              title={`${label}: ${desc}`}
+              title={`${label} (${TOOL_SHORTCUTS[id]}): ${desc}`}
             >
               <Icon className={`w-5 h-5 shrink-0 ${ICON_TONE[tone][isLight ? 'light' : 'dark']}`} aria-hidden="true" />
-              <div className="hidden 2xl:block overflow-hidden">
-                <div className={`text-xs font-semibold leading-none ${isActive ? (isLight ? 'text-sky-900 font-bold' : 'text-sky-300') : ''}`}>{label}</div>
+              <div className="hidden 2xl:block min-w-0 flex-1">
+                <div className="flex items-center justify-between gap-2">
+                  <span className={`truncate text-xs font-semibold leading-none ${isActive ? (isLight ? 'text-sky-900 font-bold' : 'text-sky-300') : ''}`}>{label}</span>
+                  <kbd
+                    className={`shrink-0 rounded border px-1.5 font-mono text-[10px] leading-4 ${
+                      isLight ? 'border-slate-500 bg-slate-50 text-slate-700' : 'border-slate-500 bg-slate-800 text-slate-300'
+                    }`}
+                  >
+                    {TOOL_SHORTCUTS[id]}
+                  </kbd>
+                </div>
                 <div className={`text-[10px] ${isLight ? 'text-slate-600' : 'text-slate-400'} truncate mt-0.5`}>{desc}</div>
               </div>
             </button>

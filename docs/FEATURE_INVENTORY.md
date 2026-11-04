@@ -18,7 +18,7 @@ Comprehensive catalog of capabilities and features supported in the Football Pla
   - Reusable `<defs>` SVG markers: `#arrow` (pass routes), `#tbar` (run blocks), `#dot` (motion/endpoints), `#pull-tbar`
   - Advanced Catmull-Rom to Cubic Bézier spline engine ($C^1$ continuity) with tension parameter $\alpha = 0.5$
   - Sharp Cut break geometry ($C^0$ continuity) preserving crisp directional breaks on plants, digs, outs, and posts
-  - Standalone `bezier-math.js` / `bezier-math.ts` and `RouteDrawer.js` / `RouteDrawer.ts` modules
+  - Standalone `bezier-math.ts` module (the unused `RouteDrawer` modules and the duplicate `bezier-math.js` that could shadow it were removed)
   - Shift + Click interactive creation of sharp break waypoints during route and block drawing
   - Waypoint visual differentiation: Diamonds for sharp cuts with "CUT" label, circles for smooth splines
   - In-canvas and inspector toggle for toggling between smooth arcs ($C^1$) and sharp cuts ($C^0$)
@@ -359,3 +359,11 @@ Comprehensive catalog of capabilities and features supported in the Football Pla
   - Hand edits (Inspector, "Template assignment": target, combo partner, pulls) are kept on re-aim; if the target defender disappears the line stays, greyed and labelled "target gone".
   - "Save as template" stores the rules plus the coach's hand edits (relative to slot and technique, so they apply to other fronts); "Update template" overwrites the user template the play came from; "Clear blocks" detaches the template. Saved templates live in local storage and, when cloud is configured, in the Firestore `runTemplates` collection.
   - Code: `src/utils/blockSlots.ts`, `runTemplates.ts` (resolver), `blockActions.ts`, `blockPlanApply.ts` (apply / re-aim / clear / edit / capture), `runTemplateStorage.ts`, `src/hooks/useRunTemplateLibrary.ts`, `src/data/runConcepts.ts`, `src/components/RunTemplateModal.tsx`. First automated tests in the repo: `npm test` (Vitest).
+
+## Cleanup batch: sync, shortcuts, labels, rules
+- **Deleted built-in plays stay deleted**: cloud sync no longer re-seeds the built-in plays (`mergeCloudPlays` in `playbookHistory.ts`). Built-ins arrive with a fresh install; a play the user removed is not resurrected, and local plays still win over cloud copies. Trade-off: a brand-new built-in play shipped later will not reach existing users.
+- **Tool shortcuts**: V select, R route, B block, M motion, O offense, D defense (`src/utils/toolShortcuts.ts`). Ignored while typing in a field, with a modal open, with Ctrl/Cmd/Alt/Shift held, or on key repeat. Shown on the rail (tooltip, `aria-keyshortcuts`, and a key hint at 2xl).
+- **Chalkboard labels**: bare-text labels sit on a disc whose colour (`readableBackdrop` in `colors.ts`) is whichever of light/dark contrasts better with the stored letter colour. Stored colours are not changed. Black reads 19.2:1 (was 1.3:1 on the dark board). Mid-tone swatches (Sky 4.0, Rose 4.3, Purple 3.9) are the best of two backdrops but remain below the project's 4.8 line.
+- **Success toast** is `emerald-700` (white text) for contrast.
+- **Firestore rules** (`firestore.rules`, `firebase.json`): only `plays`, `formations` and `runTemplates` are open, with shape and size validation. Without sign-in they cannot restrict who writes. Not deployed; try them in the Rules Playground or emulator first.
+- **Repo hygiene test** (`src/repoHygiene.test.ts`): no `.js` file shadows a `.ts` module, rule collections match `playbookDb.ts`, rule limits are not below the largest built-in documents.

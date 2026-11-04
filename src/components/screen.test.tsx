@@ -213,6 +213,16 @@ describe('the board is never covered or cropped', () => {
   });
 });
 
+describe('tool shortcuts on the rail', () => {
+  it('each tool button announces its key and shows it in the tooltip', () => {
+    const html = rail('dark', 'build', false);
+    for (const [name, key] of [['Select', 'V'], ['Route', 'R'], ['Block', 'B'], ['Motion', 'M'], ['Offense', 'O'], ['Defense', 'D']]) {
+      expect(html, name).toContain(`aria-keyshortcuts="${key}"`);
+    }
+    expect(html).toContain('(V)');
+  });
+});
+
 describe('accessibility basics', () => {
   it('icon-only controls have names', () => {
     const html = playBar('dark', false) + rail('dark', 'build', true);
