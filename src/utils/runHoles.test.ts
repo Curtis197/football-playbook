@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { callPlaySide, isValidCall, holeX, holeName, runnerPlayer, leadBack, gapIdOf, gapLabel } from './runHoles';
+import { callPlaySide, isValidCall, holeX, holeName, holeAfterPicking, runnerPlayer, leadBack, gapIdOf, gapLabel } from './runHoles';
 import { OFFENSE_TE_RIGHT, FOUR_THREE_OVER, FULLBACK, offensePlayer } from '../test/fixtures';
 
 const holes = (players = OFFENSE_TE_RIGHT) => [0, 1, 2, 3, 4, 5, 6, 7, 8].map(h => holeX(players, h));
@@ -96,5 +96,52 @@ describe('holeName', () => {
     expect(holeName(1)).toBe('A gap, right');
     expect(holeName(4)).toBe('B gap, left');
     expect(holeName(7)).toBe('D gap, right');
+  });
+});
+
+describe('runner numbers with the labels real formations use', () => {
+  const back = (id: string, label: string, y: number) => offensePlayer(id, label, 'RB', 480, y);
+  const line = OFFENSE_TE_RIGHT.filter(p => p.position !== 'RB');
+  const ids = (players: ReturnType<typeof back>[]) =>
+    [1, 2, 3, 4].map(n => runnerPlayer([...line, ...players], n)?.id);
+
+  it('maryland I (FB1, FB2, TB): all three backs are reachable', () => {
+    expect(ids([back('FB1', 'FB1', 460), back('FB2', 'FB2', 470), back('TB', 'TB', 520)])).toEqual(['QB', 'FB1', 'TB', 'FB2']);
+  });
+
+  it('full house with unlabelled halfbacks (H1, H2, TB)', () => {
+    expect(ids([back('H1', 'H1', 470), back('H2', 'H2', 480), back('TB', 'TB', 520)])).toEqual(['QB', 'H1', 'TB', 'H2']);
+  });
+
+  it('two numbered backs (RB1, RB2): runner 4 does not repeat runner 2', () => {
+    const result = ids([back('RB1', 'RB1', 470), back('RB2', 'RB2', 500)]);
+    expect(result).toEqual(['QB', 'RB1', 'RB2', undefined]);
+  });
+
+  it('one back: he is runner 2 and 3, and there is no runner 4', () => {
+    expect(ids([back('RB1', 'RB1', 470)])).toEqual(['QB', 'RB1', 'RB1', undefined]);
+  });
+
+  it('draws no lead when the runner does not exist', () => {
+    expect(leadBack([...OFFENSE_TE_RIGHT, FULLBACK], 4)).toBeUndefined();
+    expect(leadBack([...line, back('RB1', 'RB1', 470)], 3)).toBeUndefined();
+  });
+});
+
+describe('choosing a template in the picker', () => {
+  const zone = { id: 'run-inside-zone', defaultHole: 3 };
+  const outside = { id: 'run-outside-zone', defaultHole: 5 };
+
+  it('takes the template default hole when it is a different template', () => {
+    expect(holeAfterPicking(outside, 'run-inside-zone', 1)).toBe(5);
+    expect(holeAfterPicking(outside, undefined, 1)).toBe(5);
+  });
+
+  it('keeps the play hole when the template is the one already on the play', () => {
+    expect(holeAfterPicking(zone, 'run-inside-zone', 1)).toBe(1);
+  });
+
+  it('keeps the hole when the template has no default', () => {
+    expect(holeAfterPicking({ id: 'mine' }, undefined, 6)).toBe(6);
   });
 });

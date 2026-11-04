@@ -15,10 +15,10 @@ The first run-template build chose the play side with buttons and found defender
 6. **Correction** - an uncovered lineman now combos with the nearest blocker *away* from the play side (the first build used the play-side neighbour).
 
 ## Verification
-- `npm test`: 1266 tests pass (1 expected fail already on `main`); this work adds the hole, runner, block-type, call-plumbing, gap-edit and validation tests.
+- `npm test`: 1266 tests pass (1 expected fail already on `main`); this work adds the hole, runner (including numbered labels such as FB1/FB2/RB1/H1), block-type, call-plumbing, gap-edit, picker-hole and validation tests.
 - `npm run build`, `npm run lint`, `npm run check:integrity` clean.
 - Contrast: no new colour pairs; the Hole and Runner selects reuse the Inspector selects (text 17.85 light / 16.30 dark, borders 4.76 / 3.98) and the existing picker buttons (white on sky-700 5.93).
-- Layout (arithmetic): picker content is 256px at a 320px viewport and 544px from 640px; each select is 256px then 268px against a longest label of about 224px (12.5% and 16% headroom; a select clips its own text); the hole-0 buttons need about 126px.
+- Layout (arithmetic): picker content is 256px at a 320px viewport and 544px from 640px. A select is 256px then 268px wide, minus its own padding (16px) and arrow (about 20px): 220px and 232px of text. The longest runner label is "4 · Other back (none)", about 21 characters at 12px x 0.5 = 126px (43% and 46% headroom); the longest hole label "0 · over the center" is about 114px. The hole-0 buttons need about 126px. (An earlier draft of these figures forgot the select padding and arrow.)
 
 ## Not done (deliberately)
 - Coach sign-off of the Power, Counter and Trap rules (templates stay `reviewed: false`).

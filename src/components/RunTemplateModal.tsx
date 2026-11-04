@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { X, Trash2, Lock } from 'lucide-react';
 import type { PlaySide, Player, RunCall, RunTemplate, Theme } from '../types/playbook';
-import { holeName, isValidCall, runnerPlayer } from '../utils/runHoles';
+import { holeAfterPicking, holeName, isValidCall, runnerPlayer } from '../utils/runHoles';
 
 /** "3 · B gap, right": the number a coach calls, and where it is. */
 const holeLabel = (hole: number) => `${hole} · ${holeName(hole)}`;
@@ -37,7 +37,10 @@ const RunPicker: React.FC<RunTemplateModalProps> = ({
   theme = 'dark'
 }) => {
   // Mounted fresh on every opening, so it starts from the play's own call with no template picked
-  const [selectedId, setSelectedId] = useState<string | null>(null);
+  // The template already on the play starts selected, so its call can be changed without picking again
+  const [selectedId, setSelectedId] = useState<string | null>(
+    templates.some(t => t.id === currentTemplateId) ? currentTemplateId ?? null : null
+  );
   const [hole, setHole] = useState(currentCall?.hole ?? 3);
   const [runner, setRunner] = useState(currentCall?.runner ?? 3);
   const [side, setSide] = useState<PlaySide | null>(currentCall?.hole === 0 ? currentCall.side ?? null : null);
@@ -69,7 +72,7 @@ const RunPicker: React.FC<RunTemplateModalProps> = ({
           disabled={locked}
           onClick={() => {
             setSelectedId(template.id);
-            if (template.defaultHole !== undefined) setHole(template.defaultHole);
+            setHole(holeAfterPicking(template, currentTemplateId, hole));
           }}
           className={`block w-full min-w-0 break-words text-left cursor-pointer disabled:cursor-not-allowed outline-none focus-visible:ring-2 focus-visible:ring-sky-500 rounded ${template.builtIn ? '' : 'pr-7'}`}
           aria-pressed={isSelected}
@@ -145,7 +148,7 @@ const RunPicker: React.FC<RunTemplateModalProps> = ({
               >
                 {[1, 2, 3, 4].map(n => {
                   const who = runnerPlayer(players, n);
-                  return <option key={n} value={n}>{n} · {RUNNER_ROLES[n - 1]}{who ? ` (${who.label})` : ' (none on the field)'}</option>;
+                  return <option key={n} value={n}>{n} · {RUNNER_ROLES[n - 1]}{who ? ` (${who.label})` : ' (none)'}</option>;
                 })}
               </select>
             </label>

@@ -63,41 +63,66 @@ export function holeX(players: Player[], hole: number): number {
   return (bodies[k - 1] + bodies[k]) / 2;
 }
 
-const FULLBACK_LABELS = new Set(['FB', 'F']);
-const TAILBACK_LABELS = new Set(['TB', 'HB', 'RB', 'B']);
+// Real formations number their backs (FB1, FB2, RB1, H1), so a label counts with or without a trailing number
+const FULLBACK_LABEL = /^(FB|F)\d*$/;
+const TAILBACK_LABEL = /^(TB|HB|RB|B)\d*$/;
 
 function backsOf(players: Player[]): { qb: Player | undefined; backs: Player[] } {
   const offense = players.filter(p => p.side === 'offense');
   const reference = getOffenseReference(offense);
   const qb = offense.find(p => resolveOffensePosition(p, reference) === 'QB');
   const backs = offense.filter(p => resolveOffensePosition(p, reference) === 'RB');
-  const distanceToQb = (p: Player) => (qb ? Math.hypot(p.x - qb.x, p.y - qb.y) : -p.y);
+  // Nearest the QB first. With no QB, shallowest first (the back closest to the line is the closest to the ball).
+  const distanceToQb = (p: Player) => (qb ? Math.hypot(p.x - qb.x, p.y - qb.y) : p.y);
   return { qb, backs: backs.sort((a, b) => distanceToQb(a) - distanceToQb(b)) };
 }
 
 const labelOf = (p: Player) => p.label.trim().toUpperCase();
 
+/** The tailback, then the fullback, then whoever is left. A single back is both the fullback and the tailback. */
+function backRoles(backs: Player[]): { fullback?: Player; tailback?: Player; other?: Player } {
+  if (backs.length === 0) return {};
+  const labelledTailbacks = backs.filter(p => TAILBACK_LABEL.test(labelOf(p)));
+  const tailback = labelledTailbacks[labelledTailbacks.length - 1] ?? backs[backs.length - 1];
+  const rest = backs.filter(p => p !== tailback);
+  const fullback = rest.find(p => FULLBACK_LABEL.test(labelOf(p))) ?? rest[0] ?? tailback;
+  const other = backs.find(p => p !== tailback && p !== fullback);
+  return { fullback, tailback, other };
+}
+
 /** 1 QB, 2 fullback, 3 tailback, 4 the remaining back. Undefined when the formation has no such player. */
 export function runnerPlayer(players: Player[], runner: number): Player | undefined {
   const { qb, backs } = backsOf(players);
   if (runner === 1) return qb;
-  const fullback = backs.find(p => FULLBACK_LABELS.has(labelOf(p))) ?? backs[0];
-  const tailback = backs.find(p => TAILBACK_LABELS.has(labelOf(p))) ?? backs[backs.length - 1];
-  if (runner === 2) return fullback;
-  if (runner === 3) return tailback;
-  if (runner === 4) {
-    const labelledFb = backs.find(p => FULLBACK_LABELS.has(labelOf(p)));
-    const labelledTb = backs.find(p => TAILBACK_LABELS.has(labelOf(p)));
-    return backs.find(p => p !== labelledFb && p !== labelledTb);
-  }
+  const roles = backRoles(backs);
+  if (runner === 2) return roles.fullback;
+  if (runner === 3) return roles.tailback;
+  if (runner === 4) return roles.other;
   return undefined;
 }
 
-/** The back who blocks for the runner: any back that is not the runner, nearest the QB first. */
+/**
+ * The back who blocks for the runner: any back that is not the runner, nearest the QB first.
+ * When the runner does not exist on the field there is nobody to lead for, so there is no lead back.
+ */
 export function leadBack(players: Player[], runner: number): Player | undefined {
-  const { backs } = backsOf(players);
   const carrier = runnerPlayer(players, runner);
+  if (!carrier) return undefined;
+  const { backs } = backsOf(players);
   return backs.find(p => p !== carrier);
+}
+
+/**
+ * The hole to use after the coach clicks a template: its default hole, unless it is the template already on
+ * the play (then the play's own hole stays) or it has no default.
+ */
+export function holeAfterPicking(
+  template: { id: string; defaultHole?: number },
+  currentTemplateId: string | undefined,
+  currentHole: number
+): number {
+  if (template.id === currentTemplateId || template.defaultHole === undefined) return currentHole;
+  return template.defaultHole;
 }
 
 const GAP_LETTERS: GapLetter[] = ['A', 'B', 'C', 'D'];
