@@ -7,13 +7,22 @@ const tpl = (id: string, name = id): RunTemplate => ({ id, name, scheme: 'zone',
 afterEach(() => vi.unstubAllGlobals());
 
 describe('mergeRunTemplateSources', () => {
-  it('prefers device over cloud over built-in for the same id and lists custom templates first', () => {
+  it('prefers device over cloud for the same custom id and lists custom templates first', () => {
     const merged = mergeRunTemplateSources(
       [{ ...tpl('a', 'built-in a'), builtIn: true }, { ...tpl('b'), builtIn: true }],
-      [tpl('a', 'cloud a'), tpl('c', 'cloud c')],
+      [tpl('c', 'cloud c'), tpl('d', 'cloud d')],
+      [tpl('c', 'device c')]
+    );
+    expect(merged.map(t => `${t.id}:${t.name}`)).toEqual(['c:device c', 'd:cloud d', 'a:built-in a', 'b:b']);
+  });
+
+  it('never lets a stored template shadow or replace a built-in id', () => {
+    const merged = mergeRunTemplateSources(
+      [{ ...tpl('a', 'built-in a'), builtIn: true }],
+      [tpl('a', 'cloud a')],
       [tpl('a', 'device a')]
     );
-    expect(merged.map(t => `${t.id}:${t.name}`)).toEqual(['c:cloud c', 'a:device a', 'b:b']);
+    expect(merged.map(t => `${t.id}:${t.name}`)).toEqual(['a:built-in a']);
   });
 });
 
@@ -44,6 +53,17 @@ describe('stored run templates', () => {
 });
 
 describe('normalizeRunTemplate', () => {
+  it('fails closed: a template is unreviewed unless it says reviewed: true', () => {
+    const { reviewed: _dropped, ...withoutFlag } = tpl('t');
+    expect(normalizeRunTemplate(withoutFlag)?.reviewed).toBe(false);
+    expect(normalizeRunTemplate({ ...tpl('t'), reviewed: 'yes' })?.reviewed).toBe(false);
+    expect(normalizeRunTemplate({ ...tpl('t'), reviewed: true })?.reviewed).toBe(true);
+  });
+
+  it('ignores a stored builtIn flag', () => {
+    expect(normalizeRunTemplate({ ...tpl('t'), builtIn: true })?.builtIn).toBeUndefined();
+  });
+
   it('rejects unknown rule kinds and slots but keeps the rest', () => {
     const normalized = normalizeRunTemplate({ ...tpl('t'), rules: { c: { kind: 'zone' }, bogus: { kind: 'zone' }, og_ps: { kind: 'nope' } } });
     expect(normalized?.rules).toEqual({ c: { kind: 'zone' } });

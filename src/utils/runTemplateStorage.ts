@@ -30,7 +30,10 @@ function normalizeOverride(raw: unknown): TemplateOverride | undefined {
   return override;
 }
 
-/** Checks an untrusted run template (localStorage, Firestore). Unreadable parts are dropped; no id or name rejects it. */
+/**
+ * Checks an untrusted run template (localStorage, Firestore). Unreadable parts are dropped; no id or name rejects it.
+ * It fails closed: only an explicit `reviewed: true` counts as reviewed, and `builtIn` is never read from storage.
+ */
 export function normalizeRunTemplate(raw: unknown): RunTemplate | undefined {
   if (!isRecord(raw) || !isText(raw.id) || !isText(raw.name)) return undefined;
   if (raw.scheme !== 'zone' && raw.scheme !== 'gap') return undefined;
@@ -44,8 +47,7 @@ export function normalizeRunTemplate(raw: unknown): RunTemplate | undefined {
     }
   }
 
-  const template: RunTemplate = { id: raw.id, name: raw.name, scheme: raw.scheme, reviewed: raw.reviewed !== false, rules };
-  if (raw.builtIn === true) template.builtIn = true;
+  const template: RunTemplate = { id: raw.id, name: raw.name, scheme: raw.scheme, reviewed: raw.reviewed === true, rules };
   if (typeof raw.description === 'string') template.description = raw.description;
   if (typeof raw.updatedAt === 'string') template.updatedAt = raw.updatedAt;
   if (Array.isArray(raw.overrides)) {
@@ -78,11 +80,13 @@ export function saveStoredRunTemplates(templates: RunTemplate[]): void {
   }
 }
 
-/** Same id: this device's copy wins, then the cloud's, then the built-in. Custom templates come before the built-ins. */
+/**
+ * Same custom id: this device's copy wins over the cloud's. Built-ins are never replaced or shadowed by stored
+ * templates, so a stored copy cannot unlock a rule set the coach has not reviewed. Custom templates come first.
+ */
 export function mergeRunTemplateSources(builtIn: RunTemplate[], remote: RunTemplate[], deviceOnly: RunTemplate[]): RunTemplate[] {
-  const merged = new Map<string, RunTemplate>();
-  [...builtIn, ...remote, ...deviceOnly].forEach(t => merged.set(t.id, t));
   const builtInIds = new Set(builtIn.map(t => t.id));
-  const all = Array.from(merged.values());
-  return [...all.filter(t => !builtInIds.has(t.id)), ...all.filter(t => builtInIds.has(t.id))];
+  const custom = new Map<string, RunTemplate>();
+  [...remote, ...deviceOnly].filter(t => !builtInIds.has(t.id)).forEach(t => custom.set(t.id, t));
+  return [...custom.values(), ...builtIn];
 }

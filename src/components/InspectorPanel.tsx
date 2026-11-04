@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import type { Player, PathAction, Play, ActionType, AppMode, Point, Theme, AlignmentLeverage, Formation, PlayerPosition } from '../types/playbook';
+import type { AssignmentChange } from '../utils/blockPlanApply';
 import { resolveFormation } from '../utils/playMigrations';
 import { 
   Compass, 
@@ -66,6 +67,7 @@ interface InspectorPanelProps {
   }) => void;
   onUpdatePlayFormations: (offense: string, defense: string) => void;
   formations?: Formation[];
+  onEditAssignment?: (assignmentId: string, change: AssignmentChange) => void;
 }
 
 export const InspectorPanel: React.FC<InspectorPanelProps> = ({
@@ -81,7 +83,8 @@ export const InspectorPanel: React.FC<InspectorPanelProps> = ({
   onUpdatePlayNotes,
   onUpdateStrategyMatrix,
   onUpdatePlayFormations,
-  formations = []
+  formations = [],
+  onEditAssignment
 }) => {
   const isLight = theme === 'light';
   // View mode is read-only. Forms sit inside a disabled fieldset: text stays fully readable (their colours are
@@ -1459,6 +1462,79 @@ export const InspectorPanel: React.FC<InspectorPanelProps> = ({
                     <Plus className="w-3.5 h-3.5" />
                     <span>Decompose Path / Add Waypoint</span>
                   </button>
+
+                  {/* Template assignment: editing any of these marks the block as a hand edit that re-aiming keeps */}
+                  {selectedAction.assignmentId && onEditAssignment && (() => {
+                    const assignment = currentPlay.blockPlan?.assignments.find(a => a.id === selectedAction.assignmentId);
+                    if (!assignment) return null;
+                    const defenders = currentPlay.players.filter(p => p.side === 'defense');
+                    const blockers = currentPlay.blockPlan!.assignments.filter(a => a.playerId !== assignment.playerId);
+                    const targetValue = assignment.target.type === 'defender'
+                      ? `def:${assignment.target.playerId}`
+                      : assignment.target.type === 'level' ? 'level' : 'none';
+                    const selectClass = `w-full px-2 py-1 rounded border text-xs ${isLight ? 'bg-white border-slate-500 text-slate-900' : 'bg-slate-900 border-slate-500 text-slate-100'}`;
+                    const labelClass = `block text-[11px] font-bold mb-1 ${isLight ? 'text-slate-800' : 'text-slate-200'}`;
+                    return (
+                      <div className={`mt-3 pt-3 border-t space-y-2 ${isLight ? 'border-slate-200' : 'border-slate-800'}`}>
+                        <div className="flex items-center justify-between">
+                          <span className={`text-[11px] font-bold uppercase tracking-wider ${isLight ? 'text-sky-800' : 'text-sky-300'}`}>Template assignment</span>
+                          {assignment.override && (
+                            <span className={`text-[10px] px-1.5 py-0.5 rounded border font-bold ${isLight ? 'bg-sky-100 text-sky-900 border-sky-700' : 'bg-sky-950 text-sky-200 border-sky-500'}`}>Hand edit</span>
+                          )}
+                        </div>
+                        {assignment.stale && (
+                          <p className={`text-[11px] font-semibold ${isLight ? 'text-rose-800' : 'text-rose-300'}`}>
+                            Target gone. Pick another or clear the blocks.
+                          </p>
+                        )}
+                        <label className="block">
+                          <span className={labelClass}>Blocks</span>
+                          <select
+                            aria-label="Block target"
+                            value={targetValue}
+                            onChange={(e) => {
+                              const v = e.target.value;
+                              if (v === 'level') onEditAssignment(assignment.id, { target: { type: 'level', level: 'second' } });
+                              else if (v === 'none') onEditAssignment(assignment.id, { target: { type: 'none' } });
+                              else onEditAssignment(assignment.id, { target: { type: 'defender', playerId: v.slice(4) } });
+                            }}
+                            className={selectClass}
+                          >
+                            {assignment.stale && assignment.target.type === 'defender' && (
+                              <option value={targetValue}>(gone) {assignment.target.playerId}</option>
+                            )}
+                            <option value="level">Second level (nearest linebacker)</option>
+                            {defenders.map(d => (
+                              <option key={d.id} value={`def:${d.id}`}>{d.label}{d.technique ? ` (${d.technique})` : ''}</option>
+                            ))}
+                            <option value="none">Nobody</option>
+                          </select>
+                        </label>
+                        <label className="block">
+                          <span className={labelClass}>Combo with</span>
+                          <select
+                            aria-label="Combo partner"
+                            value={assignment.comboWith ?? ''}
+                            onChange={(e) => onEditAssignment(assignment.id, { comboWith: e.target.value === '' ? null : e.target.value })}
+                            className={selectClass}
+                          >
+                            <option value="">Nobody</option>
+                            {blockers.map(b => (
+                              <option key={b.playerId} value={b.playerId}>{currentPlay.players.find(p => p.id === b.playerId)?.label ?? b.playerId}</option>
+                            ))}
+                          </select>
+                        </label>
+                        <label className={`flex items-center gap-2 text-xs font-semibold ${isLight ? 'text-slate-800' : 'text-slate-200'}`}>
+                          <input
+                            type="checkbox"
+                            checked={assignment.pulls === true}
+                            onChange={(e) => onEditAssignment(assignment.id, { pulls: e.target.checked })}
+                          />
+                          Pulls
+                        </label>
+                      </div>
+                    );
+                  })()}
 
                   {/* Combo & Option Block (Restart) */}
                   {(selectedAction.type === 'run_block' || selectedAction.type === 'pull_block') && (

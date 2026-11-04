@@ -104,7 +104,8 @@ export async function fetchRunTemplates(): Promise<RunTemplate[]> {
     const snapshot = await getDocs(collection(db, RUN_TEMPLATES_COLLECTION));
     const templates: RunTemplate[] = [];
     snapshot.forEach(docSnap => {
-      const template = normalizeRunTemplate(docSnap.data());
+      // The document id is the identity; an id written inside the body cannot point at another template
+      const template = normalizeRunTemplate({ ...docSnap.data(), id: docSnap.id });
       if (template) templates.push(template);
     });
     return templates;

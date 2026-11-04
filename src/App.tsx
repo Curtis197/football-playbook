@@ -10,6 +10,7 @@ import type {
   Theme,
   Point,
   Formation,
+  RunTemplate,
   RouteAdaptationMode
 } from './types/playbook';
 import { INITIAL_PLAYBOOK } from './data/presets';
@@ -32,12 +33,15 @@ import { SituationMatrixModal } from './components/SituationMatrixModal';
 import { PlayLibraryModal } from './components/PlayLibraryModal';
 import { FormationSwitcherModal } from './components/FormationSwitcherModal';
 import { DefenseFrontModal } from './components/DefenseFrontModal';
+import { RunTemplateModal, type RequestedPlaySide } from './components/RunTemplateModal';
 import { shiftDefensiveFront, realignAllDefenders, analyzeOffense } from './utils/defensiveAlignment';
 import { applyFormationToPlay, buildFormationFromPlay, captureFormationPlayers, formationHasPlayers } from './utils/formationApply';
 import { morphBackfieldAlignment, detectCurrentQBPosition, type SnapAlignment } from './utils/formationBackfield';
 import { savePlay, fetchAllPlays } from './services/playbookDb';
 import { isFirebaseConfigured } from './services/firebase';
 import { useFormationLibrary } from './hooks/useFormationLibrary';
+import { useRunTemplateLibrary } from './hooks/useRunTemplateLibrary';
+import { applyRunTemplate, captureRunTemplate, clearBlocks, editAssignment, reaimBlocks, resolvePlaySide, type AssignmentChange } from './utils/blockPlanApply';
 
 // Undo/redo keeps whole-playbook snapshots. Edits that arrive within COALESCE_MS of each other
 // (a drag, typing in a field) share one undo step.
@@ -116,6 +120,7 @@ export const App: React.FC = () => {
   const [isLibraryModalOpen, setIsLibraryModalOpen] = useState(false);
   const [isFormationsModalOpen, setIsFormationsModalOpen] = useState(false);
   const [isDefenseModalOpen, setIsDefenseModalOpen] = useState(false);
+  const [isRunModalOpen, setIsRunModalOpen] = useState(false);
   const [showGaps, setShowGaps] = useState(true);
   const [cloudSyncStatus, setCloudSyncStatus] = useState<CloudSyncStatus>('idle');
   const [notification, setNotification] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);
@@ -127,6 +132,12 @@ export const App: React.FC = () => {
     remove: removeFormation,
     seedDefaults: seedFormationDefaults
   } = useFormationLibrary();
+  const {
+    templates: runTemplates,
+    refresh: refreshRunTemplates,
+    upsert: upsertRunTemplate,
+    remove: removeRunTemplate
+  } = useRunTemplateLibrary();
   const [routeAdaptationMode, setRouteAdaptationMode] = useState<RouteAdaptationMode>('player_relative');
 
   // Background cloud sync changes the playbook without creating an undo step
@@ -191,7 +202,8 @@ export const App: React.FC = () => {
   // Formations come from the same place on startup as everywhere else
   useEffect(() => {
     void refreshFormations();
-  }, [refreshFormations]);
+    void refreshRunTemplates();
+  }, [refreshFormations, refreshRunTemplates]);
 
   // Tell the user when stored data had to be repaired or set aside on startup
   useEffect(() => {
@@ -265,7 +277,7 @@ export const App: React.FC = () => {
     showNotification('Redid change', 'info');
   }, [canRedo, showNotification]);
 
-  const isAnyModalOpen = isMatrixModalOpen || isLibraryModalOpen || isFormationsModalOpen || isDefenseModalOpen;
+  const isAnyModalOpen = isMatrixModalOpen || isLibraryModalOpen || isFormationsModalOpen || isDefenseModalOpen || isRunModalOpen;
 
   // Ctrl/Cmd+Z undo, Ctrl/Cmd+Shift+Z or Ctrl/Cmd+Y redo. Text fields keep their own native undo.
   useEffect(() => {
@@ -598,12 +610,67 @@ export const App: React.FC = () => {
     return detectCurrentQBPosition(currentPlay.players);
   }, [currentPlay.players]);
 
+  // Run templates: blocks follow the formation, front and play side, inside the same undo step as the change
+  const reaim = (p: Play): Play => reaimBlocks(p, runTemplates);
+
+  const handleApplyRunTemplate = (template: RunTemplate, requested: RequestedPlaySide) => {
+    const side = resolvePlaySide(requested, currentPlay.players);
+    if (!side) {
+      showNotification('This formation has no clear strong side. Pick left or right.', 'error');
+      return;
+    }
+    const replaced = currentPlay.actions.filter(a => a.type === 'run_block' || a.type === 'pull_block').length;
+    updateCurrentPlay(p => applyRunTemplate(p, template, side));
+    setSelectedPlayerId(null);
+    setSelectedActionId(null);
+    setIsRunModalOpen(false);
+    const replacedNote = replaced > 0 ? ` Replaced ${replaced} existing blocking line${replaced === 1 ? '' : 's'}.` : '';
+    showNotification(`Applied "${template.name}" to the ${side}.${replacedNote}`, 'success');
+  };
+
+  const handleClearBlocks = () => {
+    updateCurrentPlay(p => clearBlocks(p));
+    setSelectedActionId(null);
+    showNotification('Cleared the template blocks', 'info');
+  };
+
+  const handleEditAssignment = (assignmentId: string, change: AssignmentChange) => {
+    updateCurrentPlay(p => editAssignment(p, assignmentId, change));
+  };
+
+  const reportRunTemplateOutcome = (name: string, outcome: Awaited<ReturnType<typeof upsertRunTemplate>>) => {
+    if (outcome.storedIn === 'cloud') showNotification(`Saved "${name}"`, 'success');
+    else showNotification(`Saved "${name}" on this device only (cloud: ${outcome.reason})`, 'info');
+  };
+
+  const handleSaveRunTemplate = async () => {
+    const plan = currentPlay.blockPlan;
+    const base = plan && runTemplates.find(t => t.id === plan.templateId);
+    if (!plan || !base) {
+      showNotification('Apply a run template first, then save it.', 'error');
+      return;
+    }
+    const name = window.prompt('Name for the new run template', `${base.name} (mine)`)?.trim();
+    if (!name) return;
+    const saved = captureRunTemplate(currentPlay, base, name);
+    reportRunTemplateOutcome(name, await upsertRunTemplate(saved));
+    updateCurrentPlay(p => (p.blockPlan ? { ...p, blockPlan: { ...p.blockPlan, templateId: saved.id } } : p));
+  };
+
+  const handleUpdateRunTemplate = async () => {
+    const plan = currentPlay.blockPlan;
+    const base = plan && runTemplates.find(t => t.id === plan.templateId);
+    if (!plan || !base || base.builtIn) return;
+    const saved = captureRunTemplate(currentPlay, base, base.name, base.id);
+    reportRunTemplateOutcome(base.name, await upsertRunTemplate(saved));
+  };
+
   // Morph backfield alignment between Down Center, Pistol, and Shotgun
   const handleMorphBackfield = (targetAlignment: SnapAlignment) => {
     const result = morphBackfieldAlignment(currentPlay.players, currentPlay.actions, targetAlignment);
     if (result.previousAlignment === result.newAlignment) return;
 
-    updateCurrentPlay(p => ({
+    updateCurrentPlay(p => reaim({
       ...p,
       players: result.players,
       actions: result.actions
@@ -621,13 +688,13 @@ export const App: React.FC = () => {
   const handleApplyDefenders = (updatedDefenders: Player[], frontName?: string) => {
     updateCurrentPlay(p => {
       const nonDefenders = p.players.filter(pl => pl.side !== 'defense');
-      return {
+      return reaim({
         ...p,
         frontDefense: frontName || p.frontDefense,
         // A defense package is not a saved template, so a package name must not keep a stale template link
         frontDefenseId: frontName ? undefined : p.frontDefenseId,
         players: [...nonDefenders, ...updatedDefenders]
-      };
+      });
     });
   };
 
@@ -635,7 +702,7 @@ export const App: React.FC = () => {
   const handleShiftDefense = (direction: 'left' | 'right' | 'over' | 'under' | 'pinch' | 'fan') => {
     const structure = analyzeOffense(currentPlay.players);
     const updated = shiftDefensiveFront(currentPlay.players, structure, direction);
-    updateCurrentPlay(p => ({
+    updateCurrentPlay(p => reaim({
       ...p,
       players: updated
     }));
@@ -654,7 +721,7 @@ export const App: React.FC = () => {
   const handleRealignDefense = () => {
     const structure = analyzeOffense(currentPlay.players);
     const updated = realignAllDefenders(currentPlay.players, structure);
-    updateCurrentPlay(p => ({
+    updateCurrentPlay(p => reaim({
       ...p,
       players: updated
     }));
@@ -671,7 +738,7 @@ export const App: React.FC = () => {
       showNotification(`"${formation.name}" has no players to apply.`, 'error');
       return;
     }
-    updateCurrentPlay(p => applyFormationToPlay(p, formation, { routeMode, keepRoutes }));
+    updateCurrentPlay(p => reaim(applyFormationToPlay(p, formation, { routeMode, keepRoutes })));
     setSelectedPlayerId(null);
     setSelectedActionId(null);
     const routesNote = formation.side === 'defense'
@@ -839,6 +906,12 @@ export const App: React.FC = () => {
               showNotification(`Route Adaptation: ${next === 'player_relative' ? 'Relative to Player' : '#1/#2/#3 Concept Outside'}`, 'info');
             }}
             onToggleShowGaps={handleToggleShowGaps}
+            onOpenRunTemplates={() => setIsRunModalOpen(true)}
+            hasBlockPlan={Boolean(currentPlay.blockPlan)}
+            canUpdateRunTemplate={Boolean(currentPlay.blockPlan && runTemplates.find(t => t.id === currentPlay.blockPlan!.templateId && !t.builtIn))}
+            onSaveRunTemplate={() => { void handleSaveRunTemplate(); }}
+            onUpdateRunTemplate={() => { void handleUpdateRunTemplate(); }}
+            onClearBlocks={handleClearBlocks}
             onShiftDefense={handleShiftDefense}
             onRealignDefense={handleRealignDefense}
             onOpenDefensePackages={() => setIsDefenseModalOpen(true)}
@@ -876,6 +949,7 @@ export const App: React.FC = () => {
           onSelectPlayer={setSelectedPlayerId}
 
           onStartRestartBlock={handleStartRestartBlock}
+          onEditAssignment={handleEditAssignment}
           onUpdatePlayer={(updated) => {
             updateCurrentPlay(p => ({
               ...p,
@@ -961,6 +1035,18 @@ export const App: React.FC = () => {
         routeAdaptationMode={routeAdaptationMode}
         onSetRouteAdaptationMode={setRouteAdaptationMode}
         showNotification={showNotification}
+      />
+
+      {/* RUN TEMPLATE PICKER */}
+      <RunTemplateModal
+        isOpen={isRunModalOpen}
+        onClose={() => setIsRunModalOpen(false)}
+        templates={runTemplates}
+        players={currentPlay.players}
+        currentTemplateId={currentPlay.blockPlan?.templateId}
+        onApply={handleApplyRunTemplate}
+        onDeleteTemplate={(id) => { void removeRunTemplate(id); }}
+        theme={theme}
       />
 
       {/* DEFENSIVE PRE-ALIGNMENT & FRONTS MODAL */}

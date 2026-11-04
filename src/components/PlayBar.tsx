@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { ChevronDown, ChevronLeft, ChevronRight, Copy, Layers, PlusCircle, RotateCcw, Save, Shield } from 'lucide-react';
+import { ChevronDown, ChevronLeft, ChevronRight, Copy, Layers, PlusCircle, RotateCcw, Save, Shield, Zap } from 'lucide-react';
 import type { Formation, Play, PlayCategory, RouteAdaptationMode, Theme } from '../types/playbook';
 import type { SnapAlignment } from '../utils/formationBackfield';
 import { resolveFormation } from '../utils/playMigrations';
@@ -32,6 +32,13 @@ interface PlayBarProps {
   onShiftDefense: (direction: ShiftDirection) => void;
   onRealignDefense: () => void;
   onOpenDefensePackages: () => void;
+  /** Run templates: open the picker; the other three only appear once the play has template blocks */
+  onOpenRunTemplates: () => void;
+  hasBlockPlan: boolean;
+  canUpdateRunTemplate: boolean;
+  onSaveRunTemplate: () => void;
+  onUpdateRunTemplate: () => void;
+  onClearBlocks: () => void;
 }
 
 interface FormationGroup {
@@ -144,7 +151,13 @@ export const PlayBar: React.FC<PlayBarProps> = ({
   onToggleShowGaps,
   onShiftDefense,
   onRealignDefense,
-  onOpenDefensePackages
+  onOpenDefensePackages,
+  onOpenRunTemplates,
+  hasBlockPlan,
+  canUpdateRunTemplate,
+  onSaveRunTemplate,
+  onUpdateRunTemplate,
+  onClearBlocks
 }) => {
   const isLight = theme === 'light';
 
@@ -269,6 +282,35 @@ export const PlayBar: React.FC<PlayBarProps> = ({
           >
             <RotateCcw className="w-3.5 h-3.5" aria-hidden="true" />
           </button>
+        </fieldset>
+
+        {/* Run templates get their own wrapping group so the long labels never push the play controls off the bar */}
+        <fieldset disabled={isView} className={`${groupClass} flex-wrap`}>
+          <button
+            type="button"
+            onClick={onOpenRunTemplates}
+            className={primaryButtonClass(isLight)}
+            title="Choose a run template and give every blocker an assignment"
+          >
+            <Zap className="w-3.5 h-3.5" aria-hidden="true" />
+            <span>Run</span>
+          </button>
+          {hasBlockPlan && (
+            <>
+              <button type="button" onClick={onSaveRunTemplate} className={neutralButtonClass(isLight)} title="Save these blocks, with your adjustments, as a new run template">
+                <Save className="w-3 h-3" aria-hidden="true" />
+                <span>Save as template</span>
+              </button>
+              {canUpdateRunTemplate && (
+                <button type="button" onClick={onUpdateRunTemplate} className={neutralButtonClass(isLight)} title="Update the template this play came from with your adjustments">
+                  <span>Update template</span>
+                </button>
+              )}
+              <button type="button" onClick={onClearBlocks} className={accentButtonClass(isLight, 'rose')} title="Remove the template's blocks from this play">
+                <span>Clear blocks</span>
+              </button>
+            </>
+          )}
         </fieldset>
 
         <div className="ml-auto flex items-center gap-2">
