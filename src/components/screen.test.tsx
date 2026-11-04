@@ -28,6 +28,7 @@ const playBar = (theme: Theme, isView: boolean) => renderToStaticMarkup(
     onSelectOffenseFormation={noop} onSelectDefenseFront={noop} onUpdateOffenseFormation={noop} onUpdateDefenseFront={noop}
     onMorphBackfield={noop} onToggleRouteAdaptationMode={noop} onToggleShowGaps={noop} onShiftDefense={noop} onRealignDefense={noop}
     onOpenDefensePackages={noop}
+    onOpenRunTemplates={noop} hasBlockPlan={false} canUpdateRunTemplate={false} onSaveRunTemplate={noop} onUpdateRunTemplate={noop} onClearBlocks={noop}
   />
 );
 
@@ -82,7 +83,7 @@ describe.each(THEMES.flatMap(theme => MODES.map(mode => [theme, mode] as const))
 describe('View mode is read-only', () => {
   it('the play bar disables every group that edits the play, but not navigation', () => {
     const view = playBar('dark', true);
-    expect(count(view, '<fieldset disabled')).toBe(6);
+    expect(count(view, '<fieldset disabled')).toBe(7);
     expect(view.match(/<select[^>]*aria-label="Active play"[^>]*>/)?.[0]).not.toMatch(/disabled/);
     expect(view).toMatch(/aria-pressed="true"[^>]*>\s*<span>Gaps<\/span>/);
     expect(count(playBar('dark', false), '<fieldset disabled')).toBe(0);

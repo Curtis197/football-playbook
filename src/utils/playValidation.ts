@@ -1,8 +1,14 @@
 import type {
   ActionType,
+  BlockAssignment,
+  BlockKind,
+  BlockPlan,
+  BlockSlot,
+  BlockTarget,
   PathAction,
   Play,
   PlayCategory,
+  PlaySide,
   Formation,
   PlaybookFile,
   Player,
@@ -14,9 +20,9 @@ import type {
 import { DEFAULT_FORMATIONS } from '../data/presets';
 import { upgradeFormation, upgradePlay } from './playMigrations';
 
-export const PLAYBOOK_VERSION = '1.1.0';
+export const PLAYBOOK_VERSION = '1.2.0';
 // Older files are accepted and upgraded on read; anything else is rejected with a clear message.
-const READABLE_VERSIONS: readonly string[] = ['1.0.0', PLAYBOOK_VERSION];
+const READABLE_VERSIONS: readonly string[] = ['1.0.0', '1.1.0', PLAYBOOK_VERSION];
 
 const SIDES: readonly Side[] = ['offense', 'defense'];
 const POSITIONS: readonly PlayerPosition[] = ['QB', 'RB', 'WR', 'TE', 'OL', 'DL', 'LB', 'DB'];
@@ -109,9 +115,56 @@ function normalizeAction(raw: unknown, where: string): PathAction {
       : type === 'pass_route' || type === 'motion' ? 'arrow' : 'tbar'
   };
   if (action.isCurved !== undefined && typeof action.isCurved !== 'boolean') delete action.isCurved;
-  dropUnlessText(action, ['label', 'color', 'parentActionId']);
+  dropUnlessText(action, ['label', 'color', 'parentActionId', 'assignmentId']);
   if (action.branchType !== undefined && !BRANCH_TYPES.includes(action.branchType as string)) delete action.branchType;
   return action as unknown as PathAction;
+}
+
+const PLAY_SIDES: readonly PlaySide[] = ['left', 'right'];
+const BLOCK_SLOTS: readonly BlockSlot[] = ['te_ps', 'ot_ps', 'og_ps', 'c', 'og_bs', 'ot_bs', 'te_bs', 'fb'];
+const BLOCK_KINDS: readonly BlockKind[] = ['zone', 'down', 'kickout', 'trap', 'wrap', 'seal', 'lead'];
+
+function normalizeTarget(raw: unknown): BlockTarget | undefined {
+  if (!isRecord(raw)) return undefined;
+  if (raw.type === 'none') return { type: 'none' };
+  if (raw.type === 'level' && raw.level === 'second') return { type: 'level', level: 'second' };
+  if (raw.type === 'defender' && isStr(raw.playerId) && raw.playerId.length > 0) {
+    return { type: 'defender', playerId: raw.playerId };
+  }
+  if (raw.type === 'gap' && ['A', 'B', 'C', 'D'].includes(raw.gap as string) && PLAY_SIDES.includes(raw.side as PlaySide)) {
+    return { type: 'gap', gap: raw.gap as 'A' | 'B' | 'C' | 'D', side: raw.side as PlaySide };
+  }
+  return undefined;
+}
+
+function normalizeAssignment(raw: unknown): BlockAssignment | undefined {
+  if (!isRecord(raw)) return undefined;
+  if (!isStr(raw.id) || !isStr(raw.playerId) || !raw.id || !raw.playerId) return undefined;
+  if (!BLOCK_SLOTS.includes(raw.slot as BlockSlot) || !BLOCK_KINDS.includes(raw.kind as BlockKind)) return undefined;
+  const target = normalizeTarget(raw.target);
+  if (!target) return undefined;
+
+  const assignment: BlockAssignment = {
+    id: raw.id, playerId: raw.playerId, slot: raw.slot as BlockSlot, kind: raw.kind as BlockKind, target
+  };
+  if (isStr(raw.comboWith) && raw.comboWith) assignment.comboWith = raw.comboWith;
+  const climbTo = normalizeTarget(raw.climbTo);
+  if (climbTo) assignment.climbTo = climbTo;
+  if (raw.pulls === true) assignment.pulls = true;
+  if (raw.override === true) assignment.override = true;
+  if (raw.stale === true) assignment.stale = true;
+  return assignment;
+}
+
+/** A block plan with an unreadable side or template is dropped whole; unreadable assignments are dropped one by one. */
+function normalizeBlockPlan(raw: unknown): BlockPlan | undefined {
+  if (!isRecord(raw)) return undefined;
+  if (!isStr(raw.templateId) || !raw.templateId) return undefined;
+  if (!PLAY_SIDES.includes(raw.playSide as PlaySide)) return undefined;
+  const assignments = Array.isArray(raw.assignments)
+    ? raw.assignments.map(normalizeAssignment).filter((a): a is BlockAssignment => a !== undefined)
+    : [];
+  return { templateId: raw.templateId, playSide: raw.playSide as PlaySide, assignments };
 }
 
 function buildPlay(raw: unknown, warnings: string[], formations: Formation[]): Play {
@@ -171,6 +224,9 @@ function buildPlay(raw: unknown, warnings: string[], formations: Formation[]): P
     notes
   };
   dropUnlessText(play, PLAY_TEXT_FIELDS);
+  const blockPlan = normalizeBlockPlan(raw.blockPlan);
+  if (blockPlan) play.blockPlan = blockPlan;
+  else delete play.blockPlan;
   return upgradePlay(play as unknown as Play, formations);
 }
 

@@ -12,6 +12,8 @@
     "typecheck": "tsc -b",
     "test": "vitest run",
     "test:watch": "vitest",
+    "check:receivers": "node scripts/run-ts.mjs scripts/simulate-receiver-numbering.ts",
+    "check:defense": "node scripts/run-ts.mjs scripts/simulate-defensive-alignment.ts",
     "verify": "npm run lint && npm run typecheck && npm test && npm run check:integrity"
   },
   "dependencies": {

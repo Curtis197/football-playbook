@@ -50,6 +50,7 @@ export interface PathAction {
   color?: string;          // Custom color override
   parentActionId?: string; // Optional ID of parent block this action restarted from (double team or option block)
   branchType?: 'combo' | 'option'; // Optional classification for restarted block
+  assignmentId?: string;   // Set on lines generated from a BlockPlan assignment; hand-drawn lines have none
 }
 
 // 4. Complete Play Definition
@@ -83,11 +84,73 @@ export interface Play {
   players: Player[];
   actions: PathAction[];
   notes: PlayNotes;
+  blockPlan?: BlockPlan;      // Run-template block assignments (schema 1.2.0)
+}
+
+// 4b. Run templates and block assignments (schema 1.2.0)
+export type PlaySide = 'left' | 'right';
+// Slots are named relative to the play side: ps = play side, bs = backside
+export type BlockSlot = 'te_ps' | 'ot_ps' | 'og_ps' | 'c' | 'og_bs' | 'ot_bs' | 'te_bs' | 'fb';
+export type BlockKind = 'zone' | 'down' | 'kickout' | 'trap' | 'wrap' | 'seal' | 'lead';
+
+export type BlockTarget =
+  | { type: 'defender'; playerId: string }
+  | { type: 'level'; level: 'second' }
+  | { type: 'gap'; gap: 'A' | 'B' | 'C' | 'D'; side: PlaySide }
+  | { type: 'none' };
+
+export interface BlockAssignment {
+  id: string;
+  playerId: string;
+  slot: BlockSlot;
+  kind: BlockKind;
+  target: BlockTarget;
+  comboWith?: string;      // playerId of the combo partner who keeps the defender
+  climbTo?: BlockTarget;   // where the combo climbs to afterwards
+  pulls?: boolean;
+  override?: boolean;      // Hand-edited by the coach: survives re-aiming
+  stale?: boolean;         // Overridden, but its target defender no longer exists
+}
+
+export interface BlockPlan {
+  templateId: string;
+  playSide: PlaySide;
+  assignments: BlockAssignment[];
+}
+
+export interface BlockRule {
+  kind: BlockKind;
+}
+
+export type TargetRule =
+  | { by: 'technique'; technique: string }
+  | { by: 'level' }
+  | { by: 'none' }
+  | { by: 'gap'; gap: 'A' | 'B' | 'C' | 'D'; relativeSide: 'playside' | 'backside' };
+
+// A coach's hand adjustment, expressed relative to slots and techniques so it applies to other fronts
+export interface TemplateOverride {
+  slot: BlockSlot;
+  target?: TargetRule;
+  comboWithSlot?: BlockSlot | null; // null = no combo, even if the rules would add one
+  pulls?: boolean;
+}
+
+export interface RunTemplate {
+  id: string;
+  name: string;
+  scheme: 'zone' | 'gap';
+  builtIn?: boolean;
+  reviewed: boolean;        // False until the coach has signed off the rules; unreviewed templates cannot be applied
+  description?: string;
+  rules: Partial<Record<BlockSlot, BlockRule>>;
+  overrides?: TemplateOverride[];
+  updatedAt?: string;
 }
 
 // 5. Playbook Collection
 export interface PlaybookFile {
-  version: "1.1.0"; // 1.0.0 files are migrated on read (see utils/playMigrations.ts)
+  version: "1.2.0"; // 1.0.0 and 1.1.0 files are migrated on read (see utils/playMigrations.ts)
   title: string;
   philosophySummary: string;
   plays: Play[];

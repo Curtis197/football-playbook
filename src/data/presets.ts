@@ -238,7 +238,7 @@ export const PISTOL_COUNTER_TREY_PLAY: Play = {
 };
 
 const RAW_INITIAL_PLAYBOOK: PlaybookFile = {
-  version: "1.1.0",
+  version: "1.2.0",
   title: "Modern Offensive Philosophy & System Playbook",
   philosophySummary: "Multiple-personnel hybrid scheme prioritizing gap-control manipulation, high-low conflict creation against modern odd/over fronts, and complementary RPO / Boot counter-actions.",
   plays: [

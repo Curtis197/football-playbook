@@ -147,26 +147,22 @@ export function adaptRoutesToNewFormation(
       const leftIdx = oldDist.leftReceivers.findIndex(p => p.id === oldPlayer.id || p.label === oldPlayer.label);
       const rightIdx = oldDist.rightReceivers.findIndex(p => p.id === oldPlayer.id || p.label === oldPlayer.label);
 
+      // One-to-one by outside-in rank on the same side. A rank the new formation does not have is left
+      // unmapped (it falls through to player-relative below) instead of stacking on another receiver.
       if (leftIdx !== -1) {
-        // Map to same outside-in rank on the new left side
-        if (newDist.leftReceivers.length > 0) {
-          const clampedIdx = Math.min(leftIdx, newDist.leftReceivers.length - 1);
-          targetNewPlayer = newDist.leftReceivers[clampedIdx];
-        } else if (newDist.rightReceivers.length > 0) {
-          // If no left receivers, wrap to opposite side
-          targetNewPlayer = newDist.rightReceivers[0];
-        }
+        targetNewPlayer = newDist.leftReceivers[leftIdx] ?? null;
       } else if (rightIdx !== -1) {
-        // Map to same outside-in rank on the new right side
-        if (newDist.rightReceivers.length > 0) {
-          const clampedIdx = Math.min(rightIdx, newDist.rightReceivers.length - 1);
-          targetNewPlayer = newDist.rightReceivers[clampedIdx];
-        } else if (newDist.leftReceivers.length > 0) {
-          targetNewPlayer = newDist.leftReceivers[0];
-        }
-      } else if (oldDist.backfield.some(p => p.id === oldPlayer.id || p.label === oldPlayer.label)) {
-        // Backfield running back
-        targetNewPlayer = newDist.backfield[0] || null;
+        targetNewPlayer = newDist.rightReceivers[rightIdx] ?? null;
+      } else {
+        const backIdx = oldDist.backfield.findIndex(p => p.id === oldPlayer.id || p.label === oldPlayer.label);
+        if (backIdx !== -1) targetNewPlayer = newDist.backfield[backIdx] ?? null;
+      }
+
+      // A receiver or back whose rank does not exist in the new formation keeps its route untouched.
+      // Guessing a nearest player would stack two routes on one receiver.
+      const wasRanked = leftIdx !== -1 || rightIdx !== -1 || oldDist.backfield.some(p => p.id === oldPlayer.id);
+      if (wasRanked && !targetNewPlayer) {
+        return action;
       }
     }
 

@@ -45,10 +45,10 @@ describe('applyFormationToPlay: offense templates', () => {
     expect(applyFormationToPlay(wishbone, template('formation-spread-2x2'), { ...keep, keepRoutes: false }).actions).toEqual([]);
   });
 
-  it('keeps every route attached to a real player in #1/#2/#3 mode too', () => {
+  it('maps routes one-to-one without stacking in #1/#2/#3 mode', () => {
     const result = applyFormationToPlay(wishbone, template('formation-spread-2x2'), { routeMode: 'concept_numbered', keepRoutes: true });
-    const ids = new Set(result.players.map(p => p.id));
-    expect(result.actions.every(a => ids.has(a.playerId))).toBe(true);
+    const mappedToNew = result.actions.filter(a => result.players.some(p => p.id === a.playerId)).map(a => a.playerId);
+    expect(new Set(mappedToNew).size).toBe(mappedToNew.length);
   });
 
   it('does not mutate the play or the template', () => {

@@ -140,12 +140,16 @@ describe('adaptRoutesToNewFormation', () => {
     expect(spread.some(p => p.id === adapted[0].playerId)).toBe(true);
   });
 
-  it.each(offenseFormations.map(f => [f.name, f] as const))('%s: no route ends up pointing at a missing player (both modes)', (_name, formation) => {
-    for (const mode of ['player_relative', 'concept_numbered'] as const) {
-      const adapted = adaptRoutesToNewFormation(wishbone.actions, wishbone.players, formation.players, mode);
-      const ids = new Set(formation.players.map(p => p.id));
-      expect(adapted.every(a => ids.has(a.playerId)), mode).toBe(true);
-    }
+  it.each(offenseFormations.map(f => [f.name, f] as const))('%s: player_relative attaches every route to a real player', (_name, formation) => {
+    const adapted = adaptRoutesToNewFormation(wishbone.actions, wishbone.players, formation.players, 'player_relative');
+    const ids = new Set(formation.players.map(p => p.id));
+    expect(adapted.every(a => ids.has(a.playerId))).toBe(true);
+  });
+
+  it.each(offenseFormations.map(f => [f.name, f] as const))('%s: concept_numbered maps one-to-one without stacking', (_name, formation) => {
+    const adapted = adaptRoutesToNewFormation(wishbone.actions, wishbone.players, formation.players, 'concept_numbered');
+    const mappedToNew = adapted.filter(a => formation.players.some(p => p.id === a.playerId)).map(a => a.playerId);
+    expect(new Set(mappedToNew).size).toBe(mappedToNew.length);
   });
 
   it('does not mutate the routes it was given', () => {
