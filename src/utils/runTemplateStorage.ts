@@ -13,6 +13,7 @@ const isText = (value: unknown): value is string => typeof value === 'string' &&
 function normalizeTargetRule(raw: unknown): TargetRule | undefined {
   if (!isRecord(raw)) return undefined;
   if (raw.by === 'level') return { by: 'level' };
+  if (raw.by === 'none') return { by: 'none' };
   if (raw.by === 'technique' && isText(raw.technique)) return { by: 'technique', technique: raw.technique };
   if (raw.by === 'gap' && GAPS.includes(raw.gap as string) && (raw.relativeSide === 'playside' || raw.relativeSide === 'backside')) {
     return { by: 'gap', gap: raw.gap as 'A' | 'B' | 'C' | 'D', relativeSide: raw.relativeSide };
@@ -25,7 +26,8 @@ function normalizeOverride(raw: unknown): TemplateOverride | undefined {
   const override: TemplateOverride = { slot: raw.slot as BlockSlot };
   const target = normalizeTargetRule(raw.target);
   if (target) override.target = target;
-  if (SLOTS.includes(raw.comboWithSlot as BlockSlot)) override.comboWithSlot = raw.comboWithSlot as BlockSlot;
+  if (raw.comboWithSlot === null) override.comboWithSlot = null;
+  else if (SLOTS.includes(raw.comboWithSlot as BlockSlot)) override.comboWithSlot = raw.comboWithSlot as BlockSlot;
   if (typeof raw.pulls === 'boolean') override.pulls = raw.pulls;
   return override;
 }

@@ -41,7 +41,7 @@ import { savePlay, fetchAllPlays } from './services/playbookDb';
 import { isFirebaseConfigured } from './services/firebase';
 import { useFormationLibrary } from './hooks/useFormationLibrary';
 import { useRunTemplateLibrary } from './hooks/useRunTemplateLibrary';
-import { applyRunTemplate, captureRunTemplate, clearBlocks, editAssignment, reaimBlocks, resolvePlaySide, type AssignmentChange } from './utils/blockPlanApply';
+import { applyRunTemplate, captureRunTemplate, clearBlocks, editAssignment, reaimBlocks, resolvePlaySide, templateMissing, type AssignmentChange } from './utils/blockPlanApply';
 
 // Undo/redo keeps whole-playbook snapshots. Edits that arrive within COALESCE_MS of each other
 // (a drag, typing in a field) share one undo step.
@@ -613,6 +613,14 @@ export const App: React.FC = () => {
   // Run templates: blocks follow the formation, front and play side, inside the same undo step as the change
   const reaim = (p: Play): Play => reaimBlocks(p, runTemplates);
 
+  // A play whose template was deleted (or has not loaded from the cloud yet) cannot be re-aimed: say so
+  const updateAlignedPlay = (updater: (p: Play) => Play) => {
+    if (templateMissing(currentPlay, runTemplates)) {
+      showNotification('The run template for this play is not available, so its blocks were not re-aimed.', 'info');
+    }
+    updateCurrentPlay(updater);
+  };
+
   const handleApplyRunTemplate = (template: RunTemplate, requested: RequestedPlaySide) => {
     const side = resolvePlaySide(requested, currentPlay.players);
     if (!side) {
@@ -670,7 +678,7 @@ export const App: React.FC = () => {
     const result = morphBackfieldAlignment(currentPlay.players, currentPlay.actions, targetAlignment);
     if (result.previousAlignment === result.newAlignment) return;
 
-    updateCurrentPlay(p => reaim({
+    updateAlignedPlay(p => reaim({
       ...p,
       players: result.players,
       actions: result.actions
@@ -686,7 +694,7 @@ export const App: React.FC = () => {
 
   // Apply pre-aligned defenders from Defense Fronts
   const handleApplyDefenders = (updatedDefenders: Player[], frontName?: string) => {
-    updateCurrentPlay(p => {
+    updateAlignedPlay(p => {
       const nonDefenders = p.players.filter(pl => pl.side !== 'defense');
       return reaim({
         ...p,
@@ -702,7 +710,7 @@ export const App: React.FC = () => {
   const handleShiftDefense = (direction: 'left' | 'right' | 'over' | 'under' | 'pinch' | 'fan') => {
     const structure = analyzeOffense(currentPlay.players);
     const updated = shiftDefensiveFront(currentPlay.players, structure, direction);
-    updateCurrentPlay(p => reaim({
+    updateAlignedPlay(p => reaim({
       ...p,
       players: updated
     }));
@@ -721,7 +729,7 @@ export const App: React.FC = () => {
   const handleRealignDefense = () => {
     const structure = analyzeOffense(currentPlay.players);
     const updated = realignAllDefenders(currentPlay.players, structure);
-    updateCurrentPlay(p => reaim({
+    updateAlignedPlay(p => reaim({
       ...p,
       players: updated
     }));
@@ -738,7 +746,7 @@ export const App: React.FC = () => {
       showNotification(`"${formation.name}" has no players to apply.`, 'error');
       return;
     }
-    updateCurrentPlay(p => reaim(applyFormationToPlay(p, formation, { routeMode, keepRoutes })));
+    updateAlignedPlay(p => reaim(applyFormationToPlay(p, formation, { routeMode, keepRoutes })));
     setSelectedPlayerId(null);
     setSelectedActionId(null);
     const routesNote = formation.side === 'defense'
@@ -1045,7 +1053,11 @@ export const App: React.FC = () => {
         players={currentPlay.players}
         currentTemplateId={currentPlay.blockPlan?.templateId}
         onApply={handleApplyRunTemplate}
-        onDeleteTemplate={(id) => { void removeRunTemplate(id); }}
+        onDeleteTemplate={(id) => {
+          const inUse = currentPlay.blockPlan?.templateId === id;
+          if (inUse && !window.confirm('This play uses that template. If you delete it, blocks on this play stop re-aiming. Delete anyway?')) return;
+          void removeRunTemplate(id);
+        }}
         theme={theme}
       />
 

@@ -164,7 +164,7 @@ describe('captureRunTemplate', () => {
   it('turns one retargeted block into exactly one technique override', () => {
     const saved = captureRunTemplate(retargeted, zoneTemplate, 'My zone');
     expect(saved.overrides).toEqual([
-      { slot: 'og_ps', target: { by: 'technique', technique: '5-Tech Weak' } }
+      { slot: 'og_ps', target: { by: 'technique', technique: '5-Tech Backside' } }
     ]);
     expect(saved).toMatchObject({ name: 'My zone', scheme: 'zone', builtIn: false, reviewed: true });
     expect(saved.id).not.toBe(zoneTemplate.id);

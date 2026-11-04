@@ -125,13 +125,14 @@ export interface BlockRule {
 export type TargetRule =
   | { by: 'technique'; technique: string }
   | { by: 'level' }
+  | { by: 'none' }
   | { by: 'gap'; gap: 'A' | 'B' | 'C' | 'D'; relativeSide: 'playside' | 'backside' };
 
 // A coach's hand adjustment, expressed relative to slots and techniques so it applies to other fronts
 export interface TemplateOverride {
   slot: BlockSlot;
   target?: TargetRule;
-  comboWithSlot?: BlockSlot;
+  comboWithSlot?: BlockSlot | null; // null = no combo, even if the rules would add one
   pulls?: boolean;
 }
 

@@ -1,5 +1,5 @@
 import type { BlockAssignment, BlockKind, BlockPlan, BlockSlot, BlockTarget, PlaySide, Player, RunTemplate, TemplateOverride } from '../types/playbook';
-import { assignBlockSlots, firstLevelDefenders, secondLevelDefenders } from './blockSlots';
+import { assignBlockSlots, firstLevelDefenders, resolveStrongSide, secondLevelDefenders } from './blockSlots';
 
 /** How far behind a blocker a defender may be and still count as "on him" (about half a gap). */
 const TOL = 30;
@@ -84,6 +84,28 @@ function resolvePull(blocker: Blocker, ctx: Context, slots: Partial<Record<Block
     .sort((a, b) => dir * (a.x - b.x))[0];
 }
 
+const opposite = (side: PlaySide): PlaySide => (side === 'right' ? 'left' : 'right');
+
+/**
+ * "3-Tech Strong" names a side of the formation, but a saved override is read against the play side.
+ * Stored as "3-Tech Playside" / "3-Tech Backside" so the same edit means the right defender on either play side.
+ * Techniques that do not end in Strong or Weak (Left, Right, Head-up) are returned unchanged.
+ */
+export function relativeTechnique(technique: string, strongSide: PlaySide, playSide: PlaySide): string {
+  const match = /(Strong|Weak)$/.exec(technique);
+  if (!match) return technique;
+  const side = match[1] === 'Strong' ? strongSide : opposite(strongSide);
+  return technique.replace(/(Strong|Weak)$/, side === playSide ? 'Playside' : 'Backside');
+}
+
+/** The inverse of relativeTechnique for a particular formation and play side. */
+export function absoluteTechnique(technique: string, strongSide: PlaySide, playSide: PlaySide): string {
+  const match = /(Playside|Backside)$/.exec(technique);
+  if (!match) return technique;
+  const side = match[1] === 'Playside' ? playSide : opposite(playSide);
+  return technique.replace(/(Playside|Backside)$/, side === strongSide ? 'Strong' : 'Weak');
+}
+
 /**
  * A saved hand adjustment. A technique that no defender has leaves the base rule's answer in place,
  * so a template never fails on a front it was not made for.
@@ -97,8 +119,11 @@ function applyOverride(
   const result: BlockAssignment = { ...assignment };
   const rule = override.target;
   if (rule?.by === 'technique') {
-    const match = ctx.players.find(p => p.side === 'defense' && p.technique === rule.technique);
+    const wanted = absoluteTechnique(rule.technique, resolveStrongSide(ctx.players), ctx.playSide);
+    const match = ctx.players.find(p => p.side === 'defense' && p.technique === wanted);
     if (match) result.target = defenderTarget(match);
+  } else if (rule?.by === 'none') {
+    result.target = { type: 'none' };
   } else if (rule?.by === 'level') {
     result.target = { type: 'level', level: 'second' };
   } else if (rule?.by === 'gap') {
@@ -106,6 +131,10 @@ function applyOverride(
     result.target = { type: 'gap', gap: rule.gap, side: rule.relativeSide === 'playside' ? ctx.playSide : away };
   }
 
+  if (override.comboWithSlot === null) {
+    delete result.comboWith;
+    delete result.climbTo;
+  }
   const partner = override.comboWithSlot ? slots[override.comboWithSlot] : undefined;
   if (partner && partner.id !== assignment.playerId) {
     result.comboWith = partner.id;
