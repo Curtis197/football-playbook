@@ -269,3 +269,26 @@ describe('schema 1.2.0 block plans', () => {
     expect(normalizePlaybook({ version: '9.9.9', title: 't', philosophySummary: '', plays: [makePlay()] }).ok).toBe(false);
   });
 });
+
+describe('block plan calls', () => {
+  const plan = { templateId: 'run-inside-zone', playSide: 'right', assignments: [] };
+
+  it('keeps a hole and runner on a block plan', () => {
+    const result = normalizePlay({ ...makePlay(), blockPlan: { ...plan, hole: 3, runner: 2 } });
+    expect(result.ok && result.value.blockPlan).toMatchObject({ hole: 3, runner: 2, playSide: 'right' });
+  });
+
+  it('drops an out-of-range hole or runner but keeps the plan', () => {
+    const result = normalizePlay({ ...makePlay(), blockPlan: { ...plan, hole: 11, runner: 0 } });
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.value.blockPlan?.templateId).toBe('run-inside-zone');
+    expect(result.value.blockPlan?.hole).toBeUndefined();
+    expect(result.value.blockPlan?.runner).toBeUndefined();
+  });
+
+  it('reads a plan saved before runs were called by hole', () => {
+    const result = normalizePlay({ ...makePlay(), blockPlan: plan });
+    expect(result.ok && result.value.blockPlan?.hole).toBeUndefined();
+  });
+});

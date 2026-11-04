@@ -42,3 +42,6 @@ export function makePlay(overrides: Partial<Play> = {}): Play {
     ...overrides
   };
 }
+
+/** A second back, between the QB and the tailback. */
+export const FULLBACK: Player = offensePlayer('FB', 'FB', 'RB', 480, 470);
