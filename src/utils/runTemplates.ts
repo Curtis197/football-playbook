@@ -5,70 +5,83 @@ import { assignBlockSlots, firstLevelDefenders, secondLevelDefenders } from './b
 const TOL = 30;
 
 const SLOT_ORDER: BlockSlot[] = ['te_ps', 'ot_ps', 'og_ps', 'c', 'og_bs', 'ot_bs', 'te_bs', 'fb'];
-const KNOWN_KINDS: readonly BlockKind[] = ['zone', 'down', 'kickout', 'wrap', 'seal', 'lead'];
+const KNOWN_KINDS: readonly BlockKind[] = ['zone', 'down', 'kickout', 'trap', 'wrap', 'seal', 'lead'];
+const PULL_KINDS: readonly BlockKind[] = ['kickout', 'trap', 'wrap'];
 
 const defenderTarget = (player: Player): BlockTarget => ({ type: 'defender', playerId: player.id });
-
-function nearestSecondLevel(blocker: Player, players: Player[]): BlockTarget {
-  const nearest = secondLevelDefenders(players)
-    .sort((a, b) => Math.abs(a.x - blocker.x) - Math.abs(b.x - blocker.x))[0];
-  return nearest ? defenderTarget(nearest) : { type: 'none' };
-}
+const nearestTo = (x: number, list: Player[]): Player | undefined =>
+  [...list].sort((a, b) => Math.abs(a.x - x) - Math.abs(b.x - x))[0];
 
 interface Blocker {
   slot: BlockSlot;
+  kind: BlockKind;
   player: Player;
 }
 
+interface Context {
+  players: Player[];
+  playSide: PlaySide;
+  dir: 1 | -1;                // +1 when the play side is to the right
+  firstLevel: Player[];
+  /** Defenders a pulling lineman is already assigned to; nobody else blocks them. */
+  pulled: Set<string>;
+}
+
+function climbFor(player: Player, ctx: Context): BlockTarget {
+  const nearest = nearestTo(player.x, secondLevelDefenders(ctx.players));
+  return nearest ? defenderTarget(nearest) : { type: 'none' };
+}
+
 /**
- * Zone rule, applied outermost-first toward the play side:
- * 1. take the nearest first-level defender at or toward the play side;
- * 2. if there is none, help the nearest blocker toward the play side who has one, then climb;
- * 3. if that defender is already taken, the blocker nearest the play side keeps him and the rest combo, then climb.
+ * Zone, down and seal blocks, applied outermost-first toward the play side:
+ * 1. take the nearest candidate defender (zone/seal: at or toward the play side; down: strictly inside);
+ * 2. with no candidate, help the nearest blocker toward the play side who has a defender, then climb;
+ * 3. a defender already taken stays with the blocker nearest the play side; the rest combo, then climb.
  */
-function resolveZone(blockers: Blocker[], players: Player[], playSide: PlaySide): BlockAssignment[] {
-  const dir = playSide === 'right' ? 1 : -1;
+function resolveGroup(blockers: Blocker[], ctx: Context): BlockAssignment[] {
+  const { dir } = ctx;
   const ordered = [...blockers].sort((a, b) => dir * (b.player.x - a.player.x));
-  const defenders = firstLevelDefenders(players);
+  const open = ctx.firstLevel.filter(d => !ctx.pulled.has(d.id));
   const keeperOf = new Map<string, Blocker>();
   const assignments: BlockAssignment[] = [];
-  let lastWithDefender: { blocker: Blocker; defender: Player } | undefined;
+  let lastDefender: Player | undefined;
 
   for (const blocker of ordered) {
-    const { player, slot } = blocker;
-    const candidate = defenders
-      .filter(d => dir * (d.x - player.x) >= -TOL)
-      .sort((a, b) => Math.abs(a.x - player.x) - Math.abs(b.x - player.x))[0];
+    const { player, slot, kind } = blocker;
+    const eligible = kind === 'down'
+      ? open.filter(d => dir * (d.x - player.x) < 0)
+      : open.filter(d => dir * (d.x - player.x) >= -TOL);
+    const defender = nearestTo(player.x, eligible) ?? lastDefender;
 
-    let defender = candidate;
-    let helps: Blocker | undefined;
-    if (!defender && lastWithDefender) {
-      defender = lastWithDefender.defender;
-    }
-
-    const keeper = defender ? keeperOf.get(defender.id) : undefined;
-    if (defender && keeper) helps = keeper;
-    else if (defender) keeperOf.set(defender.id, blocker);
-
-    const base = { id: `${player.id}-block`, playerId: player.id, slot, kind: 'zone' as const };
+    const base = { id: `${player.id}-block`, playerId: player.id, slot, kind };
     if (!defender) {
-      const level = secondLevelDefenders(players).length > 0 && defenders.length > 0;
-      assignments.push({ ...base, target: level ? { type: 'level', level: 'second' } : { type: 'none' } });
+      const hasLevels = open.length > 0 && secondLevelDefenders(ctx.players).length > 0;
+      assignments.push({ ...base, target: hasLevels ? { type: 'level', level: 'second' } : { type: 'none' } });
       continue;
     }
-    if (helps) {
-      assignments.push({
-        ...base,
-        target: defenderTarget(defender),
-        comboWith: helps.player.id,
-        climbTo: nearestSecondLevel(player, players)
-      });
+    const keeper = keeperOf.get(defender.id);
+    if (keeper) {
+      assignments.push({ ...base, target: defenderTarget(defender), comboWith: keeper.player.id, climbTo: climbFor(player, ctx) });
     } else {
+      keeperOf.set(defender.id, blocker);
       assignments.push({ ...base, target: defenderTarget(defender) });
     }
-    lastWithDefender = { blocker: keeper ?? blocker, defender };
+    lastDefender = defender;
   }
   return assignments;
+}
+
+/** Kickout hits the outermost man on the line toward the play side; trap hits the first lineman beyond the play-side guard. */
+function resolvePull(blocker: Blocker, ctx: Context, slots: Partial<Record<BlockSlot, Player>>): Player | undefined {
+  const { dir, firstLevel } = ctx;
+  if (blocker.kind === 'kickout') {
+    return [...firstLevel].sort((a, b) => dir * (b.x - a.x))[0];
+  }
+  const anchor = slots.og_ps ?? slots.c;
+  if (!anchor) return undefined;
+  return [...firstLevel]
+    .filter(d => dir * (d.x - anchor.x) > 0)
+    .sort((a, b) => dir * (a.x - b.x))[0];
 }
 
 /**
@@ -81,16 +94,44 @@ export function resolveBlockPlan(template: RunTemplate, players: Player[], playS
   }
 
   const slots = assignBlockSlots(players, playSide);
-  const present = SLOT_ORDER.filter(slot => template.rules[slot] && slots[slot]);
+  const blockers: Blocker[] = SLOT_ORDER
+    .filter(slot => template.rules[slot] && slots[slot])
+    .map(slot => ({ slot, kind: template.rules[slot]!.kind, player: slots[slot]! }));
 
-  const zoneBlockers: Blocker[] = [];
-  for (const slot of present) {
-    const rule = template.rules[slot]!;
-    if (rule.kind === 'zone') zoneBlockers.push({ slot, player: slots[slot]! });
-    else throw new Error(`Block rule kind "${rule.kind}" is not supported yet`);
+  const ctx: Context = {
+    players,
+    playSide,
+    dir: playSide === 'right' ? 1 : -1,
+    firstLevel: firstLevelDefenders(players),
+    pulled: new Set()
+  };
+  const assignments: BlockAssignment[] = [];
+  const base = (b: Blocker) => ({ id: `${b.player.id}-block`, playerId: b.player.id, slot: b.slot, kind: b.kind });
+
+  // Pulls first: their targets are off limits to everyone else
+  let pointOfAttackX: number | undefined;
+  for (const blocker of blockers.filter(b => b.kind === 'kickout' || b.kind === 'trap')) {
+    const target = resolvePull(blocker, ctx, slots);
+    if (target) {
+      ctx.pulled.add(target.id);
+      pointOfAttackX ??= target.x;
+    }
+    assignments.push({ ...base(blocker), pulls: true, target: target ? defenderTarget(target) : { type: 'none' } });
   }
 
-  const assignments = resolveZone(zoneBlockers, players, playSide);
+  const groupBlockers = blockers.filter(b => b.kind === 'zone' || b.kind === 'down' || b.kind === 'seal');
+  assignments.push(...resolveGroup(groupBlockers, ctx));
+  pointOfAttackX ??= groupBlockers.sort((a, b) => ctx.dir * (b.player.x - a.player.x))[0]?.player.x;
+
+  for (const blocker of blockers.filter(b => b.kind === 'wrap' || b.kind === 'lead')) {
+    const linebacker = pointOfAttackX === undefined ? undefined : nearestTo(pointOfAttackX, secondLevelDefenders(players));
+    assignments.push({
+      ...base(blocker),
+      ...(PULL_KINDS.includes(blocker.kind) ? { pulls: true } : {}),
+      target: linebacker ? defenderTarget(linebacker) : { type: 'none' }
+    });
+  }
+
   assignments.sort((a, b) => SLOT_ORDER.indexOf(a.slot) - SLOT_ORDER.indexOf(b.slot));
   return { templateId: template.id, playSide, assignments };
 }

@@ -83,3 +83,52 @@ describe('inside zone', () => {
     expect(() => resolveBlockPlan(broken, players, 'right')).toThrow(/bogus/);
   });
 });
+
+describe('gap schemes (draft rules, awaiting coach sign-off)', () => {
+  const players = [...OFFENSE_TE_RIGHT, ...FOUR_THREE_OVER];
+
+  it('ships gap templates unreviewed so the picker keeps them disabled', () => {
+    for (const id of ['run-power', 'run-counter', 'run-trap']) {
+      expect(template(id)).toMatchObject({ scheme: 'gap', reviewed: false, builtIn: true });
+    }
+  });
+
+  it('power: backside guard kicks out the end man, backside tackle seals, fullback leads', () => {
+    const { assignments } = resolveBlockPlan(template('run-power'), players, 'right');
+    expect(byPlayer(assignments, 'LG')).toMatchObject({ kind: 'kickout', pulls: true, target: defender('DE_R') });
+    expect(byPlayer(assignments, 'LT')).toMatchObject({ kind: 'seal', target: defender('DE_L') });
+    expect(byPlayer(assignments, 'RB')).toMatchObject({ kind: 'lead', target: defender('S') });
+    expect(byPlayer(assignments, 'TE')).toMatchObject({ kind: 'down', target: defender('DT_R') });
+    expect(byPlayer(assignments, 'RT')).toMatchObject({ target: defender('DT_R'), comboWith: 'TE', climbTo: defender('S') });
+    expect(byPlayer(assignments, 'RG')).toMatchObject({ kind: 'down', target: defender('DT_L') });
+    expect(byPlayer(assignments, 'C')).toMatchObject({ target: defender('DT_L'), comboWith: 'RG' });
+  });
+
+  it('counter: backside guard kicks out and backside tackle wraps to the linebacker', () => {
+    const { assignments } = resolveBlockPlan(template('run-counter'), players, 'right');
+    expect(byPlayer(assignments, 'LG')).toMatchObject({ kind: 'kickout', pulls: true, target: defender('DE_R') });
+    expect(byPlayer(assignments, 'LT')).toMatchObject({ kind: 'wrap', pulls: true, target: defender('S') });
+    expect(byPlayer(assignments, 'RB')).toMatchObject({ kind: 'lead' });
+  });
+
+  it('trap: backside guard traps the first lineman past the play-side guard, others avoid him', () => {
+    const { assignments } = resolveBlockPlan(template('run-trap'), players, 'right');
+    expect(byPlayer(assignments, 'LG')).toMatchObject({ kind: 'trap', pulls: true, target: defender('DT_R') });
+    expect(byPlayer(assignments, 'TE')).toMatchObject({ kind: 'seal', target: defender('DE_R') });
+    expect(byPlayer(assignments, 'RT')).toMatchObject({ target: defender('DE_R'), comboWith: 'TE' });
+    expect(byPlayer(assignments, 'LT')).toMatchObject({ kind: 'seal', target: defender('DE_L') });
+  });
+
+  it('mirrors power to the left (ids stay with the mirrored players, so the puller is still LG)', () => {
+    const { assignments } = resolveBlockPlan(template('run-power'), mirror(players), 'left');
+    expect(byPlayer(assignments, 'LG')).toMatchObject({ kind: 'kickout', pulls: true, target: defender('DE_R') });
+    expect(byPlayer(assignments, 'RB')).toMatchObject({ kind: 'lead', target: defender('S') });
+  });
+
+  it('skips the pull when the pulling lineman is not on the field and does not throw with no defenders', () => {
+    const noGuard = players.filter(p => p.id !== 'LG');
+    expect(byPlayer(resolveBlockPlan(template('run-power'), noGuard, 'right').assignments, 'LG')).toBeUndefined();
+    const { assignments } = resolveBlockPlan(template('run-counter'), OFFENSE_TE_RIGHT, 'right');
+    for (const a of assignments) expect(a.target).toEqual({ type: 'none' });
+  });
+});

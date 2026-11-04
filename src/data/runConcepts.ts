@@ -1,4 +1,4 @@
-import type { BlockSlot, RunTemplate } from '../types/playbook';
+import type { BlockKind, BlockSlot, RunTemplate } from '../types/playbook';
 
 const ZONE_SLOTS: BlockSlot[] = ['te_ps', 'ot_ps', 'og_ps', 'c', 'og_bs', 'ot_bs', 'te_bs'];
 
@@ -30,3 +30,38 @@ export const BUILT_IN_RUN_TEMPLATES: RunTemplate[] = [
     rules: zoneRules()
   }
 ];
+
+const rules = (entries: Partial<Record<BlockSlot, BlockKind>>): RunTemplate['rules'] =>
+  Object.fromEntries(Object.entries(entries).map(([slot, kind]) => [slot, { kind }]));
+
+// DRAFT gap-scheme rules from standard conventions. reviewed:false keeps them disabled in the picker
+// until the coach has signed them off.
+BUILT_IN_RUN_TEMPLATES.push(
+  {
+    id: 'run-power',
+    name: 'Power',
+    scheme: 'gap',
+    builtIn: true,
+    reviewed: false,
+    description: 'Play side down-blocks (doubles the interior lineman), backside guard pulls and kicks out the end man, backside tackle seals, fullback leads.',
+    rules: rules({ te_ps: 'down', ot_ps: 'down', og_ps: 'down', c: 'down', og_bs: 'kickout', ot_bs: 'seal', fb: 'lead' })
+  },
+  {
+    id: 'run-counter',
+    name: 'Counter',
+    scheme: 'gap',
+    builtIn: true,
+    reviewed: false,
+    description: 'Play side down-blocks, center seals, backside guard kicks out the end man, backside tackle wraps to the linebacker, fullback leads.',
+    rules: rules({ te_ps: 'down', ot_ps: 'down', og_ps: 'down', c: 'seal', og_bs: 'kickout', ot_bs: 'wrap', fb: 'lead' })
+  },
+  {
+    id: 'run-trap',
+    name: 'Trap',
+    scheme: 'gap',
+    builtIn: true,
+    reviewed: false,
+    description: 'Backside guard traps the first lineman past the play-side guard; tight end and tackle seal outside, guard and center down-block, backside tackle seals, fullback leads.',
+    rules: rules({ te_ps: 'seal', ot_ps: 'seal', og_ps: 'down', c: 'down', og_bs: 'trap', ot_bs: 'seal', fb: 'lead' })
+  }
+);

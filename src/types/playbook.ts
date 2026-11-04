@@ -91,7 +91,7 @@ export interface Play {
 export type PlaySide = 'left' | 'right';
 // Slots are named relative to the play side: ps = play side, bs = backside
 export type BlockSlot = 'te_ps' | 'ot_ps' | 'og_ps' | 'c' | 'og_bs' | 'ot_bs' | 'te_bs' | 'fb';
-export type BlockKind = 'zone' | 'down' | 'kickout' | 'wrap' | 'seal' | 'lead';
+export type BlockKind = 'zone' | 'down' | 'kickout' | 'trap' | 'wrap' | 'seal' | 'lead';
 
 export type BlockTarget =
   | { type: 'defender'; playerId: string }

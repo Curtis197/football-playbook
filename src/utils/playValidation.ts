@@ -122,7 +122,7 @@ function normalizeAction(raw: unknown, where: string): PathAction {
 
 const PLAY_SIDES: readonly PlaySide[] = ['left', 'right'];
 const BLOCK_SLOTS: readonly BlockSlot[] = ['te_ps', 'ot_ps', 'og_ps', 'c', 'og_bs', 'ot_bs', 'te_bs', 'fb'];
-const BLOCK_KINDS: readonly BlockKind[] = ['zone', 'down', 'kickout', 'wrap', 'seal', 'lead'];
+const BLOCK_KINDS: readonly BlockKind[] = ['zone', 'down', 'kickout', 'trap', 'wrap', 'seal', 'lead'];
 
 function normalizeTarget(raw: unknown): BlockTarget | undefined {
   if (!isRecord(raw)) return undefined;
