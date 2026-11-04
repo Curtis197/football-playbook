@@ -8,7 +8,7 @@ import { BUILT_IN_RUN_TEMPLATES } from '../data/runConcepts';
 import { OFFENSE_TE_RIGHT, FOUR_THREE_OVER, defensePlayer, makePlay } from '../test/fixtures';
 
 const zone = BUILT_IN_RUN_TEMPLATES.find(t => t.id === 'run-inside-zone')!;
-const applied = applyRunTemplate(makePlay(), zone, 'right');
+const applied = applyRunTemplate(makePlay(), zone, { hole: 3, runner: 3 });
 const assignment = (play: Play, playerId: string) => play.blockPlan!.assignments.find(a => a.playerId === playerId)!;
 const lines = (play: Play, assignmentId: string) => play.actions.filter(a => a.assignmentId === assignmentId);
 
@@ -50,39 +50,28 @@ describe('final review fixes', () => {
     expect(templateMissing(makePlay(), [])).toBe(false);
   });
 
-  it('Important 4: a saved Strong/Weak technique is relative to the play side, so it flips with the side', () => {
-    const withTech = (techs: Record<string, string>) =>
-      FOUR_THREE_OVER.map(p => (techs[p.id] ? { ...p, technique: techs[p.id] } : p));
-    // Right play: the play-side guard is sent to the WEAK-side 3-tech, which is the backside of this play
-    const rightPlay = editAssignment(
-      applyRunTemplate(makePlay({ players: [...OFFENSE_TE_RIGHT, ...withTech({ DT_L: '3-Tech Weak' })] }), zone, 'right'),
-      'RG-block',
-      { target: { type: 'defender', playerId: 'DT_L' } }
-    );
-    const saved = captureRunTemplate(rightPlay, zone, 'x');
-    expect(saved.overrides?.[0].target).toEqual({ by: 'technique', technique: '3-Tech Backside' });
-    // Left play (strong side is still right): backside is the right, so the guard looks for the STRONG 3-tech
-    const leftPlay = applyRunTemplate(
-      makePlay({ players: [...OFFENSE_TE_RIGHT, ...withTech({ DT_R: '3-Tech Strong', DT_L: '3-Tech Weak' })] }),
-      saved,
-      'left'
-    );
-    expect(assignment(leftPlay, 'LG').target).toEqual({ type: 'defender', playerId: 'DT_R' });
+  it('Important 4: a linebacker edit keeps the technique form, read against the play side', () => {
+    const lbs = FOUR_THREE_OVER.map(p => (p.id === 'W' ? { ...p, technique: 'Apex Weak' } : p));
+    const play = applyRunTemplate(makePlay({ players: [...OFFENSE_TE_RIGHT, ...lbs] }), zone, { hole: 3, runner: 3 });
+    const edited = editAssignment(play, 'RG-block', { target: { type: 'defender', playerId: 'W' } });
+    // The weak side is left; on a play to the right that is the backside
+    expect(captureRunTemplate(edited, zone, 'x').overrides?.[0].target).toEqual({ by: 'technique', technique: 'Apex Backside' });
   });
 
   it('Important 5: removing a combo the rules produced is saved and re-applied', () => {
-    expect(assignment(applied, 'RG').comboWith).toBe('RT');
-    const edited = editAssignment(applied, 'RG-block', { comboWith: null });
-    const saved = captureRunTemplate(edited, zone, 'x');
+    const thin = makePlay({ players: [...OFFENSE_TE_RIGHT, ...FOUR_THREE_OVER.filter(p => p.id === 'DT_L' || p.id === 'M')] });
+    const thinApplied = applyRunTemplate(thin, zone, { hole: 3, runner: 3 });
+    expect(assignment(thinApplied, 'RG').comboWith).toBe('C');
+    const saved = captureRunTemplate(editAssignment(thinApplied, 'RG-block', { comboWith: null }), zone, 'x');
     expect(saved.overrides).toContainEqual({ slot: 'og_ps', comboWithSlot: null });
-    expect(assignment(applyRunTemplate(makePlay(), saved, 'right'), 'RG').comboWith).toBeUndefined();
+    expect(assignment(applyRunTemplate(thin, saved, { hole: 3, runner: 3 }), 'RG').comboWith).toBeUndefined();
   });
 
   it('Important 5: retargeting to Nobody is saved and re-applied', () => {
     const edited = editAssignment(applied, 'RT-block', { target: { type: 'none' } });
     const saved = captureRunTemplate(edited, zone, 'x');
     expect(saved.overrides).toContainEqual({ slot: 'ot_ps', target: { by: 'none' } });
-    expect(assignment(applyRunTemplate(makePlay(), saved, 'right'), 'RT').target).toEqual({ type: 'none' });
+    expect(assignment(applyRunTemplate(makePlay(), saved, { hole: 3, runner: 3 }), 'RT').target).toEqual({ type: 'none' });
   });
 
   it('Important 5: storage keeps the new override shapes', () => {
