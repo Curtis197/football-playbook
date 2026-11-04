@@ -14,9 +14,6 @@ const offenseTemplates = DEFAULT_FORMATIONS.filter(f => f.side === 'offense');
 const defenseTemplates = DEFAULT_FORMATIONS.filter(f => f.side === 'defense');
 const inField = (p: Point | Player) => p.x >= 0 && p.x <= 1000 && p.y >= 0 && p.y <= 700;
 const LINE_LABELS = ['C', 'LG', 'RG', 'LT', 'RT'];
-const TWELVE_PLAYER_TEMPLATES = new Set([
-  'formation-double-wing-22'
-]);
 
 describe('built-in plays', () => {
   it('there are plays, with unique ids and names', () => {
@@ -100,12 +97,6 @@ describe('built-in formation templates', () => {
     }
   });
 
-  it('the known twelve-player list only names templates that still exist (and still have twelve)', () => {
-    for (const id of TWELVE_PLAYER_TEMPLATES) {
-      expect(DEFAULT_FORMATIONS.find(f => f.id === id)?.players.length, id).toBe(12);
-    }
-  });
-
   describe.each(DEFAULT_FORMATIONS.map(f => [f.name, f] as const))('%s', (_name, formation) => {
     it('passes validation unchanged', () => {
       const result = normalizeFormation(JSON.parse(JSON.stringify(formation)));
@@ -123,11 +114,7 @@ describe('built-in formation templates', () => {
   });
 
   describe.each(offenseTemplates.map(f => [f.name, f] as const))('offense: %s', (_name, formation) => {
-    // KNOWN DATA ERROR: Double Wing 22 was authored with a twelfth player, and which one to remove is a football
-    // decision still to be made, so it is recorded as an expected failure. When it is fixed this test starts
-    // failing with "expected to fail", which is the cue to delete its id from TWELVE_PLAYER_TEMPLATES.
-    const hasElevenPlayers = TWELVE_PLAYER_TEMPLATES.has(formation.id) ? it.fails : it;
-    hasElevenPlayers('has eleven players', () => {
+    it('has eleven players', () => {
       expect(formation.players).toHaveLength(11);
     });
 
@@ -166,9 +153,29 @@ describe('built-in formation templates', () => {
   });
 });
 
-// The three templates that used to have twelve players. Each had an extra "isolated backside" receiver that its
-// own description never mentions; these tests pin down why the remaining eleven are right, so it cannot creep back.
+// The four templates that used to have twelve players. Three had an extra "isolated backside" receiver that their
+// own descriptions never mention; Double Wing had a split end its description never mentions. These tests pin down
+// why the remaining eleven are right, so it cannot creep back.
 describe('repaired templates: personnel code, description and sides agree', () => {
+  it('Double Wing 32: two tight ends, two wingbacks just off the hip of each, and a B-back (no split end)', () => {
+    const f = template('formation-double-wing-22');
+    expect(f.name).toBe('Double Wing 32');
+    expect(f.personnel).toBe('32');
+    expect(f.players).toHaveLength(11);
+    expect(f.players.map(p => p.label).sort()).toEqual(['B', 'C', 'LG', 'LT', 'LW', 'QB', 'RG', 'RT', 'RW', 'U', 'Y'].sort());
+    expect(f.tags).toContain('32');
+    expect(f.tags).not.toContain('22');
+    expect(f.labels?.[0]).toBe('32 Pers');
+
+    const lineY = (f.players.find(p => p.label === 'C') as Player).y;
+    const at = (label: string) => f.players.find(p => p.label === label) as Player;
+    for (const [wing, tightEnd] of [['LW', 'U'], ['RW', 'Y']] as const) {
+      expect(at(wing).y, wing).toBeGreaterThan(lineY);                                   // off the line
+      expect(Math.abs(at(wing).x - at(tightEnd).x), wing).toBeLessThanOrEqual(80);       // on the TE's hip
+    }
+    expect(at('B').y).toBeGreaterThan(at('QB').y);                                       // behind the QB
+  });
+
   const skill = (f: Formation) => f.players.filter(p => !LINE_LABELS.includes(p.label) && p.label !== 'QB');
   const count = (f: Formation, position: Player['position']) => skill(f).filter(p => p.position === position).length;
   const centreX = (f: Formation) => (f.players.find(p => p.label === 'C') as Player).x;

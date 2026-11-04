@@ -285,16 +285,17 @@ export const MATRIX_OFFENSIVE_FORMATIONS: Formation[] = [
     ]
   },
   {
+    // The id keeps "22" from the original name so plays already linked to this template stay linked.
     id: 'formation-double-wing-22',
-    name: 'Double Wing 22',
+    name: 'Double Wing 32',
     side: 'offense',
-    personnel: '22',
+    personnel: '32',
     qbPosition: 'down_center',
     receiverAlignment: '1x1',
     style: 'old_school',
     isBunch: false,
-    tags: ['22', 'down_center', '1x1', 'old_school', 'double_wing', 'toss'],
-    labels: ['22 Pers', 'Under Center', 'Old School', 'Double Wing'],
+    tags: ['32', 'down_center', '1x1', 'old_school', 'double_wing', 'toss'],
+    labels: ['32 Pers', 'Under Center', 'Old School', 'Double Wing'],
     description: 'Old School Double Wing set with dual inline tight ends and dual wingbacks 1 yard off the hip of each TE. Heavy toss, trap, and wedge scheme.',
     players: [
       ...createStandardOL('dw22'),
@@ -303,8 +304,7 @@ export const MATRIX_OFFENSIVE_FORMATIONS: Formation[] = [
       makeSkillPlayer('dw22_lw', 'LW', 240, 410, 'Left Wingback', 'Motion across backfield for toss sweep or kick out end.'),
       makeSkillPlayer('dw22_rw', 'RW', 720, 410, 'Right Wingback', 'Crack safety or seal perimeter overhang.'),
       makeSkillPlayer('dw22_qb', 'QB', 480, 415, 'Under Center Pivot', 'Reverse pivot and pitch toss to wingback in full motion.'),
-      makeSkillPlayer('dw22_bb', 'B', 480, 470, 'B-Back', 'Plunge into wedge or lead block into perimeter alley.'),
-      makeSkillPlayer('dw22_x', 'X', 120, 380, 'Split End', 'Deep post clearout.')
+      makeSkillPlayer('dw22_bb', 'B', 480, 470, 'B-Back', 'Plunge into wedge or lead block into perimeter alley.')
     ]
   },
   {
