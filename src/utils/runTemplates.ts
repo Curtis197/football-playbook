@@ -1,4 +1,4 @@
-import type { BlockAssignment, BlockKind, BlockPlan, BlockSlot, BlockTarget, PlaySide, Player, RunTemplate } from '../types/playbook';
+import type { BlockAssignment, BlockKind, BlockPlan, BlockSlot, BlockTarget, PlaySide, Player, RunTemplate, TemplateOverride } from '../types/playbook';
 import { assignBlockSlots, firstLevelDefenders, secondLevelDefenders } from './blockSlots';
 
 /** How far behind a blocker a defender may be and still count as "on him" (about half a gap). */
@@ -85,6 +85,38 @@ function resolvePull(blocker: Blocker, ctx: Context, slots: Partial<Record<Block
 }
 
 /**
+ * A saved hand adjustment. A technique that no defender has leaves the base rule's answer in place,
+ * so a template never fails on a front it was not made for.
+ */
+function applyOverride(
+  assignment: BlockAssignment,
+  override: TemplateOverride,
+  ctx: Context,
+  slots: Partial<Record<BlockSlot, Player>>
+): BlockAssignment {
+  const result: BlockAssignment = { ...assignment };
+  const rule = override.target;
+  if (rule?.by === 'technique') {
+    const match = ctx.players.find(p => p.side === 'defense' && p.technique === rule.technique);
+    if (match) result.target = defenderTarget(match);
+  } else if (rule?.by === 'level') {
+    result.target = { type: 'level', level: 'second' };
+  } else if (rule?.by === 'gap') {
+    const away: PlaySide = ctx.playSide === 'right' ? 'left' : 'right';
+    result.target = { type: 'gap', gap: rule.gap, side: rule.relativeSide === 'playside' ? ctx.playSide : away };
+  }
+
+  const partner = override.comboWithSlot ? slots[override.comboWithSlot] : undefined;
+  if (partner && partner.id !== assignment.playerId) {
+    result.comboWith = partner.id;
+    result.climbTo ??= { type: 'level', level: 'second' };
+  }
+  if (override.pulls === true) result.pulls = true;
+  if (override.pulls === false) delete result.pulls;
+  return result;
+}
+
+/**
  * Turns a template into concrete assignments for the players on the board.
  * Pure: the same players, template and play side always give the same plan.
  */
@@ -130,6 +162,11 @@ export function resolveBlockPlan(template: RunTemplate, players: Player[], playS
       ...(PULL_KINDS.includes(blocker.kind) ? { pulls: true } : {}),
       target: linebacker ? defenderTarget(linebacker) : { type: 'none' }
     });
+  }
+
+  for (const override of template.overrides ?? []) {
+    const index = assignments.findIndex(a => a.slot === override.slot);
+    if (index >= 0) assignments[index] = applyOverride(assignments[index], override, ctx, slots);
   }
 
   assignments.sort((a, b) => SLOT_ORDER.indexOf(a.slot) - SLOT_ORDER.indexOf(b.slot));

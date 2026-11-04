@@ -1,4 +1,4 @@
-import type { BlockAssignment, BlockPlan, BlockTarget, PathAction, Play, PlaySide, Player, RunTemplate } from '../types/playbook';
+import type { BlockAssignment, BlockPlan, BlockTarget, PathAction, Play, PlaySide, Player, RunTemplate, TargetRule, TemplateOverride } from '../types/playbook';
 import { buildBlockActions } from './blockActions';
 import { hasClearStrength, resolveStrongSide } from './blockSlots';
 import { resolveBlockPlan } from './runTemplates';
@@ -114,4 +114,58 @@ export function resolvePlaySide(
   const strong = resolveStrongSide(players);
   if (requested === 'strong') return strong;
   return strong === 'right' ? 'left' : 'right';
+}
+
+const targetRuleOf = (target: BlockTarget, plan: BlockPlan, players: Player[]): TargetRule | undefined => {
+  if (target.type === 'defender') {
+    const technique = players.find(p => p.id === target.playerId)?.technique;
+    return technique ? { by: 'technique', technique } : { by: 'level' };
+  }
+  if (target.type === 'level') return { by: 'level' };
+  if (target.type === 'gap') return { by: 'gap', gap: target.gap, relativeSide: target.side === plan.playSide ? 'playside' : 'backside' };
+  return undefined;
+};
+
+/**
+ * Saves a play's blocks as a template: the base template's rules plus the coach's hand edits, written
+ * relative to slots and techniques so they apply to other formations and fronts. Stale edits and pure
+ * geometry changes are not saved. Updating (`existingId`) keeps the earlier edits of the same slots' siblings.
+ */
+export function captureRunTemplate(play: Play, base: RunTemplate, name: string, existingId?: string): RunTemplate {
+  const plan = play.blockPlan;
+  const captured: TemplateOverride[] = [];
+  const untouched = plan ? resolveBlockPlan(base, play.players, plan.playSide).assignments : [];
+  const sameTarget = (a: BlockTarget, b: BlockTarget) => JSON.stringify(a) === JSON.stringify(b);
+  for (const a of plan?.assignments ?? []) {
+    if (!plan || !a.override || a.stale) continue;
+    const original = untouched.find(u => u.slot === a.slot);
+    // Only what the coach changed relative to what the template would have drawn is saved
+    const override: TemplateOverride = { slot: a.slot };
+    if (!original || !sameTarget(a.target, original.target)) {
+      const target = targetRuleOf(a.target, plan, play.players);
+      if (target) override.target = target;
+    }
+    if (a.comboWith && a.comboWith !== original?.comboWith) {
+      const partner = plan.assignments.find(other => other.playerId === a.comboWith);
+      if (partner) override.comboWithSlot = partner.slot;
+    }
+    if ((a.pulls === true) !== (original?.pulls === true)) override.pulls = a.pulls === true;
+    if (Object.keys(override).length > 1) captured.push(override);
+  }
+
+  const capturedSlots = new Set(captured.map(o => o.slot));
+  const overrides = [...(base.overrides ?? []).filter(o => !capturedSlots.has(o.slot)), ...captured];
+  const slug = name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'template';
+  const template: RunTemplate = {
+    id: existingId ?? `run-user-${slug}-${Date.now().toString().slice(-4)}`,
+    name,
+    scheme: base.scheme,
+    builtIn: false,
+    reviewed: true,
+    rules: { ...base.rules },
+    updatedAt: new Date().toISOString()
+  };
+  if (base.description) template.description = base.description;
+  if (overrides.length > 0) template.overrides = overrides;
+  return template;
 }

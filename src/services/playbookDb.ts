@@ -11,13 +11,15 @@ import {
   type QuerySnapshot
 } from 'firebase/firestore';
 import { db } from './firebase';
-import type { Play, Formation, PlayCategory } from '../types/playbook';
+import type { Play, Formation, PlayCategory, RunTemplate } from '../types/playbook';
 import { INITIAL_PLAYBOOK, DEFAULT_FORMATIONS } from '../data/presets';
 import { normalizePlay } from '../utils/playValidation';
 import { upgradeFormation } from '../utils/playMigrations';
+import { normalizeRunTemplate } from '../utils/runTemplateStorage';
 
 const PLAYS_COLLECTION = 'plays';
 const FORMATIONS_COLLECTION = 'formations';
+const RUN_TEMPLATES_COLLECTION = 'runTemplates';
 
 /**
  * Remove undefined values to prevent Firestore serialization errors
@@ -77,6 +79,47 @@ export async function deleteFormation(id: string): Promise<void> {
     await deleteDoc(formationRef);
   } catch (error) {
     console.error(`[playbookDb] Error deleting formation "${id}":`, error);
+    throw error;
+  }
+}
+
+// ==========================================
+// 1b. RUN TEMPLATES COLLECTION OPERATIONS
+// ==========================================
+
+/** Upsert a coach's run template */
+export async function saveRunTemplate(template: RunTemplate): Promise<void> {
+  try {
+    const templateRef = doc(db, RUN_TEMPLATES_COLLECTION, template.id);
+    await setDoc(templateRef, sanitizeForFirestore({ ...template, updatedAt: new Date().toISOString() }), { merge: false });
+  } catch (error) {
+    console.error(`[playbookDb] Error saving run template "${template.id}":`, error);
+    throw error;
+  }
+}
+
+/** Fetch all saved run templates; unreadable documents are skipped */
+export async function fetchRunTemplates(): Promise<RunTemplate[]> {
+  try {
+    const snapshot = await getDocs(collection(db, RUN_TEMPLATES_COLLECTION));
+    const templates: RunTemplate[] = [];
+    snapshot.forEach(docSnap => {
+      const template = normalizeRunTemplate(docSnap.data());
+      if (template) templates.push(template);
+    });
+    return templates;
+  } catch (error) {
+    console.error('[playbookDb] Error fetching run templates:', error);
+    throw error;
+  }
+}
+
+/** Delete a run template */
+export async function deleteRunTemplate(id: string): Promise<void> {
+  try {
+    await deleteDoc(doc(db, RUN_TEMPLATES_COLLECTION, id));
+  } catch (error) {
+    console.error(`[playbookDb] Error deleting run template "${id}":`, error);
     throw error;
   }
 }

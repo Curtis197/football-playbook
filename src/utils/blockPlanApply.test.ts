@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import type { PathAction, Play } from '../types/playbook';
-import { applyRunTemplate, reaimBlocks, clearBlocks, editAssignment, resolvePlaySide } from './blockPlanApply';
+import { applyRunTemplate, captureRunTemplate, reaimBlocks, clearBlocks, editAssignment, resolvePlaySide } from './blockPlanApply';
 import { BUILT_IN_RUN_TEMPLATES } from '../data/runConcepts';
 import { OFFENSE_TE_RIGHT, FOUR_THREE_OVER, makePlay } from '../test/fixtures';
 
@@ -154,5 +154,62 @@ describe('resolvePlaySide', () => {
     expect(resolvePlaySide('strong', balanced)).toBeNull();
     expect(resolvePlaySide('weak', balanced)).toBeNull();
     expect(resolvePlaySide('left', balanced)).toBe('left');
+  });
+});
+
+describe('captureRunTemplate', () => {
+  const applied = applyRunTemplate(makePlay(), zoneTemplate, 'right');
+  const retargeted = editAssignment(applied, 'RG-block', { target: { type: 'defender', playerId: 'DE_L' } });
+
+  it('turns one retargeted block into exactly one technique override', () => {
+    const saved = captureRunTemplate(retargeted, zoneTemplate, 'My zone');
+    expect(saved.overrides).toEqual([
+      { slot: 'og_ps', target: { by: 'technique', technique: '5-Tech Weak' } }
+    ]);
+    expect(saved).toMatchObject({ name: 'My zone', scheme: 'zone', builtIn: false, reviewed: true });
+    expect(saved.id).not.toBe(zoneTemplate.id);
+    expect(saved.rules).toEqual(zoneTemplate.rules);
+  });
+
+  it('does not save stale overrides', () => {
+    const stale = reaimBlocks(without(retargeted, 'DE_L'), BUILT_IN_RUN_TEMPLATES);
+    expect(captureRunTemplate(stale, zoneTemplate, 'x').overrides ?? []).toEqual([]);
+  });
+
+  it('does not save geometry-only changes', () => {
+    const nudged: Play = {
+      ...applied,
+      actions: applied.actions.map(a => (a.assignmentId === 'RT-block' ? { ...a, points: [a.points[0], { x: 575, y: 350 }] } : a))
+    };
+    expect(captureRunTemplate(nudged, zoneTemplate, 'x').overrides ?? []).toEqual([]);
+  });
+
+  it('records a combo partner by slot', () => {
+    const combo = editAssignment(applied, 'LT-block', { comboWith: 'LG' });
+    expect(captureRunTemplate(combo, zoneTemplate, 'x').overrides).toEqual([{ slot: 'ot_bs', comboWithSlot: 'og_bs' }]);
+  });
+
+  it('keeps earlier overrides of the template being updated and reuses its id', () => {
+    const base = captureRunTemplate(retargeted, zoneTemplate, 'My zone');
+    const pulled = editAssignment(applyRunTemplate(makePlay(), base, 'right'), 'LG-block', { pulls: true });
+    const updated = captureRunTemplate(pulled, base, 'My zone', base.id);
+    expect(updated.id).toBe(base.id);
+    expect(updated.overrides?.map(o => o.slot).sort()).toEqual(['og_bs', 'og_ps']);
+  });
+
+  it('applies a saved retarget to a different front by technique', () => {
+    const saved = captureRunTemplate(retargeted, zoneTemplate, 'My zone');
+    const otherFront: Play = {
+      ...makePlay(),
+      players: [...OFFENSE_TE_RIGHT, ...FOUR_THREE_OVER.map(p => (p.id === 'DE_L' ? { ...p, id: 'EDGE', x: 300 } : p))]
+    };
+    const result = applyRunTemplate(otherFront, saved, 'right');
+    expect(assignment(result, 'RG').target).toEqual({ type: 'defender', playerId: 'EDGE' });
+  });
+
+  it('falls back to the base rule when no defender has the saved technique', () => {
+    const saved = captureRunTemplate(retargeted, zoneTemplate, 'My zone');
+    const noMatch: Play = { ...makePlay(), players: [...OFFENSE_TE_RIGHT, ...FOUR_THREE_OVER.filter(p => p.id !== 'DE_L')] };
+    expect(assignment(applyRunTemplate(noMatch, saved, 'right'), 'RG').target).toEqual({ type: 'defender', playerId: 'DT_R' });
   });
 });
