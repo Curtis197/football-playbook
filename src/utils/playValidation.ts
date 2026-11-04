@@ -12,7 +12,7 @@ import type {
   Side
 } from '../types/playbook';
 import { DEFAULT_FORMATIONS } from '../data/presets';
-import { upgradePlay } from './playMigrations';
+import { upgradeFormation, upgradePlay } from './playMigrations';
 
 export const PLAYBOOK_VERSION = '1.1.0';
 // Older files are accepted and upgraded on read; anything else is rejected with a clear message.
@@ -190,6 +190,41 @@ function attempt<T>(build: (warnings: string[]) => T): ValidationResult<T> {
  */
 export function normalizePlay(raw: unknown, formations: Formation[] = DEFAULT_FORMATIONS): ValidationResult<Play> {
   return attempt(warnings => buildPlay(raw, warnings, formations));
+}
+
+const FORMATION_SIDES = ['offense', 'defense', 'both'];
+const FORMATION_TEXT_FIELDS = ['personnel', 'qbPosition', 'receiverAlignment', 'style', 'description', 'createdAt', 'updatedAt'];
+
+function buildFormation(raw: unknown): Formation {
+  if (!isRecord(raw)) return fail('Formation must be an object');
+  const id = requiredText(raw, 'id', 'Formation');
+  const name = requiredText(raw, 'name', 'Formation');
+  const label = `Formation "${name}"`;
+  if (!FORMATION_SIDES.includes(raw.side as string)) return fail(`${label}: "side" must be offense, defense or both`);
+  const rawPlayers = raw.players;
+  if (!Array.isArray(rawPlayers)) return fail(`${label}: "players" must be a list`);
+
+  const players = rawPlayers.map((player, i) => normalizePlayer(player, `${label}: players[${i}]`));
+  const seen = new Set<string>();
+  for (const player of players) {
+    if (seen.has(player.id)) return fail(`${label}: duplicate player id "${player.id}"`);
+    seen.add(player.id);
+  }
+
+  const formation: Raw = { ...raw, id, name, players };
+  dropUnlessText(formation, FORMATION_TEXT_FIELDS);
+  for (const key of ['labels', 'tags']) {
+    if (formation[key] === undefined) continue;
+    if (Array.isArray(formation[key])) formation[key] = (formation[key] as unknown[]).filter(isStr);
+    else delete formation[key];
+  }
+  if (formation.isBunch !== undefined && typeof formation.isBunch !== 'boolean') delete formation.isBunch;
+  return upgradeFormation(formation as unknown as Formation);
+}
+
+/** Checks an untrusted formation template (localStorage) the same way plays are checked. */
+export function normalizeFormation(raw: unknown): ValidationResult<Formation> {
+  return attempt(() => buildFormation(raw));
 }
 
 /**

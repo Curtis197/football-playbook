@@ -1,3 +1,5 @@
+import type { Player, PlayerShape } from '../types/playbook';
+
 /**
  * Color utilities and preset palettes for football playbook entities (players and vector lines)
  */
@@ -61,4 +63,43 @@ export function isLightColor(colorHex: string): boolean {
   // Perceived brightness formula (0-255)
   const brightness = (r * 299 + g * 587 + b * 114) / 1000;
   return brightness > 155;
+}
+
+/**
+ * What a player is drawn on, which decides the letter colour when none is set:
+ * - 'field': the chalkboard canvas (keeps the black 0/0/0 default; the canvas adds its own clearance and outline)
+ * - 'light' / 'dark': UI chrome such as the Inspector and the hover card
+ */
+export type ColorSurface = 'field' | 'light' | 'dark';
+
+export interface PlayerColors {
+  shape: PlayerShape;
+  nodeColor: string;
+  fillColor: string;
+  letterColor: string;
+}
+
+const DEFAULT_PLAYER_COLOR = '#000000';
+
+/**
+ * The single place that turns a player's optional colour fields into the colours to draw.
+ * Explicit values always win; only unset values fall back, so the same player looks the same everywhere
+ * except where the surface itself would make a default unreadable.
+ */
+export function resolvePlayerColors(
+  player: Pick<Player, 'shape' | 'color' | 'nodeColor' | 'fillColor' | 'letterColor'>,
+  surface: ColorSurface
+): PlayerColors {
+  const shape = player.shape || 'none';
+  const nodeColor = player.nodeColor || player.color || DEFAULT_PLAYER_COLOR;
+  const fillColor = shape === 'none'
+    ? 'transparent'
+    : (player.fillColor !== undefined ? player.fillColor : (player.color || DEFAULT_PLAYER_COLOR));
+
+  let letterColor = player.letterColor;
+  if (!letterColor) {
+    if (fillColor === 'transparent') letterColor = surface === 'dark' ? '#ffffff' : DEFAULT_PLAYER_COLOR;
+    else letterColor = isLightColor(fillColor) ? '#000000' : '#ffffff';
+  }
+  return { shape, nodeColor, fillColor, letterColor };
 }

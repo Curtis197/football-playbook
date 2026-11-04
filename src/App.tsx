@@ -12,7 +12,7 @@ import type {
   Formation,
   RouteAdaptationMode
 } from './types/playbook';
-import { DEFAULT_FORMATIONS, INITIAL_PLAYBOOK } from './data/presets';
+import { INITIAL_PLAYBOOK } from './data/presets';
 import { 
   loadPlaybookFromStorage, 
   savePlaybookToStorage, 
@@ -31,11 +31,12 @@ import { SituationMatrixModal } from './components/SituationMatrixModal';
 import { PlayLibraryModal } from './components/PlayLibraryModal';
 import { FormationSwitcherModal } from './components/FormationSwitcherModal';
 import { DefenseFrontModal } from './components/DefenseFrontModal';
-import { shiftDefensiveFront, realignAllDefenders, analyzeOffense, calculateDefensiveAlignmentPosition, inferDefenderTechnique } from './utils/defensiveAlignment';
-import { adaptRoutesToNewFormation } from './utils/routeAdaptation';
+import { shiftDefensiveFront, realignAllDefenders, analyzeOffense } from './utils/defensiveAlignment';
+import { applyFormationToPlay, buildFormationFromPlay, captureFormationPlayers, formationHasPlayers } from './utils/formationApply';
 import { morphBackfieldAlignment, detectCurrentQBPosition, type SnapAlignment } from './utils/formationBackfield';
-import { savePlay, fetchFormations, saveFormation, fetchAllPlays } from './services/playbookDb';
+import { savePlay, fetchAllPlays } from './services/playbookDb';
 import { isFirebaseConfigured } from './services/firebase';
+import { useFormationLibrary } from './hooks/useFormationLibrary';
 
 // Undo/redo keeps whole-playbook snapshots. Edits that arrive within COALESCE_MS of each other
 // (a drag, typing in a field) share one undo step.
@@ -118,7 +119,13 @@ export const App: React.FC = () => {
   const [cloudSyncStatus, setCloudSyncStatus] = useState<CloudSyncStatus>('idle');
   const [notification, setNotification] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);
   const [restartBlockRequest, setRestartBlockRequest] = useState<{ actionId: string; playerId: string; startPoint: Point } | null>(null);
-  const [formations, setFormations] = useState<Formation[]>(() => DEFAULT_FORMATIONS);
+  const {
+    formations,
+    refresh: refreshFormations,
+    upsert: upsertFormation,
+    remove: removeFormation,
+    seedDefaults: seedFormationDefaults
+  } = useFormationLibrary();
   const [routeAdaptationMode, setRouteAdaptationMode] = useState<RouteAdaptationMode>('player_relative');
 
   // Background cloud sync changes the playbook without creating an undo step
@@ -153,16 +160,6 @@ export const App: React.FC = () => {
     async function loadCloudData() {
       if (!isFirebaseConfigured) return;
       try {
-        // 1. Fetch Formations from Cloud
-        const remoteFormations = await fetchFormations();
-        if (remoteFormations.length > 0 && isMounted) {
-          const map = new Map<string, Formation>();
-          DEFAULT_FORMATIONS.forEach(f => map.set(f.id, f));
-          remoteFormations.forEach(f => map.set(f.id, f));
-          setFormations(Array.from(map.values()));
-        }
-
-        // 2. Fetch Plays from Cloud
         const remotePlays = await fetchAllPlays();
         if (remotePlays.length > 0 && isMounted) {
           const differing = remotePlays.flatMap(remote => {
@@ -189,6 +186,11 @@ export const App: React.FC = () => {
       isMounted = false;
     };
   }, [mergeRemotePlays, showNotification]);
+
+  // Formations come from the same place on startup as everywhere else
+  useEffect(() => {
+    void refreshFormations();
+  }, [refreshFormations]);
 
   // Tell the user when stored data had to be repaired or set aside on startup
   useEffect(() => {
@@ -541,134 +543,52 @@ export const App: React.FC = () => {
     }
   };
 
-  // Save active play to Cloud Firestore
+  // Save to Cloud Firestore: the active play, the whole playbook, or this play's offense / front as a template
   const handleSaveToCloud = async (target: CloudSaveTarget = 'play') => {
     setCloudSyncStatus('saving');
+    const savesPlays = target === 'play' || target === 'playbook';
+    let status: CloudSyncStatus = 'saved';
     try {
+      if (savesPlays && !isFirebaseConfigured) throw new Error('Firebase keys are not set in .env');
+
       if (target === 'play') {
-        if (isFirebaseConfigured) {
-          await savePlay(currentPlay);
-        }
-        } else if (target === 'offense') {
-        const offPlayers = currentPlay.players.filter(p => p.side === 'offense');
-        if (offPlayers.length === 0) {
-          throw new Error('No offensive players found on canvas to save as formation.');
-        }
-        const existing = resolveFormation(formations, 'offense', currentPlay.formationOffenseId, currentPlay.formationOffense);
-        const formationId = existing ? existing.id : `formation-${currentPlay.formationOffense.toLowerCase().replace(/[^a-z0-9]+/g, '-')}-${Date.now().toString().slice(-4)}`;
-        const savedFormation: Formation = {
-          id: formationId,
-          name: currentPlay.formationOffense || 'Custom Offensive Formation',
-          side: 'offense',
-          personnel: existing?.personnel || '11 Personnel',
-          description: existing?.description || `Offensive formation saved from play "${currentPlay.name}"`,
-          style: existing?.style || (currentPlay.tags?.includes('spread') ? 'spread' : currentPlay.tags?.includes('old_school') ? 'old_school' : 'pro_style'),
-          labels: existing?.labels || ['Offense', 'Custom'],
-          players: offPlayers,
-          updatedAt: new Date().toISOString()
-        };
-        if (isFirebaseConfigured) {
-          await saveFormation(savedFormation);
-        }
-        setFormations(prev => {
-          const found = prev.some(f => f.id === savedFormation.id);
-          return found ? prev.map(f => (f.id === savedFormation.id ? savedFormation : f)) : [...prev, savedFormation];
-        });
-        // Link the play to the template it just saved, so the picker and "Update" find it by id
-        updateCurrentPlay(p => ({ ...p, formationOffense: savedFormation.name, formationOffenseId: savedFormation.id }));
-        showNotification(`Saved Offensive Formation "${savedFormation.name}" to Cloud!`, 'success');
-      } else if (target === 'defense') {
-        const defPlayers = currentPlay.players.filter(p => p.side === 'defense');
-        if (defPlayers.length === 0) {
-          throw new Error('No defensive players found on canvas to save as front.');
-        }
-        const structure = analyzeOffense(currentPlay.players);
-        const enrichedDefenders = defPlayers.map(p => ({
-          ...p,
-          technique: p.technique || inferDefenderTechnique(p, structure)
-        }));
-        const existing = resolveFormation(formations, 'defense', currentPlay.frontDefenseId, currentPlay.frontDefense);
-        const frontId = existing ? existing.id : `front-${currentPlay.frontDefense.toLowerCase().replace(/[^a-z0-9]+/g, '-')}-${Date.now().toString().slice(-4)}`;
-        const dlCount = enrichedDefenders.filter(d => ['NT', 'DT', 'DE', 'E'].includes(d.label)).length;
-        const savedFront: Formation = {
-          id: frontId,
-          name: currentPlay.frontDefense || 'Custom Defensive Front',
-          side: 'defense',
-          personnel: existing?.personnel || 'Base Defense',
-          description: existing?.description || `Defensive front saved from play "${currentPlay.name}"`,
-          style: existing?.style || (dlCount >= 4 ? 'even_front' : 'odd_front'),
-          labels: existing?.labels || ['Defense Front', 'Custom'],
-          players: enrichedDefenders,
-          updatedAt: new Date().toISOString()
-        };
-        if (isFirebaseConfigured) {
-          await saveFormation(savedFront);
-        }
-        setFormations(prev => {
-          const found = prev.some(f => f.id === savedFront.id);
-          return found ? prev.map(f => (f.id === savedFront.id ? savedFront : f)) : [...prev, savedFront];
-        });
-        updateCurrentPlay(p => ({ ...p, frontDefense: savedFront.name, frontDefenseId: savedFront.id }));
-        showNotification(`Saved Defensive Front "${savedFront.name}" to Cloud!`, 'success');
+        await savePlay(currentPlay);
+        showNotification(`Saved "${currentPlay.name}" to the cloud`, 'success');
       } else if (target === 'playbook') {
-        if (isFirebaseConfigured) {
-          for (const p of playbook.plays) {
-            await savePlay(p);
-          }
+        for (const p of playbook.plays) {
+          await savePlay(p);
         }
-        showNotification(`Saved all ${playbook.plays.length} plays in Playbook to Cloud!`, 'success');
+        showNotification(`Saved all ${playbook.plays.length} plays to the cloud`, 'success');
+      } else {
+        const players = captureFormationPlayers(currentPlay.players, target);
+        if (players.length === 0) throw new Error(`No ${target} players on the chalkboard to save as a formation.`);
+        const existing = target === 'offense'
+          ? resolveFormation(formations, 'offense', currentPlay.formationOffenseId, currentPlay.formationOffense)
+          : resolveFormation(formations, 'defense', currentPlay.frontDefenseId, currentPlay.frontDefense);
+        const formation = buildFormationFromPlay(currentPlay, target, existing);
+        const outcome = await upsertFormation(formation);
+        // Link the play to the template it just saved, so the picker and "Update" find it by id
+        updateCurrentPlay(p => (target === 'offense'
+          ? { ...p, formationOffense: formation.name, formationOffenseId: formation.id }
+          : { ...p, frontDefense: formation.name, frontDefenseId: formation.id }));
+        if (outcome.storedIn === 'cloud') {
+          showNotification(`Saved ${target === 'offense' ? 'formation' : 'front'} "${formation.name}" to the cloud`, 'success');
+        } else {
+          status = 'error';
+          showNotification(`"${formation.name}" is saved on this device only (cloud: ${outcome.reason})`, 'error');
+        }
       }
-      setCloudSyncStatus('saved');
-      void refreshCloudPlays();
-      showNotification(`Saved "${currentPlay.name}" to Cloud Firestore!`, 'success');
-      setTimeout(() => {
-        setCloudSyncStatus('idle');
-      }, 3000);
     } catch (err: unknown) {
-      setCloudSyncStatus('error');
+      status = 'error';
       const msg = err instanceof Error ? err.message : 'Write failed';
       console.warn('[handleSaveToCloud] Cloud error:', msg);
-      showNotification(
-        isFirebaseConfigured
-          ? `Firestore save error: ${msg}. Play saved locally.`
-          : 'Firebase keys not set in .env. Play saved locally in browser storage.',
-        'error'
-      );
-      setTimeout(() => {
-        setCloudSyncStatus('idle');
-      }, 4000);
+      showNotification(`Cloud save failed: ${msg}.${savesPlays ? ' Your plays are still saved on this device.' : ''}`, 'error');
     }
-  };
-
-  // Apply Formation Template to current play
-  const handleApplyFormation = (newPlayers: Player[], keepActions: boolean, customMode?: RouteAdaptationMode, applied?: Formation) => {
-    updateCurrentPlay(p => {
-      const modeToUse = customMode || routeAdaptationMode;
-      const offPlayers = newPlayers.filter(pl => pl.side === 'offense');
-      const nextActions = keepActions
-        ? adaptRoutesToNewFormation(p.actions, p.players, offPlayers, modeToUse)
-        : [];
-
-      // Record which template was applied, the same way the on-canvas pickers do
-      const links: Partial<Play> = {};
-      if (applied && (applied.side === 'offense' || applied.side === 'both')) {
-        links.formationOffense = applied.name;
-        links.formationOffenseId = applied.id;
-      }
-      if (applied && (applied.side === 'defense' || applied.side === 'both')) {
-        links.frontDefense = applied.name;
-        links.frontDefenseId = applied.id;
-      }
-
-      return {
-        ...p,
-        ...links,
-        players: newPlayers,
-        actions: nextActions
-      };
-    });
-    setSelectedPlayerId(null);
-    setSelectedActionId(null);
+    setCloudSyncStatus(status);
+    if (status === 'saved' && savesPlays) void refreshCloudPlays();
+    setTimeout(() => {
+      setCloudSyncStatus('idle');
+    }, status === 'saved' ? 3000 : 4000);
   };
 
   // Detect current QB snap alignment from active offensive players
@@ -739,114 +659,57 @@ export const App: React.FC = () => {
     showNotification('Re-aligned all defenders to offensive positions', 'success');
   };
 
-  // Select and apply an Offensive Formation from dropdown
-  const handleSelectOffenseFormation = (formationId: string) => {
-    const formation = formations.find(f => f.id === formationId || f.name === formationId);
-    if (!formation) return;
-    const offPlayers = formation.players.filter(p => p.side === 'offense' || formation.side === 'offense');
-    if (offPlayers.length === 0) return;
-
-    const newStructure = analyzeOffense(offPlayers);
-
-    updateCurrentPlay(p => {
-      // Adapt existing routes relative to players or according to #1/#2/#3 outside concept
-      const nextActions = adaptRoutesToNewFormation(
-        p.actions,
-        p.players,
-        offPlayers,
-        routeAdaptationMode
-      );
-
-      // Automatically re-align all defensive players to the new offensive structure
-      const currentDefenders = p.players.filter(pl => pl.side === 'defense');
-      const realignedDefenders = realignAllDefenders(currentDefenders, newStructure);
-
-      return {
-        ...p,
-        formationOffense: formation.name,
-        formationOffenseId: formation.id,
-        actions: nextActions,
-        players: [...offPlayers, ...realignedDefenders]
-      };
-    });
-
+  // The one way a template reaches a play: the on-canvas pickers and the Formations drawer both call this
+  const applyFormation = (
+    formation: Formation,
+    keepRoutes = true,
+    routeMode: RouteAdaptationMode = routeAdaptationMode
+  ) => {
+    if (!formationHasPlayers(formation)) {
+      showNotification(`"${formation.name}" has no players to apply.`, 'error');
+      return;
+    }
+    updateCurrentPlay(p => applyFormationToPlay(p, formation, { routeMode, keepRoutes }));
     setSelectedPlayerId(null);
     setSelectedActionId(null);
-    showNotification(`Switched Offense to "${formation.name}" (Routes: ${routeAdaptationMode === 'player_relative' ? 'Player-Relative' : '#1/#2/#3 Concept'}) & re-aligned defense!`, 'success');
+    const routesNote = formation.side === 'defense'
+      ? ''
+      : keepRoutes
+        ? ` Routes: ${routeMode === 'player_relative' ? 'player-relative' : '#1/#2/#3 concept'}.`
+        : ' Routes cleared.';
+    showNotification(`Applied "${formation.name}".${routesNote}`, 'success');
   };
 
-  // Select and apply a Defensive Front from dropdown
+  const handleSelectOffenseFormation = (formationId: string) => {
+    const formation = resolveFormation(formations, 'offense', formationId, undefined);
+    if (formation) applyFormation(formation);
+  };
+
   const handleSelectDefenseFront = (formationId: string) => {
-    const formation = formations.find(f => f.id === formationId || f.name === formationId);
-    if (!formation) return;
-    const defPlayers = formation.players.filter(p => p.side === 'defense' || formation.side === 'defense');
-    if (defPlayers.length === 0) return;
-
-    const structure = analyzeOffense(currentPlay.players);
-    // Pre-align new defensive players dynamically according to active offensive structure
-    const realignedDefenders = defPlayers.map(p => {
-      const tech = inferDefenderTechnique(p, structure);
-      const pos = calculateDefensiveAlignmentPosition(tech, structure, p);
-      return { ...p, technique: tech, x: pos.x, y: pos.y };
-    });
-
-    updateCurrentPlay(p => {
-      const nonDefenders = p.players.filter(pl => pl.side !== 'defense');
-      return {
-        ...p,
-        frontDefense: formation.name,
-        frontDefenseId: formation.id,
-        players: [...nonDefenders, ...realignedDefenders]
-      };
-    });
-
-    setSelectedPlayerId(null);
-    setSelectedActionId(null);
-    showNotification(`Loaded Defensive Front: "${formation.name}"`, 'success');
+    const formation = resolveFormation(formations, 'defense', formationId, undefined);
+    if (formation) applyFormation(formation);
   };
 
   // Update an existing saved formation template with current chalkboard layout
   const handleUpdateFormation = async (formationId: string, side: 'offense' | 'defense' | 'both') => {
-    const existing = formations.find(f => f.id === formationId || f.name === formationId);
+    const existing = formations.find(f => f.id === formationId);
     if (!existing) return;
 
-    let updatedPlayers: Player[] = [];
-    if (side === 'both') {
-      updatedPlayers = currentPlay.players;
-    } else if (side === 'offense') {
-      updatedPlayers = currentPlay.players.filter(p => p.side === 'offense');
-    } else {
-      // For defense, ensure every defender has their technique recorded
-      const structure = analyzeOffense(currentPlay.players);
-      updatedPlayers = currentPlay.players
-        .filter(p => p.side === 'defense')
-        .map(p => ({
-          ...p,
-          technique: inferDefenderTechnique(p, structure)
-        }));
-    }
-
-    if (updatedPlayers.length === 0) {
-      showNotification(`No ${side} players on chalkboard to update "${existing.name}".`, 'error');
+    const players = captureFormationPlayers(currentPlay.players, side);
+    if (players.length === 0) {
+      showNotification(`No ${side} players on the chalkboard to update "${existing.name}".`, 'error');
       return;
     }
 
-    const updatedFormation: Formation = {
+    const outcome = await upsertFormation({
       ...existing,
-      players: updatedPlayers,
-      updatedAt: new Date().toISOString()
-    };
-
-    try {
-      if (isFirebaseConfigured) {
-        await saveFormation(updatedFormation);
-      }
-      setFormations(prev => prev.map(f => (f.id === existing.id ? updatedFormation : f)));
-      showNotification(`Updated formation "${existing.name}" with current chalkboard positions!`, 'success');
-    } catch (err: unknown) {
-      console.warn('Could not update formation remotely:', err);
-      setFormations(prev => prev.map(f => (f.id === existing.id ? updatedFormation : f)));
-      showNotification(`Updated "${existing.name}" locally in storage.`, 'info');
+      players,
+      qbPosition: side === 'defense' ? existing.qbPosition : detectCurrentQBPosition(players)
+    });
+    if (outcome.storedIn === 'cloud') {
+      showNotification(`Updated "${existing.name}" with the current chalkboard positions`, 'success');
+    } else {
+      showNotification(`Updated "${existing.name}" on this device only (cloud: ${outcome.reason})`, 'error');
     }
   };
 
@@ -1093,7 +956,12 @@ export const App: React.FC = () => {
         onClose={() => setIsFormationsModalOpen(false)}
         currentPlayers={currentPlay.players}
         currentActions={currentPlay.actions}
-        onApplyFormation={handleApplyFormation}
+        formations={formations}
+        onApplyFormation={applyFormation}
+        onSaveFormation={upsertFormation}
+        onDeleteFormation={removeFormation}
+        onRefreshFormations={refreshFormations}
+        onSeedFormations={seedFormationDefaults}
         onUpdateFormation={handleUpdateFormation}
         routeAdaptationMode={routeAdaptationMode}
         onSetRouteAdaptationMode={setRouteAdaptationMode}

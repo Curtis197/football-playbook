@@ -1,12 +1,8 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import type { Formation, Player, PathAction, Side, RouteAdaptationMode, QBPosition, ReceiverAlignment } from '../types/playbook';
 import { morphBackfieldAlignment, detectCurrentQBPosition, type SnapAlignment } from '../utils/formationBackfield';
-import { 
-  fetchFormations, 
-  saveFormation, 
-  deleteFormation,
-  seedAllFormations
-} from '../services/playbookDb';
+import { captureFormationPlayers } from '../utils/formationApply';
+import type { StorageOutcome } from '../hooks/useFormationLibrary';
 import { DEFAULT_FORMATIONS } from '../data/presets';
 import { 
   X, 
@@ -28,8 +24,13 @@ interface FormationSwitcherModalProps {
   onClose: () => void;
   currentPlayers: Player[];
   currentActions: PathAction[];
-  onApplyFormation: (players: Player[], keepActions: boolean, mode?: RouteAdaptationMode, applied?: Formation) => void;
-  onUpdateFormation?: (formationId: string, side: 'offense' | 'defense' | 'both') => Promise<void> | void;
+  formations: Formation[];
+  onApplyFormation: (formation: Formation, keepRoutes: boolean, mode?: RouteAdaptationMode) => void;
+  onSaveFormation: (formation: Formation) => Promise<StorageOutcome>;
+  onDeleteFormation: (id: string) => Promise<StorageOutcome>;
+  onRefreshFormations: () => Promise<void>;
+  onSeedFormations: () => Promise<number>;
+  onUpdateFormation: (formationId: string, side: 'offense' | 'defense' | 'both') => Promise<void> | void;
   routeAdaptationMode?: RouteAdaptationMode;
   onSetRouteAdaptationMode?: (mode: RouteAdaptationMode) => void;
   showNotification: (msg: string, type?: 'success' | 'error' | 'info') => void;
@@ -40,13 +41,17 @@ export const FormationSwitcherModal: React.FC<FormationSwitcherModalProps> = ({
   onClose,
   currentPlayers,
   currentActions,
+  formations,
   onApplyFormation,
+  onSaveFormation,
+  onDeleteFormation,
+  onRefreshFormations,
+  onSeedFormations,
   onUpdateFormation,
   routeAdaptationMode: _routeAdaptationMode = 'player_relative',
   onSetRouteAdaptationMode: _onSetRouteAdaptationMode,
   showNotification
 }) => {
-  const [formations, setFormations] = useState<Formation[]>(DEFAULT_FORMATIONS);
   const [selectedFormationId, setSelectedFormationId] = useState<string>(DEFAULT_FORMATIONS[0].id);
   const [isLoading, setIsLoading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
@@ -70,44 +75,24 @@ export const FormationSwitcherModal: React.FC<FormationSwitcherModalProps> = ({
 
   const [confirmApplyModal, setConfirmApplyModal] = useState<Formation | null>(null);
 
-  // Load formations from Firestore
-  const loadFormations = useCallback(async () => {
-    setIsLoading(true);
-    try {
-      const remote = await fetchFormations();
-      if (remote.length > 0) {
-        const map = new Map<string, Formation>();
-        DEFAULT_FORMATIONS.forEach(f => map.set(f.id, f));
-        remote.forEach(f => map.set(f.id, f));
-        setFormations(Array.from(map.values()));
-      } else {
-        setFormations(DEFAULT_FORMATIONS);
-      }
-    } catch {
-      setFormations(DEFAULT_FORMATIONS);
-    } finally {
-      setIsLoading(false);
-    }
-  }, []);
-
+  // The list itself is owned by the app; opening the drawer just asks for a fresh copy from the cloud
   useEffect(() => {
-    if (isOpen) {
-      const timer = setTimeout(() => {
-        void loadFormations();
-        setShowSaveForm(false);
-        setConfirmApplyModal(null);
-      }, 0);
-      return () => clearTimeout(timer);
-    }
-  }, [isOpen, loadFormations]);
+    if (!isOpen) return;
+    const timer = setTimeout(() => {
+      setIsLoading(true);
+      void onRefreshFormations().finally(() => setIsLoading(false));
+      setShowSaveForm(false);
+      setConfirmApplyModal(null);
+    }, 0);
+    return () => clearTimeout(timer);
+  }, [isOpen, onRefreshFormations]);
 
   // Sync / Seed all formations into Firebase Firestore
   const handleSyncToFirebase = async () => {
     setIsSyncingFirebase(true);
     try {
-      const result = await seedAllFormations(DEFAULT_FORMATIONS);
-      await loadFormations();
-      showNotification(`Successfully synced ${result.count} formations to Firebase Firestore!`, 'success');
+      const count = await onSeedFormations();
+      showNotification(`Successfully synced ${count} formations to Firebase Firestore!`, 'success');
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Sync failed';
       showNotification(`Firebase sync error: ${msg}`, 'error');
@@ -174,13 +159,7 @@ export const FormationSwitcherModal: React.FC<FormationSwitcherModalProps> = ({
       return;
     }
 
-    let playersToSave: Player[] = [];
-    if (newFormationSide === 'both') {
-      playersToSave = currentPlayers;
-    } else {
-      playersToSave = currentPlayers.filter(p => p.side === newFormationSide);
-    }
-
+    const playersToSave = captureFormationPlayers(currentPlayers, newFormationSide);
     if (playersToSave.length === 0) {
       showNotification(`No ${newFormationSide} players currently on the chalkboard to save.`, 'error');
       return;
@@ -201,7 +180,7 @@ export const FormationSwitcherModal: React.FC<FormationSwitcherModalProps> = ({
       qbPosition: isOffense ? newFormationQB : undefined,
       receiverAlignment: isOffense ? newFormationAlign : undefined,
       isBunch: isOffense ? newFormationIsBunch : undefined,
-      style: newFormationStyle as any,
+      style: newFormationStyle,
       labels: labelsList.length > 0 ? labelsList : [isOffense ? 'Offense' : 'Defense Front'],
       tags: isOffense ? [
         newFormationPersonnel.trim(),
@@ -218,18 +197,15 @@ export const FormationSwitcherModal: React.FC<FormationSwitcherModalProps> = ({
 
     setIsSaving(true);
     try {
-      await saveFormation(newFormation);
-      showNotification(`Saved formation template "${newFormation.name}"!`, 'success');
-      setFormations(prev => [newFormation, ...prev]);
+      const outcome = await onSaveFormation(newFormation);
+      if (outcome.storedIn === 'cloud') {
+        showNotification(`Saved formation template "${newFormation.name}"`, 'success');
+      } else {
+        showNotification(`"${newFormation.name}" is saved on this device only (cloud: ${outcome.reason})`, 'error');
+      }
       setSelectedFormationId(newFormation.id);
       setNewFormationName('');
       setShowSaveForm(false);
-    } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : 'Save error';
-      setFormations(prev => [newFormation, ...prev]);
-      setSelectedFormationId(newFormation.id);
-      setShowSaveForm(false);
-      showNotification(`Saved locally (${msg})`, 'info');
     } finally {
       setIsSaving(false);
     }
@@ -238,17 +214,15 @@ export const FormationSwitcherModal: React.FC<FormationSwitcherModalProps> = ({
   // Delete custom formation
   const handleDeleteFormation = async (formation: Formation, e: React.MouseEvent) => {
     e.stopPropagation();
-    if (window.confirm(`Delete formation "${formation.name}"?`)) {
-      try {
-        await deleteFormation(formation.id);
-      } catch (err) {
-        console.warn('Could not delete from Firestore:', err);
-      }
-      setFormations(prev => prev.filter(f => f.id !== formation.id));
-      if (selectedFormationId === formation.id) {
-        setSelectedFormationId(DEFAULT_FORMATIONS[0].id);
-      }
+    if (!window.confirm(`Delete formation "${formation.name}"?`)) return;
+    const outcome = await onDeleteFormation(formation.id);
+    if (selectedFormationId === formation.id) {
+      setSelectedFormationId(DEFAULT_FORMATIONS[0].id);
+    }
+    if (outcome.storedIn === 'cloud') {
       showNotification(`Deleted formation "${formation.name}"`, 'info');
+    } else {
+      showNotification(`Removed "${formation.name}" here, but the cloud still has it and it may come back (${outcome.reason})`, 'error');
     }
   };
 
@@ -256,35 +230,7 @@ export const FormationSwitcherModal: React.FC<FormationSwitcherModalProps> = ({
   const handleUpdateSelectedFormation = async () => {
     if (!selectedFormation) return;
     if (window.confirm(`Update formation "${selectedFormation.name}" with current chalkboard positions?`)) {
-      if (onUpdateFormation) {
-        await onUpdateFormation(selectedFormation.id, selectedFormation.side);
-        void loadFormations();
-        return;
-      }
-
-      let playersToSave: Player[] = [];
-      if (selectedFormation.side === 'both') {
-        playersToSave = currentPlayers;
-      } else {
-        playersToSave = currentPlayers.filter(p => p.side === selectedFormation.side);
-      }
-      if (playersToSave.length === 0) {
-        showNotification(`No ${selectedFormation.side} players on chalkboard to update "${selectedFormation.name}".`, 'error');
-        return;
-      }
-      const updatedFormation: Formation = {
-        ...selectedFormation,
-        players: playersToSave,
-        updatedAt: new Date().toISOString()
-      };
-      try {
-        await saveFormation(updatedFormation);
-        showNotification(`Updated formation "${updatedFormation.name}"!`, 'success');
-        setFormations(prev => prev.map(f => (f.id === updatedFormation.id ? updatedFormation : f)));
-      } catch {
-        setFormations(prev => prev.map(f => (f.id === updatedFormation.id ? updatedFormation : f)));
-        showNotification(`Updated "${updatedFormation.name}" locally`, 'info');
-      }
+      await onUpdateFormation(selectedFormation.id, selectedFormation.side);
     }
   };
 
@@ -300,20 +246,7 @@ export const FormationSwitcherModal: React.FC<FormationSwitcherModalProps> = ({
 
   // Execute applying formation
   const executeApply = (formation: Formation, keepActions: boolean, mode?: RouteAdaptationMode) => {
-    let updatedPlayers: Player[] = [];
-
-    if (formation.side === 'both') {
-      updatedPlayers = [...formation.players];
-    } else if (formation.side === 'offense') {
-      const existingDefense = currentPlayers.filter(p => p.side === 'defense');
-      updatedPlayers = [...formation.players, ...existingDefense];
-    } else {
-      const existingOffense = currentPlayers.filter(p => p.side === 'offense');
-      updatedPlayers = [...existingOffense, ...formation.players];
-    }
-
-    onApplyFormation(updatedPlayers, keepActions, mode, formation);
-    showNotification(`Applied formation "${formation.name}"`, 'success');
+    onApplyFormation(formation, keepActions, mode);
     setConfirmApplyModal(null);
     onClose();
   };

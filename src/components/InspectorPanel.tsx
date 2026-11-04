@@ -18,7 +18,7 @@ import {
   ChevronRight,
   Target
 } from 'lucide-react';
-import { LINE_COLOR_SWATCHES, isLightColor } from '../utils/colors';
+import { LINE_COLOR_SWATCHES, resolvePlayerColors } from '../utils/colors';
 import { 
   analyzeOffense, 
   calculateDefensiveAlignmentPosition, 
@@ -200,15 +200,11 @@ export const InspectorPanel: React.FC<InspectorPanelProps> = ({
     onUpdateStrategyMatrix({ tags: updated });
   };
 
+  // Players are drawn here on the panel's own surface, so unset letter colours stay readable in both themes
+  const colorSurface = isLight ? 'light' : 'dark';
+
   const getPlayerRosterBadgeStyle = (pl: Player) => {
-    const shape = pl.shape || 'none';
-    const nodeColor = pl.nodeColor || pl.color || '#000000';
-    const fillColor = shape === 'none'
-      ? 'transparent'
-      : (pl.fillColor !== undefined ? pl.fillColor : (pl.color || '#000000'));
-    const letterColor = pl.letterColor || (shape === 'none'
-      ? '#000000'
-      : (fillColor === 'transparent' ? (isLight ? '#000000' : '#ffffff') : (isLightColor(fillColor) ? '#000000' : '#ffffff')));
+    const { shape, nodeColor, fillColor, letterColor } = resolvePlayerColors(pl, colorSurface);
 
     return {
       backgroundColor: fillColor,
@@ -504,14 +500,12 @@ export const InspectorPanel: React.FC<InspectorPanelProps> = ({
                 <div className={`flex items-center justify-between pb-2 border-b ${isLight ? 'border-slate-200' : 'border-slate-700'}`}>
                   <div className="flex items-center gap-2">
                     {(() => {
-                      const pShape = selectedPlayer.shape || 'none';
-                      const pNodeColor = selectedPlayer.nodeColor || selectedPlayer.color || '#000000';
-                      const pFillColor = pShape === 'none'
-                        ? 'transparent'
-                        : (selectedPlayer.fillColor !== undefined ? selectedPlayer.fillColor : (selectedPlayer.color || '#000000'));
-                      const pLetterColor = selectedPlayer.letterColor || (pShape === 'none'
-                        ? '#000000'
-                        : (pFillColor === 'transparent' ? (isLight ? '#000000' : '#ffffff') : (isLightColor(pFillColor) ? '#000000' : '#ffffff')));
+                      const {
+                        shape: pShape,
+                        nodeColor: pNodeColor,
+                        fillColor: pFillColor,
+                        letterColor: pLetterColor
+                      } = resolvePlayerColors(selectedPlayer, colorSurface);
 
                       return (
                         <span
@@ -889,14 +883,11 @@ export const InspectorPanel: React.FC<InspectorPanelProps> = ({
 
                 {/* PLAYER COLOR PARAMETERS (3 Color Parameters: Letter Color, Node Color, Fill Color + Optional Hover Color) */}
                 {(() => {
-                  const pShape = selectedPlayer.shape || 'none';
-                  const pNodeColor = selectedPlayer.nodeColor || selectedPlayer.color || '#000000';
-                  const pFillColor = pShape === 'none'
-                    ? 'transparent'
-                    : (selectedPlayer.fillColor !== undefined ? selectedPlayer.fillColor : (selectedPlayer.color || '#000000'));
-                  const pLetterColor = selectedPlayer.letterColor || (pShape === 'none'
-                    ? '#000000'
-                    : (pFillColor === 'transparent' ? (isLight ? '#000000' : '#ffffff') : (isLightColor(pFillColor) ? '#000000' : '#ffffff')));
+                  const {
+                    nodeColor: pNodeColor,
+                    fillColor: pFillColor,
+                    letterColor: pLetterColor
+                  } = resolvePlayerColors(selectedPlayer, colorSurface);
 
                   return (
                     <div className={`p-3 rounded-lg border ${isLight ? 'bg-slate-50 border-slate-200' : 'bg-slate-900/60 border-slate-800'} space-y-3`}>

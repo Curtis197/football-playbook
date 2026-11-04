@@ -326,3 +326,11 @@ Comprehensive catalog of capabilities and features supported in the Football Pla
   - `Play.targetFront` is folded into `Play.frontDefense` (one field for the front); the duplicate Inspector selector is removed.
   - `Play.updatedAt` is stamped on each local edit and kept when saving to Firestore, so load prompts and the startup toast can say which copy is newer. Cloud syncs never overwrite local edits.
   - Fixed: Single-Back Ace stored `down_center` although its QB aligns in shotgun.
+
+- **One Code Path per Action (formations, saves, player colours)**:
+  - `src/hooks/useFormationLibrary.ts` is the only owner of the formation list. Built-in templates, cloud copies, and edits that exist only on this device are merged into one list (`mergeFormationSources`: device edits, then cloud, then built-in). All saves, deletes, refreshes and seeding go through it; the Formations drawer and the on-canvas pickers read the same list.
+  - Formations that the cloud did not accept are kept in browser storage (`src/utils/formationStorage.ts`) and every save says where it landed ("saved to the cloud" vs "saved on this device only (cloud: reason)"). Previously a failed save claimed to be "saved locally" but was lost on reload.
+  - `src/utils/formationApply.ts`: `applyFormationToPlay` is the single way a template reaches a play (offense: routes adapted or cleared and defenders re-aligned; defense: pre-aligned to the current offense; both: replaced as stored). The HUD pickers and the Formations drawer both use it, so applying from the drawer now also links the play and re-aligns the defense.
+  - `captureFormationPlayers` / `buildFormationFromPlay` build templates from a play in one place; re-saving an existing template keeps its QB alignment, receiver set, tags and personnel (the old save dropped them).
+  - `resolvePlayerColors` (`src/utils/colors.ts`) replaces five copies of the node/fill/letter logic. Unset letter colours on bare-text players are now white on dark chrome (hover card, dark Inspector) instead of black on near-black; the chalkboard keeps its black default.
+  - Cloud-save messages describe what happened for each target (play, playbook, offense template, front template).

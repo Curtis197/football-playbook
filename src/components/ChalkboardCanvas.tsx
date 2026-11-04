@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect, useCallback } from 'react';
 import type { Player, PathAction, CanvasMode, Point, AppMode, Theme, Formation, Play, RouteAdaptationMode } from '../types/playbook';
 import type { SnapAlignment } from '../utils/formationBackfield';
 import { generatePathString, getSvgCoordinates, clampFieldCoordinates, getDistance, insertPointIntoAction } from '../utils/geometry';
-import { isLightColor } from '../utils/colors';
+import { resolvePlayerColors } from '../utils/colors';
 import { Shield, ChevronLeft, ChevronRight, RotateCcw, Save } from 'lucide-react';
 import { analyzeOffense, calculateDefensiveAlignmentPosition } from '../utils/defensiveAlignment';
 import { translateActionPoints } from '../utils/routeAdaptation';
@@ -958,20 +958,15 @@ export const ChalkboardCanvas: React.FC<ChalkboardCanvasProps> = ({
               const isHovered = (appMode === 'view' && hoveredPlayerId === player.id) || canvasHoveredPlayerId === player.id;
               const isOffense = player.side === 'offense';
               const isView = appMode === 'view';
-              const shape = player.shape || 'none';
 
               // 3 Color parameters: letterColor, nodeColor, fillColor + optional hoverColor
               // Default player setting: no node shape ('none') and black 0/0/0 for both offense and defense
-              const defaultColor = '#000000';
-              const effectiveNodeColor = player.nodeColor || player.color || defaultColor;
-              const effectiveFillColor = shape === 'none'
-                ? 'transparent'
-                : (player.fillColor !== undefined ? player.fillColor : (player.color || defaultColor));
-              const effectiveLetterColor = player.letterColor || (shape === 'none'
-                ? defaultColor
-                : (effectiveFillColor === 'transparent'
-                  ? defaultColor
-                  : (isLightColor(effectiveFillColor) ? '#000000' : '#ffffff')));
+              const {
+                shape,
+                nodeColor: effectiveNodeColor,
+                fillColor: effectiveFillColor,
+                letterColor: effectiveLetterColor
+              } = resolvePlayerColors(player, 'field');
 
               const strokeColor = (isHovered && player.hoverColor)
                 ? player.hoverColor
@@ -1576,14 +1571,13 @@ export const ChalkboardCanvas: React.FC<ChalkboardCanvasProps> = ({
             <div className="bg-[#0f172a]/95 backdrop-blur-md border border-[#38bdf8]/50 text-slate-100 rounded-lg p-3 shadow-2xl min-w-[240px] max-w-[300px] pointer-events-auto">
               <div className="flex items-center gap-2 mb-1.5">
                 {(() => {
-                  const activeShape = activeHoveredPlayer.shape || 'none';
-                  const activeNodeColor = activeHoveredPlayer.nodeColor || activeHoveredPlayer.color || '#000000';
-                  const activeFillColor = activeShape === 'none'
-                    ? 'transparent'
-                    : (activeHoveredPlayer.fillColor !== undefined ? activeHoveredPlayer.fillColor : (activeHoveredPlayer.color || '#000000'));
-                  const activeLetterColor = activeHoveredPlayer.letterColor || (activeShape === 'none'
-                    ? '#000000'
-                    : (activeFillColor === 'transparent' ? '#ffffff' : (isLightColor(activeFillColor) ? '#000000' : '#ffffff')));
+                  // The hover card is always dark, whatever the theme
+                  const {
+                    shape: activeShape,
+                    nodeColor: activeNodeColor,
+                    fillColor: activeFillColor,
+                    letterColor: activeLetterColor
+                  } = resolvePlayerColors(activeHoveredPlayer, 'dark');
 
                   return (
                     <span
