@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { DEFAULT_FORMATIONS, INITIAL_PLAYBOOK } from './presets';
-import { normalizeFormation, normalizePlay } from '../utils/playValidation';
+import { PLAYBOOK_VERSION, normalizeFormation, normalizePlay } from '../utils/playValidation';
 import { resolveFormation } from '../utils/playMigrations';
 import { detectCurrentQBPosition } from '../utils/formationBackfield';
 import type { Player, Point } from '../types/playbook';
@@ -28,7 +28,7 @@ describe('built-in plays', () => {
   });
 
   it('the playbook is on the current schema', () => {
-    expect(INITIAL_PLAYBOOK.version).toBe('1.1.0');
+    expect(INITIAL_PLAYBOOK.version).toBe(PLAYBOOK_VERSION);
   });
 
   describe.each(plays.map(p => [p.id, p] as const))('%s', (_id, play) => {

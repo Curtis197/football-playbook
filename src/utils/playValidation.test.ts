@@ -135,7 +135,7 @@ describe('normalizePlaybook', () => {
   });
 
   it('reads both schema versions and always writes the current one', () => {
-    for (const version of ['1.0.0', '1.1.0']) {
+    for (const version of ['1.0.0', '1.1.0', PLAYBOOK_VERSION]) {
       const result = normalizePlaybook(book([base()], version));
       expect(result.ok && result.value.version).toBe(PLAYBOOK_VERSION);
     }

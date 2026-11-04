@@ -7,7 +7,7 @@ import {
   savePlaybookToStorage,
   takeStorageLoadNotice
 } from './storage';
-import { playsEqual } from './playValidation';
+import { PLAYBOOK_VERSION, playsEqual } from './playValidation';
 import { INITIAL_PLAYBOOK } from '../data/presets';
 import { WISHBONE_ID, clone, memoryStorage, preset } from '../test/helpers';
 
@@ -106,7 +106,7 @@ describe('schema upgrade on load', () => {
   it('upgrades a 1.0.0 save: current version, links and roles restored, legacy field gone', () => {
     store.set(KEY, JSON.stringify(oldSave()));
     const loaded = loadPlaybookFromStorage();
-    expect(loaded.version).toBe('1.1.0');
+    expect(loaded.version).toBe(PLAYBOOK_VERSION);
     expect(loaded.plays.every(p => p.formationOffenseId && p.frontDefenseId && !('targetFront' in p))).toBe(true);
     expect(sameContent(loaded, INITIAL_PLAYBOOK)).toBe(true);
   });
@@ -180,7 +180,7 @@ describe('parseAndValidateImport', () => {
 
   it('upgrades an old export', () => {
     const old = { ...clone(INITIAL_PLAYBOOK), version: '1.0.0' };
-    expect(parseAndValidateImport(JSON.stringify(old)).playbook?.version).toBe('1.1.0');
+    expect(parseAndValidateImport(JSON.stringify(old)).playbook?.version).toBe(PLAYBOOK_VERSION);
   });
 
   it('reports why a single bad play is rejected', () => {
