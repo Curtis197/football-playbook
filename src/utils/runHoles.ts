@@ -120,3 +120,9 @@ export function gapIdOf(defender: Player, players: Player[]): GapId {
 export function gapLabel(id: GapId): string {
   return `${id.gap} gap, ${id.side}`;
 }
+
+/** Where a hole is, in words: "B gap, right"; hole 0 is "over the center". */
+export function holeName(hole: number): string {
+  if (hole === 0) return 'over the center';
+  return `${GAP_LETTERS[Math.ceil(hole / 2) - 1]} gap, ${hole % 2 === 1 ? 'right' : 'left'}`;
+}

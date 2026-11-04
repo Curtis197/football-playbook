@@ -1,6 +1,8 @@
 import React, { useState } from 'react';
 import type { Player, PathAction, Play, ActionType, AppMode, Point, Theme, AlignmentLeverage, Formation, PlayerPosition } from '../types/playbook';
 import type { AssignmentChange } from '../utils/blockPlanApply';
+import { firstLevelDefenders } from '../utils/blockSlots';
+import { gapIdOf, gapLabel } from '../utils/runHoles';
 import { resolveFormation } from '../utils/playMigrations';
 import { 
   Compass, 
@@ -1473,6 +1475,7 @@ export const InspectorPanel: React.FC<InspectorPanelProps> = ({
                     const assignment = currentPlay.blockPlan?.assignments.find(a => a.id === selectedAction.assignmentId);
                     if (!assignment) return null;
                     const defenders = currentPlay.players.filter(p => p.side === 'defense');
+                    const onLine = new Set(firstLevelDefenders(currentPlay.players).map(d => d.id));
                     const blockers = currentPlay.blockPlan!.assignments.filter(a => a.playerId !== assignment.playerId);
                     const targetValue = assignment.target.type === 'defender'
                       ? `def:${assignment.target.playerId}`
@@ -1510,7 +1513,7 @@ export const InspectorPanel: React.FC<InspectorPanelProps> = ({
                             )}
                             <option value="level">Second level (nearest linebacker)</option>
                             {defenders.map(d => (
-                              <option key={d.id} value={`def:${d.id}`}>{d.label}{d.technique ? ` (${d.technique})` : ''}</option>
+                              <option key={d.id} value={`def:${d.id}`}>{d.label} ({onLine.has(d.id) ? gapLabel(gapIdOf(d, currentPlay.players)) : d.technique ?? 'second level'})</option>
                             ))}
                             <option value="none">Nobody</option>
                           </select>

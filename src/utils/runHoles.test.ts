@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { callPlaySide, isValidCall, holeX, runnerPlayer, leadBack, gapIdOf, gapLabel } from './runHoles';
+import { callPlaySide, isValidCall, holeX, holeName, runnerPlayer, leadBack, gapIdOf, gapLabel } from './runHoles';
 import { OFFENSE_TE_RIGHT, FOUR_THREE_OVER, FULLBACK, offensePlayer } from '../test/fixtures';
 
 const holes = (players = OFFENSE_TE_RIGHT) => [0, 1, 2, 3, 4, 5, 6, 7, 8].map(h => holeX(players, h));
@@ -87,5 +87,14 @@ describe('gap ids', () => {
   it('labels a gap for the coach', () => {
     expect(gapLabel(idOf('DT_R'))).toBe('B gap, right');
     expect(gapLabel({ hole: 0, gap: 'A', side: 'center' })).toBe('A gap, center');
+  });
+});
+
+describe('holeName', () => {
+  it('says where a hole is in words', () => {
+    expect(holeName(0)).toBe('over the center');
+    expect(holeName(1)).toBe('A gap, right');
+    expect(holeName(4)).toBe('B gap, left');
+    expect(holeName(7)).toBe('D gap, right');
   });
 });
