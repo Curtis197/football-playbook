@@ -30,3 +30,27 @@ If you are developing a production application, we recommend enabling type-aware
 ```
 
 See the [Oxlint rules documentation](https://oxc.rs/docs/guide/usage/linter/rules) for the full list of rules and categories.
+
+## Development
+
+| Command | What it does |
+|---|---|
+| `npm run dev` | Start the app with hot reload |
+| `npm test` | Run the whole test suite once (Vitest, plain Node: no browser) |
+| `npm run test:watch` | Re-run tests as you edit |
+| `npm run typecheck` | Type-check the app, the tests and the configs |
+| `npm run lint` | Oxlint |
+| `npm run verify` | Lint, type check, tests and the feature-inventory check: everything CI checks except the build |
+| `npm run build` | Type check, then production build |
+
+CI (`.github/workflows/ci.yml`) runs lint, type check, tests, the inventory check and the build on every push to `main` and every pull request.
+
+### Tests
+
+Tests sit next to the code they cover (`*.test.ts`, `*.test.tsx`). They cover the pure logic (data validation and
+migrations, undo/redo and cloud-merge rules, formation apply/capture, route adaptation, backfield morphing,
+geometry and curves, the defensive alignment engine), the built-in plays and formation templates, and a
+server-render check of the screen components (read-only View mode, one control per job).
+
+If you change a preset play or formation and a data test fails, it is pointing at a real problem in the data
+(a route to a player who is not there, a player off the field, a duplicate name), not at the test.

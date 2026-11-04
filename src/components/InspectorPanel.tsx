@@ -47,6 +47,8 @@ const HOVER_SWATCHES = [
   { label: 'Solid Black', color: '#000000' },
 ];
 
+export type InspectorTab = 'inspector' | 'philosophy' | 'read_flow';
+
 interface InspectorPanelProps {
   currentPlay: Play;
   selectedPlayer: Player | null;
@@ -66,6 +68,8 @@ interface InspectorPanelProps {
   }) => void;
   onUpdatePlayFormations: (offense: string, defense: string) => void;
   formations?: Formation[];
+  /** Which tab is open first. Defaults to Philosophy; tests use it to render every tab. */
+  initialTab?: InspectorTab;
 }
 
 export const InspectorPanel: React.FC<InspectorPanelProps> = ({
@@ -81,7 +85,8 @@ export const InspectorPanel: React.FC<InspectorPanelProps> = ({
   onUpdatePlayNotes,
   onUpdateStrategyMatrix,
   onUpdatePlayFormations,
-  formations = []
+  formations = [],
+  initialTab = 'philosophy'
 }) => {
   const isLight = theme === 'light';
   // View mode is read-only. Forms sit inside a disabled fieldset: text stays fully readable (their colours are
@@ -89,7 +94,7 @@ export const InspectorPanel: React.FC<InspectorPanelProps> = ({
   const isView = appMode === 'view';
   const formFieldsetClass =
     'min-w-0 border-0 p-0 m-0 space-y-4 [&:disabled_button]:opacity-50 [&:disabled_button]:cursor-default [&:disabled_input]:cursor-default [&:disabled_select]:cursor-default [&:disabled_textarea]:cursor-default';
-  const [activeTab, setActiveTab] = useState<'inspector' | 'philosophy' | 'read_flow'>('philosophy');
+  const [activeTab, setActiveTab] = useState<InspectorTab>(initialTab);
   const [prevSelectedId, setPrevSelectedId] = useState<string | null>(null);
   const [newTagInput, setNewTagInput] = useState('');
   const [newSituationInput, setNewSituationInput] = useState('');

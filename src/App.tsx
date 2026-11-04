@@ -38,50 +38,18 @@ import { morphBackfieldAlignment, detectCurrentQBPosition, type SnapAlignment } 
 import { savePlay, fetchAllPlays } from './services/playbookDb';
 import { isFirebaseConfigured } from './services/firebase';
 import { useFormationLibrary } from './hooks/useFormationLibrary';
-
-// Undo/redo keeps whole-playbook snapshots. Edits that arrive within COALESCE_MS of each other
-// (a drag, typing in a field) share one undo step.
-interface PlaybookHistory {
-  present: PlaybookFile;
-  past: PlaybookFile[];
-  future: PlaybookFile[];
-  lastEditAt: number;
-}
-const HISTORY_LIMIT = 100;
-const COALESCE_MS = 600;
-
-// Stamps every play that was added or changed by an edit, so each play knows when it was last edited here.
-function stampEditedPlays(before: PlaybookFile, after: PlaybookFile): PlaybookFile {
-  const previous = new Map(before.plays.map(p => [p.id, p]));
-  const editedAt = new Date().toISOString();
-  let changed = false;
-  const plays = after.plays.map(p => {
-    if (previous.get(p.id) === p) return p;
-    changed = true;
-    return { ...p, updatedAt: editedAt };
-  });
-  return changed ? { ...after, plays } : after;
-}
-
-// Local edits always win; the cloud only contributes plays this device does not have.
-function mergeCloudPlays(local: PlaybookFile, remote: Play[]): PlaybookFile {
-  const merged = new Map<string, Play>();
-  INITIAL_PLAYBOOK.plays.forEach(p => merged.set(p.id, p));
-  local.plays.forEach(p => merged.set(p.id, p));
-  const localIds = new Set(local.plays.map(p => p.id));
-  remote.forEach(p => {
-    if (!localIds.has(p.id)) merged.set(p.id, p);
-  });
-  return { ...local, plays: Array.from(merged.values()) };
-}
+import {
+  applyEdit,
+  createHistory,
+  mergeCloudPlays,
+  redoHistory,
+  replacePresent,
+  undoHistory,
+  type PlaybookHistory
+} from './utils/playbookHistory';
 
 export const App: React.FC = () => {
-  const [history, setHistory] = useState<PlaybookHistory>(() => ({
-    present: loadPlaybookFromStorage(),
-    past: [],
-    future: [],
-    lastEditAt: 0
-  }));
+  const [history, setHistory] = useState<PlaybookHistory>(() => createHistory(loadPlaybookFromStorage()));
   const playbook = history.present;
   const latestPlaybook = useRef(playbook);
   useEffect(() => {
@@ -89,19 +57,7 @@ export const App: React.FC = () => {
   }, [playbook]);
 
   const setPlaybook = useCallback((update: PlaybookFile | ((prev: PlaybookFile) => PlaybookFile)) => {
-    setHistory(h => {
-      const updated = typeof update === 'function' ? update(h.present) : update;
-      if (updated === h.present) return h;
-      const next = stampEditedPlays(h.present, updated);
-      const now = Date.now();
-      const joinsLastStep = now - h.lastEditAt < COALESCE_MS;
-      return {
-        present: next,
-        past: joinsLastStep ? h.past : [...h.past, h.present].slice(-HISTORY_LIMIT),
-        future: [],
-        lastEditAt: now
-      };
-    });
+    setHistory(h => applyEdit(h, update, Date.now()));
   }, []);
   const [activePlayId, setActivePlayId] = useState<string>(() => playbook.plays[0]?.id || INITIAL_PLAYBOOK.plays[0].id);
   const [appMode, setAppMode] = useState<AppMode>('build');
@@ -131,7 +87,7 @@ export const App: React.FC = () => {
 
   // Background cloud sync changes the playbook without creating an undo step
   const mergeRemotePlays = useCallback((remote: Play[]) => {
-    setHistory(h => ({ ...h, present: mergeCloudPlays(h.present, remote) }));
+    setHistory(h => replacePresent(h, mergeCloudPlays(h.present, remote)));
   }, []);
 
   // Flash notification helper
@@ -239,29 +195,13 @@ export const App: React.FC = () => {
 
   const handleUndo = useCallback(() => {
     if (!canUndo) return;
-    setHistory(h => {
-      if (h.past.length === 0) return h;
-      return {
-        present: h.past[h.past.length - 1],
-        past: h.past.slice(0, -1),
-        future: [h.present, ...h.future],
-        lastEditAt: 0
-      };
-    });
+    setHistory(undoHistory);
     showNotification('Undid last change', 'info');
   }, [canUndo, showNotification]);
 
   const handleRedo = useCallback(() => {
     if (!canRedo) return;
-    setHistory(h => {
-      if (h.future.length === 0) return h;
-      return {
-        present: h.future[0],
-        past: [...h.past, h.present].slice(-HISTORY_LIMIT),
-        future: h.future.slice(1),
-        lastEditAt: 0
-      };
-    });
+    setHistory(redoHistory);
     showNotification('Redid change', 'info');
   }, [canRedo, showNotification]);
 
