@@ -117,7 +117,7 @@ export const PlayLibraryModal: React.FC<PlayLibraryModalProps> = ({
         const matchesPersonnel = play.personnel?.toLowerCase().includes(query) ?? false;
         const matchesAlignment = play.receiverAlignment?.toLowerCase().includes(query) ?? false;
         const matchesCounter = play.counterAction?.toLowerCase().includes(query) ?? false;
-        const matchesFront = play.targetFront?.toLowerCase().includes(query) ?? false;
+        const matchesFront = play.frontDefense?.toLowerCase().includes(query) ?? false;
         const matchesTags = play.tags?.some(t => t.toLowerCase().includes(query)) ?? false;
         return matchesName || matchesCategory || matchesRun || matchesPass || matchesPersonnel || matchesAlignment || matchesCounter || matchesFront || matchesTags;
       }
@@ -479,13 +479,13 @@ export const PlayLibraryModal: React.FC<PlayLibraryModalProps> = ({
                         )}
 
                         {/* 3. Defensive Front (Rose badge #f43f5e) */}
-                        {play.targetFront && (
+                        {play.frontDefense && (
                           <span
                             className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-md border text-rose-300 bg-rose-950/70 border-rose-500/40 shadow-xs"
                             title="Target Defensive Front"
                           >
                             <Shield className="w-2.5 h-2.5 text-rose-400" />
-                            {play.targetFront}
+                            {play.frontDefense}
                           </span>
                         )}
                       </div>

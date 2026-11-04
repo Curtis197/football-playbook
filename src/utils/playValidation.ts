@@ -3,16 +3,23 @@ import type {
   PathAction,
   Play,
   PlayCategory,
+  Formation,
   PlaybookFile,
   Player,
+  PlayerPosition,
   PlayerShape,
   Point,
   Side
 } from '../types/playbook';
+import { DEFAULT_FORMATIONS } from '../data/presets';
+import { upgradePlay } from './playMigrations';
 
-export const PLAYBOOK_VERSION = '1.0.0';
+export const PLAYBOOK_VERSION = '1.1.0';
+// Older files are accepted and upgraded on read; anything else is rejected with a clear message.
+const READABLE_VERSIONS: readonly string[] = ['1.0.0', PLAYBOOK_VERSION];
 
 const SIDES: readonly Side[] = ['offense', 'defense'];
+const POSITIONS: readonly PlayerPosition[] = ['QB', 'RB', 'WR', 'TE', 'OL', 'DL', 'LB', 'DB'];
 const SHAPES: readonly PlayerShape[] = ['round', 'square', 'rounded_square', 'none'];
 const ACTION_TYPES: readonly ActionType[] = ['pass_route', 'run_block', 'motion', 'pull_block'];
 const END_MARKERS: readonly PathAction['endMarker'][] = ['arrow', 'tbar', 'dot', 'none'];
@@ -20,7 +27,10 @@ const BRANCH_TYPES = ['combo', 'option'];
 const CATEGORIES: readonly PlayCategory[] = ['run', 'pass_action', 'pass_dropback', 'rpo', 'screen', 'blitz_pickup'];
 
 const PLAYER_TEXT_FIELDS = ['color', 'letterColor', 'nodeColor', 'fillColor', 'hoverColor', 'technique'];
-const PLAY_TEXT_FIELDS = ['primaryRunConcept', 'primaryPassConcept', 'personnel', 'receiverAlignment', 'counterAction', 'targetFront'];
+const PLAY_TEXT_FIELDS = [
+  'primaryRunConcept', 'primaryPassConcept', 'personnel', 'receiverAlignment', 'counterAction',
+  'targetFront', 'formationOffenseId', 'frontDefenseId', 'updatedAt'
+];
 
 export type ValidationResult<T> =
   | { ok: true; value: T; warnings: string[] }
@@ -74,6 +84,7 @@ function normalizePlayer(raw: unknown, where: string): Player {
     assignmentNotes: textOr(raw, 'assignmentNotes', '')
   };
   if (player.shape !== undefined && !SHAPES.includes(player.shape as PlayerShape)) delete player.shape;
+  if (player.position !== undefined && !POSITIONS.includes(player.position as PlayerPosition)) delete player.position;
   dropUnlessText(player, PLAYER_TEXT_FIELDS);
   if (player.coachingKeys !== undefined) {
     if (Array.isArray(player.coachingKeys)) player.coachingKeys = player.coachingKeys.filter(isStr);
@@ -103,7 +114,7 @@ function normalizeAction(raw: unknown, where: string): PathAction {
   return action as unknown as PathAction;
 }
 
-function buildPlay(raw: unknown, warnings: string[]): Play {
+function buildPlay(raw: unknown, warnings: string[], formations: Formation[]): Play {
   if (!isRecord(raw)) return fail('Play must be an object');
   const id = requiredText(raw, 'id', 'Play');
   const name = requiredText(raw, 'name', 'Play');
@@ -160,7 +171,7 @@ function buildPlay(raw: unknown, warnings: string[]): Play {
     notes
   };
   dropUnlessText(play, PLAY_TEXT_FIELDS);
-  return play as unknown as Play;
+  return upgradePlay(play as unknown as Play, formations);
 }
 
 function attempt<T>(build: (warnings: string[]) => T): ValidationResult<T> {
@@ -177,8 +188,8 @@ function attempt<T>(build: (warnings: string[]) => T): ValidationResult<T> {
  * Checks an untrusted play (import file, Firestore document, localStorage) and fills in
  * defaults for optional text/list fields so the UI never reads `undefined.length`.
  */
-export function normalizePlay(raw: unknown): ValidationResult<Play> {
-  return attempt(warnings => buildPlay(raw, warnings));
+export function normalizePlay(raw: unknown, formations: Formation[] = DEFAULT_FORMATIONS): ValidationResult<Play> {
+  return attempt(warnings => buildPlay(raw, warnings, formations));
 }
 
 /**
@@ -189,8 +200,8 @@ export function normalizePlaybook(raw: unknown, mode: 'strict' | 'lenient' = 'st
   return attempt(warnings => {
     if (!isRecord(raw)) return fail('Playbook must be an object');
     const book = raw;
-    if (book.version !== PLAYBOOK_VERSION) {
-      return fail(`Unsupported playbook version ${JSON.stringify(book.version)} (this app reads ${PLAYBOOK_VERSION})`);
+    if (typeof book.version !== 'string' || !READABLE_VERSIONS.includes(book.version)) {
+      return fail(`Unsupported playbook version ${JSON.stringify(book.version)} (this app reads ${READABLE_VERSIONS.join(', ')})`);
     }
     const rawPlays = book.plays;
     if (!Array.isArray(rawPlays)) return fail('Playbook "plays" must be a list');

@@ -318,3 +318,11 @@ Comprehensive catalog of capabilities and features supported in the Football Pla
 
 
 
+
+- **Data Model v1.1.0 (versioned schema & migrations)**:
+  - `PlaybookFile.version` is `1.1.0`; `1.0.0` files (imports, localStorage, Firestore) are accepted and upgraded on read by `src/utils/playMigrations.ts` (pure and idempotent). The first time an old save is upgraded, the original is kept once in browser storage.
+  - `Player.position` (`QB`, `RB`, `WR`, `TE`, `OL`, `DL`, `LB`, `DB`) is stored instead of guessed from labels at every use. Route adaptation uses it, so attached tight ends are no longer classed as linemen; an Inspector "Role" selector sets it (Auto keeps inferring).
+  - `Play.formationOffenseId` / `Play.frontDefenseId` link a play to its saved template. Names stay as display labels, and pickers, "Update", and the plays-for-this-formation group match by id (exact name only; no fuzzy matching). Applying a template from any entry point, or saving one, now records the link.
+  - `Play.targetFront` is folded into `Play.frontDefense` (one field for the front); the duplicate Inspector selector is removed.
+  - `Play.updatedAt` is stamped on each local edit and kept when saving to Firestore, so load prompts and the startup toast can say which copy is newer. Cloud syncs never overwrite local edits.
+  - Fixed: Single-Back Ace stored `down_center` although its QB aligns in shotgun.

@@ -12,7 +12,7 @@ import type {
   Formation,
   RouteAdaptationMode
 } from './types/playbook';
-import { DEFAULT_WISHBONE_PLAY, DEFAULT_FORMATIONS } from './data/presets';
+import { DEFAULT_FORMATIONS, INITIAL_PLAYBOOK } from './data/presets';
 import { 
   loadPlaybookFromStorage, 
   savePlaybookToStorage, 
@@ -22,6 +22,7 @@ import {
   takeStorageLoadNotice
 } from './utils/storage';
 import { playsEqual } from './utils/playValidation';
+import { newerCopy, resolveFormation, upgradePlayers } from './utils/playMigrations';
 import { ChalkboardCanvas } from './components/ChalkboardCanvas';
 import { Toolbar, type CloudSyncStatus, type CloudSaveTarget } from './components/Toolbar';
 import { ModeSwitcher } from './components/ModeSwitcher';
@@ -35,7 +36,6 @@ import { adaptRoutesToNewFormation } from './utils/routeAdaptation';
 import { morphBackfieldAlignment, detectCurrentQBPosition, type SnapAlignment } from './utils/formationBackfield';
 import { savePlay, fetchFormations, saveFormation, fetchAllPlays } from './services/playbookDb';
 import { isFirebaseConfigured } from './services/firebase';
-import { INITIAL_PLAYBOOK } from './data/presets';
 
 // Undo/redo keeps whole-playbook snapshots. Edits that arrive within COALESCE_MS of each other
 // (a drag, typing in a field) share one undo step.
@@ -47,6 +47,19 @@ interface PlaybookHistory {
 }
 const HISTORY_LIMIT = 100;
 const COALESCE_MS = 600;
+
+// Stamps every play that was added or changed by an edit, so each play knows when it was last edited here.
+function stampEditedPlays(before: PlaybookFile, after: PlaybookFile): PlaybookFile {
+  const previous = new Map(before.plays.map(p => [p.id, p]));
+  const editedAt = new Date().toISOString();
+  let changed = false;
+  const plays = after.plays.map(p => {
+    if (previous.get(p.id) === p) return p;
+    changed = true;
+    return { ...p, updatedAt: editedAt };
+  });
+  return changed ? { ...after, plays } : after;
+}
 
 // Local edits always win; the cloud only contributes plays this device does not have.
 function mergeCloudPlays(local: PlaybookFile, remote: Play[]): PlaybookFile {
@@ -75,8 +88,9 @@ export const App: React.FC = () => {
 
   const setPlaybook = useCallback((update: PlaybookFile | ((prev: PlaybookFile) => PlaybookFile)) => {
     setHistory(h => {
-      const next = typeof update === 'function' ? update(h.present) : update;
-      if (next === h.present) return h;
+      const updated = typeof update === 'function' ? update(h.present) : update;
+      if (updated === h.present) return h;
+      const next = stampEditedPlays(h.present, updated);
       const now = Date.now();
       const joinsLastStep = now - h.lastEditAt < COALESCE_MS;
       return {
@@ -87,7 +101,7 @@ export const App: React.FC = () => {
       };
     });
   }, []);
-  const [activePlayId, setActivePlayId] = useState<string>(() => playbook.plays[0]?.id || DEFAULT_WISHBONE_PLAY.id);
+  const [activePlayId, setActivePlayId] = useState<string>(() => playbook.plays[0]?.id || INITIAL_PLAYBOOK.plays[0].id);
   const [appMode, setAppMode] = useState<AppMode>('build');
   const [theme, setTheme] = useState<Theme>(() => {
     const saved = localStorage.getItem('football_theme');
@@ -151,15 +165,18 @@ export const App: React.FC = () => {
         // 2. Fetch Plays from Cloud
         const remotePlays = await fetchAllPlays();
         if (remotePlays.length > 0 && isMounted) {
-          const differing = remotePlays.filter(remote => {
+          const differing = remotePlays.flatMap(remote => {
             const local = latestPlaybook.current.plays.find(p => p.id === remote.id);
-            return local !== undefined && !playsEqual(local, remote);
-          }).length;
+            return local && !playsEqual(local, remote) ? [{ local, remote }] : [];
+          });
           mergeRemotePlays(remotePlays);
-          if (differing > 0) {
+          if (differing.length > 0) {
+            const cloudNewer = differing.filter(d => newerCopy(d.local, d.remote) === 'remote').length;
+            const newerNote = cloudNewer > 0 ? ` (${cloudNewer} newer in the cloud)` : '';
             showNotification(
-              `${differing} play${differing === 1 ? ' differs' : 's differ'} from the cloud copy. Your local version was kept; open My Playbook to load the cloud one.`,
-              'info'
+              `${differing.length} play${differing.length === 1 ? ' differs' : 's differ'} from the cloud copy${newerNote}. Your local version was kept; open My Playbook to load the cloud one.`,
+              'info',
+              7000
             );
           }
         }
@@ -267,7 +284,7 @@ export const App: React.FC = () => {
   }, [handleUndo, handleRedo, isAnyModalOpen]);
 
   // Current active play
-  const currentPlay = playbook.plays.find(p => p.id === activePlayId) || playbook.plays[0] || DEFAULT_WISHBONE_PLAY;
+  const currentPlay = playbook.plays.find(p => p.id === activePlayId) || playbook.plays[0] || INITIAL_PLAYBOOK.plays[0];
 
   // Selected entities
   const selectedPlayer = currentPlay.players.find(p => p.id === selectedPlayerId) || null;
@@ -408,25 +425,28 @@ export const App: React.FC = () => {
   // Create new play
   const handleNewPlay = () => {
     const newPlayId = `play_${Date.now()}`;
+    const offenseTemplate = resolveFormation(formations, 'offense', 'formation-spread-2x2', undefined);
+    const frontTemplate = resolveFormation(formations, 'defense', undefined, '4-2-5 Nickel Over');
     const blankPlay: Play = {
       id: newPlayId,
       name: `New Play ${playbook.plays.length + 1}`,
-      formationOffense: 'Spread 2x2 Open',
-      frontDefense: '4-2-5 Nickel',
+      formationOffense: offenseTemplate?.name ?? 'Spread 2x2 Open',
+      formationOffenseId: offenseTemplate?.id,
+      frontDefense: frontTemplate?.name ?? '4-2-5 Nickel Over',
+      frontDefenseId: frontTemplate?.id,
       category: 'pass_action',
       primaryRunConcept: 'Inside Zone',
       counterAction: 'Pop/Glance',
-      targetFront: '4-2-5 Nickel',
       tags: ['new-play'],
       situation: ['1st & 10'],
-      players: [
+      players: upgradePlayers([
         { id: 'LT', label: 'LT', side: 'offense', x: 360, y: 380, assignmentTitle: 'Pass Pro', assignmentNotes: 'Vertical set.' },
         { id: 'LG', label: 'LG', side: 'offense', x: 420, y: 380, assignmentTitle: 'Pass Pro', assignmentNotes: 'Anchor A-gap.' },
         { id: 'C',  label: 'C',  side: 'offense', x: 480, y: 380, assignmentTitle: 'Pass Pro', assignmentNotes: 'Declare Mike.' },
         { id: 'RG', label: 'RG', side: 'offense', x: 540, y: 380, assignmentTitle: 'Pass Pro', assignmentNotes: 'Anchor B-gap.' },
         { id: 'RT', label: 'RT', side: 'offense', x: 600, y: 380, assignmentTitle: 'Pass Pro', assignmentNotes: 'Vertical set.' },
         { id: 'QB', label: 'QB', side: 'offense', x: 480, y: 460, assignmentTitle: '3-Step Drop', assignmentNotes: 'Read boundary safety.' }
-      ],
+      ]),
       actions: [],
       notes: {
         qbRead: 'Pre-snap boundary single-high confirmation; rhythm throw on 3-step hitch.',
@@ -534,10 +554,7 @@ export const App: React.FC = () => {
         if (offPlayers.length === 0) {
           throw new Error('No offensive players found on canvas to save as formation.');
         }
-        const existing = formations.find(
-          f => (f.side === 'offense' || f.side === 'both') &&
-               (f.name.toLowerCase() === currentPlay.formationOffense.toLowerCase() || f.id === currentPlay.formationOffense)
-        );
+        const existing = resolveFormation(formations, 'offense', currentPlay.formationOffenseId, currentPlay.formationOffense);
         const formationId = existing ? existing.id : `formation-${currentPlay.formationOffense.toLowerCase().replace(/[^a-z0-9]+/g, '-')}-${Date.now().toString().slice(-4)}`;
         const savedFormation: Formation = {
           id: formationId,
@@ -557,6 +574,8 @@ export const App: React.FC = () => {
           const found = prev.some(f => f.id === savedFormation.id);
           return found ? prev.map(f => (f.id === savedFormation.id ? savedFormation : f)) : [...prev, savedFormation];
         });
+        // Link the play to the template it just saved, so the picker and "Update" find it by id
+        updateCurrentPlay(p => ({ ...p, formationOffense: savedFormation.name, formationOffenseId: savedFormation.id }));
         showNotification(`Saved Offensive Formation "${savedFormation.name}" to Cloud!`, 'success');
       } else if (target === 'defense') {
         const defPlayers = currentPlay.players.filter(p => p.side === 'defense');
@@ -568,10 +587,7 @@ export const App: React.FC = () => {
           ...p,
           technique: p.technique || inferDefenderTechnique(p, structure)
         }));
-        const existing = formations.find(
-          f => (f.side === 'defense' || f.side === 'both') &&
-               (f.name.toLowerCase() === currentPlay.frontDefense.toLowerCase() || f.id === currentPlay.frontDefense)
-        );
+        const existing = resolveFormation(formations, 'defense', currentPlay.frontDefenseId, currentPlay.frontDefense);
         const frontId = existing ? existing.id : `front-${currentPlay.frontDefense.toLowerCase().replace(/[^a-z0-9]+/g, '-')}-${Date.now().toString().slice(-4)}`;
         const dlCount = enrichedDefenders.filter(d => ['NT', 'DT', 'DE', 'E'].includes(d.label)).length;
         const savedFront: Formation = {
@@ -592,6 +608,7 @@ export const App: React.FC = () => {
           const found = prev.some(f => f.id === savedFront.id);
           return found ? prev.map(f => (f.id === savedFront.id ? savedFront : f)) : [...prev, savedFront];
         });
+        updateCurrentPlay(p => ({ ...p, frontDefense: savedFront.name, frontDefenseId: savedFront.id }));
         showNotification(`Saved Defensive Front "${savedFront.name}" to Cloud!`, 'success');
       } else if (target === 'playbook') {
         if (isFirebaseConfigured) {
@@ -624,16 +641,28 @@ export const App: React.FC = () => {
   };
 
   // Apply Formation Template to current play
-  const handleApplyFormation = (newPlayers: Player[], keepActions: boolean, customMode?: RouteAdaptationMode) => {
+  const handleApplyFormation = (newPlayers: Player[], keepActions: boolean, customMode?: RouteAdaptationMode, applied?: Formation) => {
     updateCurrentPlay(p => {
       const modeToUse = customMode || routeAdaptationMode;
       const offPlayers = newPlayers.filter(pl => pl.side === 'offense');
-      const nextActions = keepActions 
-        ? adaptRoutesToNewFormation(p.actions, p.players, offPlayers, modeToUse) 
+      const nextActions = keepActions
+        ? adaptRoutesToNewFormation(p.actions, p.players, offPlayers, modeToUse)
         : [];
+
+      // Record which template was applied, the same way the on-canvas pickers do
+      const links: Partial<Play> = {};
+      if (applied && (applied.side === 'offense' || applied.side === 'both')) {
+        links.formationOffense = applied.name;
+        links.formationOffenseId = applied.id;
+      }
+      if (applied && (applied.side === 'defense' || applied.side === 'both')) {
+        links.frontDefense = applied.name;
+        links.frontDefenseId = applied.id;
+      }
 
       return {
         ...p,
+        ...links,
         players: newPlayers,
         actions: nextActions
       };
@@ -673,6 +702,8 @@ export const App: React.FC = () => {
       return {
         ...p,
         frontDefense: frontName || p.frontDefense,
+        // A defense package is not a saved template, so a package name must not keep a stale template link
+        frontDefenseId: frontName ? undefined : p.frontDefenseId,
         players: [...nonDefenders, ...updatedDefenders]
       };
     });
@@ -733,6 +764,7 @@ export const App: React.FC = () => {
       return {
         ...p,
         formationOffense: formation.name,
+        formationOffenseId: formation.id,
         actions: nextActions,
         players: [...offPlayers, ...realignedDefenders]
       };
@@ -763,6 +795,7 @@ export const App: React.FC = () => {
       return {
         ...p,
         frontDefense: formation.name,
+        frontDefenseId: formation.id,
         players: [...nonDefenders, ...realignedDefenders]
       };
     });
@@ -826,9 +859,12 @@ export const App: React.FC = () => {
   // Returns false when the user declines to replace a differing local copy
   const handleSelectPlayFromLibrary = (play: Play): boolean => {
     const local = playbook.plays.find(p => p.id === play.id);
-    if (local && !playsEqual(local, play) &&
-        !window.confirm(`"${local.name}" on this device differs from the copy you are loading. Replace your local version? Ctrl+Z undoes this.`)) {
-      return false;
+    if (local && !playsEqual(local, play)) {
+      const newer = newerCopy(local, play);
+      const recency = newer === 'local' ? 'Your local copy is newer.' : newer === 'remote' ? 'The copy you are loading is newer.' : 'Neither copy has a newer edit time.';
+      if (!window.confirm(`"${local.name}" on this device differs from the copy you are loading. ${recency} Replace your local version? Ctrl+Z undoes this.`)) {
+        return false;
+      }
     }
     setPlaybook(prev => {
       const exists = prev.plays.some(p => p.id === play.id);
@@ -853,11 +889,11 @@ export const App: React.FC = () => {
       const remaining = prev.plays.filter(p => p.id !== playId);
       return {
         ...prev,
-        plays: remaining.length > 0 ? remaining : [DEFAULT_WISHBONE_PLAY]
+        plays: remaining.length > 0 ? remaining : [INITIAL_PLAYBOOK.plays[0]]
       };
     });
     if (activePlayId === playId) {
-      const fallback = playbook.plays.find(p => p.id !== playId) || DEFAULT_WISHBONE_PLAY;
+      const fallback = playbook.plays.find(p => p.id !== playId) || INITIAL_PLAYBOOK.plays[0];
       setActivePlayId(fallback.id);
       setSelectedPlayerId(null);
       setSelectedActionId(null);
@@ -929,7 +965,9 @@ export const App: React.FC = () => {
             activePlayId={currentPlay.id}
             onSelectPlay={handleSelectPlay}
             activeOffenseFormation={currentPlay.formationOffense}
+            activeOffenseFormationId={currentPlay.formationOffenseId}
             activeDefenseFront={currentPlay.frontDefense}
+            activeDefenseFrontId={currentPlay.frontDefenseId}
             onSelectOffenseFormation={handleSelectOffenseFormation}
             onSelectDefenseFront={handleSelectDefenseFront}
             currentQBAlignment={currentQBAlignment}
@@ -947,11 +985,11 @@ export const App: React.FC = () => {
               showNotification(`Route Adaptation: ${mode === 'player_relative' ? 'Relative to Player' : '#1/#2/#3 Concept Outside'}`, 'info');
             }}
             onUpdateOffenseFormation={() => {
-              const f = formations.find(fm => (fm.side === 'offense' || fm.side === 'both') && (fm.id === currentPlay.formationOffense || fm.name === currentPlay.formationOffense));
+              const f = resolveFormation(formations, 'offense', currentPlay.formationOffenseId, currentPlay.formationOffense);
               if (f) handleUpdateFormation(f.id, 'offense');
             }}
             onUpdateDefenseFront={() => {
-              const f = formations.find(fm => (fm.side === 'defense' || fm.side === 'both') && (fm.id === currentPlay.frontDefense || fm.name === currentPlay.frontDefense));
+              const f = resolveFormation(formations, 'defense', currentPlay.frontDefenseId, currentPlay.frontDefense);
               if (f) handleUpdateFormation(f.id, 'defense');
             }}
             selectedPlayerId={selectedPlayerId}
@@ -998,11 +1036,15 @@ export const App: React.FC = () => {
           onUpdateStrategyMatrix={(matrix) => {
             updateCurrentPlay(p => ({ ...p, ...matrix }));
           }}
+          formations={formations}
           onUpdatePlayFormations={(offense, defense) => {
+            // Typed names link to a template only on an exact match; anything else is a plain label
             updateCurrentPlay(p => ({
               ...p,
               formationOffense: offense,
-              frontDefense: defense
+              formationOffenseId: resolveFormation(formations, 'offense', undefined, offense)?.id,
+              frontDefense: defense,
+              frontDefenseId: resolveFormation(formations, 'defense', undefined, defense)?.id
             }));
           }}
         />

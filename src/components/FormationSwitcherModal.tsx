@@ -28,7 +28,7 @@ interface FormationSwitcherModalProps {
   onClose: () => void;
   currentPlayers: Player[];
   currentActions: PathAction[];
-  onApplyFormation: (players: Player[], keepActions: boolean, mode?: RouteAdaptationMode) => void;
+  onApplyFormation: (players: Player[], keepActions: boolean, mode?: RouteAdaptationMode, applied?: Formation) => void;
   onUpdateFormation?: (formationId: string, side: 'offense' | 'defense' | 'both') => Promise<void> | void;
   routeAdaptationMode?: RouteAdaptationMode;
   onSetRouteAdaptationMode?: (mode: RouteAdaptationMode) => void;
@@ -312,7 +312,7 @@ export const FormationSwitcherModal: React.FC<FormationSwitcherModalProps> = ({
       updatedPlayers = [...existingOffense, ...formation.players];
     }
 
-    onApplyFormation(updatedPlayers, keepActions, mode);
+    onApplyFormation(updatedPlayers, keepActions, mode, formation);
     showNotification(`Applied formation "${formation.name}"`, 'success');
     setConfirmApplyModal(null);
     onClose();

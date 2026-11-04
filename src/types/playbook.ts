@@ -12,11 +12,14 @@ export type RoutePoint = Point;
 // 2. Player Entity
 export type PlayerShape = 'round' | 'square' | 'rounded_square' | 'none';
 export type AlignmentLeverage = 'head_up' | 'inside_shade' | 'outside_shade' | 'press' | 'off_cushion' | 'apex';
+// What the player IS, independent of the free-text label (labels like X, Y, H, F, S mean different things per scheme)
+export type PlayerPosition = 'QB' | 'RB' | 'WR' | 'TE' | 'OL' | 'DL' | 'LB' | 'DB';
 
 export interface Player {
   id: string;              // e.g. "off_y", "def_w"
   label: string;           // "Y", "H", "Z", "W", "M", "NT"
   side: Side;
+  position?: PlayerPosition; // Role used for route adaptation and backfield logic; inferred once from label + alignment when absent
   shape?: PlayerShape;     // 'round', 'square', 'rounded_square', or 'none' (default: 'none' / no node shape for both offense and defense)
   color?: string;          // Legacy custom hex color fallback
   letterColor?: string;    // Custom position label / text color (default: black '#000000' / rgb 0,0,0)
@@ -64,8 +67,11 @@ export interface PlayNotes {
 export interface Play {
   id: string;
   name: string;            // "Shotgun Wishbone - Zone Read Glance"
-  formationOffense: string;// "Shotgun Wishbone Y-Right F-Wing"
-  frontDefense: string;    // "3-5 Odd Front (0-Tech Nose)"
+  formationOffense: string;// Display label of the offensive formation, e.g. "Shotgun Wishbone 21 Pers"
+  formationOffenseId?: string; // Id of the linked Formation template; the link, not the label, is what pickers and "Update" use
+  frontDefense: string;    // Display label of the defensive front, e.g. "3-5 Odd Front (3-3-5 Stack)"
+  frontDefenseId?: string; // Id of the linked defensive Formation template
+  updatedAt?: string;      // ISO time of the last local edit; used to say which copy is newer when local and cloud differ
   category: PlayCategory;
   tags: string[];          // ["zone-read", "3-5-counter", "leak", "high-low"]
   situation: string[];     // ["1st & 10", "Red Zone", "Aggressive LB flow"]
@@ -74,7 +80,6 @@ export interface Play {
   personnel?: string;         // "21", "22", "12", "11", "20", "10"
   receiverAlignment?: ReceiverAlignment; // "2x2", "3x1", "bunch", "2x1", "empty"
   counterAction?: string;     // "Pop/Glance", "Weakside Boot/Leak", "Play-Action Seam", "Jet Sweep"
-  targetFront?: string;       // "3-5 Odd (0-Tech)", "3-4 Over", "4-2-5 Nickel", "4-3 Under"
   players: Player[];
   actions: PathAction[];
   notes: PlayNotes;
@@ -82,7 +87,7 @@ export interface Play {
 
 // 5. Playbook Collection
 export interface PlaybookFile {
-  version: "1.0.0";
+  version: "1.1.0"; // 1.0.0 files are migrated on read (see utils/playMigrations.ts)
   title: string;
   philosophySummary: string;
   plays: Play[];

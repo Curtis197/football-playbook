@@ -14,6 +14,7 @@ import { db } from './firebase';
 import type { Play, Formation, PlayCategory } from '../types/playbook';
 import { INITIAL_PLAYBOOK, DEFAULT_FORMATIONS } from '../data/presets';
 import { normalizePlay } from '../utils/playValidation';
+import { upgradeFormation } from '../utils/playMigrations';
 
 const PLAYS_COLLECTION = 'plays';
 const FORMATIONS_COLLECTION = 'formations';
@@ -58,7 +59,7 @@ export async function fetchFormations(): Promise<Formation[]> {
     }
     const formations: Formation[] = [];
     snapshot.forEach(docSnap => {
-      formations.push(docSnap.data() as Formation);
+      formations.push(upgradeFormation(docSnap.data() as Formation));
     });
     return formations;
   } catch (error) {
@@ -90,9 +91,10 @@ export async function deleteFormation(id: string): Promise<void> {
 export async function savePlay(play: Play): Promise<void> {
   try {
     const playRef = doc(db, PLAYS_COLLECTION, play.id);
+    // Keep the play's own edit time so "which copy is newer" stays meaningful; stamp only if it never had one.
     const sanitized = sanitizeForFirestore({
       ...play,
-      updatedAt: new Date().toISOString()
+      updatedAt: play.updatedAt ?? new Date().toISOString()
     });
     await setDoc(playRef, sanitized, { merge: true });
   } catch (error) {

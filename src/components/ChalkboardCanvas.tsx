@@ -6,6 +6,7 @@ import { isLightColor } from '../utils/colors';
 import { Shield, ChevronLeft, ChevronRight, RotateCcw, Save } from 'lucide-react';
 import { analyzeOffense, calculateDefensiveAlignmentPosition } from '../utils/defensiveAlignment';
 import { translateActionPoints } from '../utils/routeAdaptation';
+import { resolveFormation } from '../utils/playMigrations';
 
 interface ChalkboardCanvasProps {
   players: Player[];
@@ -20,7 +21,9 @@ interface ChalkboardCanvasProps {
   onRealignDefense?: () => void;
   formations?: Formation[];
   activeOffenseFormation?: string;
+  activeOffenseFormationId?: string;
   activeDefenseFront?: string;
+  activeDefenseFrontId?: string;
   allPlays?: Play[];
   activePlayId?: string;
   onSelectPlay?: (playId: string) => void;
@@ -60,7 +63,9 @@ export const ChalkboardCanvas: React.FC<ChalkboardCanvasProps> = ({
   onRealignDefense,
   formations = [],
   activeOffenseFormation,
+  activeOffenseFormationId,
   activeDefenseFront,
+  activeDefenseFrontId,
   allPlays,
   activePlayId,
   onSelectPlay,
@@ -96,24 +101,9 @@ export const ChalkboardCanvas: React.FC<ChalkboardCanvasProps> = ({
   const offensiveFormations = formations.filter(f => f.side === 'offense' || f.side === 'both');
   const defensiveFormations = formations.filter(f => f.side === 'defense' || f.side === 'both');
 
-  // Match active selection by id or name
-  const activeOffenseId = formations.find(
-    f => (f.side === 'offense' || f.side === 'both') && (
-      f.id === activeOffenseFormation ||
-      f.name.toLowerCase() === activeOffenseFormation?.toLowerCase() ||
-      (activeOffenseFormation && f.name.toLowerCase().includes(activeOffenseFormation.toLowerCase())) ||
-      (activeOffenseFormation && activeOffenseFormation.toLowerCase().includes(f.name.toLowerCase()))
-    )
-  )?.id || '';
-
-  const activeDefenseId = formations.find(
-    f => (f.side === 'defense' || f.side === 'both') && (
-      f.id === activeDefenseFront ||
-      f.name.toLowerCase() === activeDefenseFront?.toLowerCase() ||
-      (activeDefenseFront && f.name.toLowerCase().includes(activeDefenseFront.toLowerCase())) ||
-      (activeDefenseFront && activeDefenseFront.toLowerCase().includes(f.name.toLowerCase()))
-    )
-  )?.id || '';
+  // The play's template link is the id; a typed name counts only when it matches a template exactly.
+  const activeOffenseId = resolveFormation(formations, 'offense', activeOffenseFormationId, activeOffenseFormation)?.id ?? '';
+  const activeDefenseId = resolveFormation(formations, 'defense', activeDefenseFrontId, activeDefenseFront)?.id ?? '';
 
   // Group offensive formations by style (Pro Style, Spread, Old School)
   const proStyleFormations = offensiveFormations.filter(f => f.style === 'pro_style');
@@ -133,15 +123,8 @@ export const ChalkboardCanvas: React.FC<ChalkboardCanvasProps> = ({
 
   // Filter plays belonging to active offensive formation for hierarchical game-planning
   const playsForFormation = (allPlays || []).filter(p => {
-    if (!activeOffenseFormation && !activeOffenseId) return false;
-    const matchName = activeOffenseFormation && p.formationOffense?.toLowerCase() === activeOffenseFormation.toLowerCase();
-    const activeObj = formations.find(f => f.id === activeOffenseId);
-    const matchObjName = activeObj && p.formationOffense?.toLowerCase() === activeObj.name.toLowerCase();
-    const partialMatch = activeOffenseFormation && (
-      p.formationOffense?.toLowerCase().includes(activeOffenseFormation.toLowerCase()) ||
-      activeOffenseFormation.toLowerCase().includes(p.formationOffense?.toLowerCase() || '')
-    );
-    return Boolean(matchName || matchObjName || partialMatch);
+    if (!activeOffenseId) return false;
+    return resolveFormation(formations, 'offense', p.formationOffenseId, p.formationOffense)?.id === activeOffenseId;
   });
 
   const otherPlays = (allPlays || []).filter(p => !playsForFormation.some(pf => pf.id === p.id));

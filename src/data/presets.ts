@@ -1,4 +1,5 @@
 import type { Play, PlaybookFile, Formation } from '../types/playbook';
+import { upgradeFormation, upgradePlay } from '../utils/playMigrations';
 import { MATRIX_OFFENSIVE_FORMATIONS } from './offensiveFormationsMatrix';
 import {
   BASIC_PASSING_CONCEPTS_PLAYS,
@@ -24,7 +25,6 @@ export const DEFAULT_WISHBONE_PLAY: Play = {
   category: "rpo",
   primaryRunConcept: "Split-Zone Read",
   counterAction: "Pop/Glance",
-  targetFront: "3-5 Odd (0-Tech)",
   tags: ["zone-read", "3-5-counter", "leak", "high-low", "mesh-read", "rpo", "old_school"],
   situation: ["1st & 10", "Red Zone", "Aggressive LB flow", "Short Yardage"],
   players: [
@@ -83,7 +83,6 @@ export const PRO_I_VEER_OPTION_PLAY: Play = {
   category: "run",
   primaryRunConcept: "Veer Option",
   counterAction: "Play-Action Boot / Pop",
-  targetFront: "3-5 Odd Front",
   tags: ["pro-i", "veer-option", "triple-option", "dive-pitch", "under-center", "pro_style"],
   situation: ["1st & 10", "Short Yardage", "Goal Line"],
   players: [
@@ -139,7 +138,6 @@ export const GUN_TREY_BOOT_PLAY: Play = {
   category: "pass_action",
   primaryRunConcept: "Split-Zone Read",
   counterAction: "Weakside Boot/Leak",
-  targetFront: "3-4 Over Front",
   tags: ["play-action", "bootleg", "split-zone", "flood-weak", "3-4-counter", "spread"],
   situation: ["1st & 10", "2nd & Short", "Red Zone High"],
   players: [
@@ -194,7 +192,6 @@ export const PISTOL_COUNTER_TREY_PLAY: Play = {
   category: "run",
   primaryRunConcept: "Pin & Pull",
   counterAction: "Play-Action Seam",
-  targetFront: "4-2-5 Nickel",
   tags: ["counter-gt", "gap-scheme", "pull-block", "4-2-5-punisher", "pro_style"],
   situation: ["3rd & 2", "Goal Line", "Aggressive LB flow"],
   players: [
@@ -240,8 +237,8 @@ export const PISTOL_COUNTER_TREY_PLAY: Play = {
   }
 };
 
-export const INITIAL_PLAYBOOK: PlaybookFile = {
-  version: "1.0.0",
+const RAW_INITIAL_PLAYBOOK: PlaybookFile = {
+  version: "1.1.0",
   title: "Modern Offensive Philosophy & System Playbook",
   philosophySummary: "Multiple-personnel hybrid scheme prioritizing gap-control manipulation, high-low conflict creation against modern odd/over fronts, and complementary RPO / Boot counter-actions.",
   plays: [
@@ -253,7 +250,7 @@ export const INITIAL_PLAYBOOK: PlaybookFile = {
   ]
 };
 
-export const DEFAULT_FORMATIONS: Formation[] = [
+const RAW_DEFAULT_FORMATIONS: Formation[] = [
   {
     "id": "formation-spread-2x2",
     "name": "Spread 2x2 Open (Doubles)",
@@ -748,7 +745,7 @@ export const DEFAULT_FORMATIONS: Formation[] = [
     "name": "Single-Back Ace (12 Personnel)",
     "side": "offense",
     "personnel": "12",
-    "qbPosition": "down_center",
+    "qbPosition": "shotgun",
     "receiverAlignment": "2x2",
     "isBunch": false,
     "tags": ["12", "down_center", "2x2", "pro_style", "ace", "double_tight"],
@@ -3083,3 +3080,12 @@ export const DEFAULT_FORMATIONS: Formation[] = [
     "updatedAt": "2026-11-03T14:52:50.216Z"
   }
 ];
+
+// Presets go through the same upgrade as stored data, so every consumer sees schema 1.1.0 shapes
+// (player positions, formation links) without the literals above having to repeat them.
+export const DEFAULT_FORMATIONS: Formation[] = RAW_DEFAULT_FORMATIONS.map(upgradeFormation);
+
+export const INITIAL_PLAYBOOK: PlaybookFile = {
+  ...RAW_INITIAL_PLAYBOOK,
+  plays: RAW_INITIAL_PLAYBOOK.plays.map(play => upgradePlay(play, DEFAULT_FORMATIONS))
+};

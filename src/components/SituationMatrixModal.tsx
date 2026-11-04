@@ -23,11 +23,11 @@ export const SituationMatrixModal: React.FC<SituationMatrixModalProps> = ({
   if (!isOpen) return null;
 
   // Aggregate all fronts and situations
-  const allFronts = Array.from(new Set(plays.map(p => p.targetFront || p.frontDefense))).filter(Boolean);
+  const allFronts = Array.from(new Set(plays.map(p => p.frontDefense))).filter(Boolean);
   const allSituations = Array.from(new Set(plays.flatMap(p => p.situation))).filter(Boolean);
 
   const filteredPlays = plays.filter(p => {
-    const matchesFront = filterFront === 'all' || (p.targetFront === filterFront || p.frontDefense === filterFront);
+    const matchesFront = filterFront === 'all' || p.frontDefense === filterFront;
     const matchesSituation = filterSituation === 'all' || p.situation.includes(filterSituation);
     return matchesFront && matchesSituation;
   });
@@ -154,7 +154,7 @@ export const SituationMatrixModal: React.FC<SituationMatrixModalProps> = ({
                         <td className="py-3 px-3">
                           <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded text-[11px] font-semibold bg-rose-950/60 text-rose-300 border border-rose-600/40">
                             <span className="w-1.5 h-1.5 rounded-full bg-rose-400"></span>
-                            {p.targetFront || p.frontDefense}
+                            {p.frontDefense}
                           </span>
                         </td>
 

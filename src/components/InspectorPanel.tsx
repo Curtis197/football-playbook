@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import type { Player, PathAction, Play, ActionType, AppMode, Point, Theme, AlignmentLeverage } from '../types/playbook';
+import type { Player, PathAction, Play, ActionType, AppMode, Point, Theme, AlignmentLeverage, Formation, PlayerPosition } from '../types/playbook';
+import { resolveFormation } from '../utils/playMigrations';
 import { 
   Compass, 
   Shield, 
@@ -60,11 +61,11 @@ interface InspectorPanelProps {
   onUpdateStrategyMatrix: (matrix: {
     primaryRunConcept?: string;
     counterAction?: string;
-    targetFront?: string;
     tags?: string[];
     situation?: string[];
   }) => void;
   onUpdatePlayFormations: (offense: string, defense: string) => void;
+  formations?: Formation[];
 }
 
 export const InspectorPanel: React.FC<InspectorPanelProps> = ({
@@ -79,7 +80,8 @@ export const InspectorPanel: React.FC<InspectorPanelProps> = ({
   onStartRestartBlock,
   onUpdatePlayNotes,
   onUpdateStrategyMatrix,
-  onUpdatePlayFormations
+  onUpdatePlayFormations,
+  formations = []
 }) => {
   const isLight = theme === 'light';
   const [activeTab, setActiveTab] = useState<'inspector' | 'philosophy' | 'read_flow'>('philosophy');
@@ -171,7 +173,19 @@ export const InspectorPanel: React.FC<InspectorPanelProps> = ({
   // Strategy Matrix options
   const runConcepts = ['Inside Zone', 'Split-Zone Read', 'Pin & Pull', 'Fold Trap', 'Outside Zone', 'Duo', 'Power / Counter'];
   const counterActions = ['Pop/Glance', 'Weakside Boot/Leak', 'Play-Action Seam', 'Jet Sweep', 'Mesh / Snag', 'QB Draw'];
-  const defenseFronts = ['3-5 Odd (0-Tech)', '3-4 Over', '4-2-5 Nickel', '4-3 Under', 'Mint Front', 'Cover 1 Blitz'];
+
+  // Formation names offered as suggestions; a name only links to a template when it matches one exactly
+  const offenseTemplates = formations.filter(f => f.side === 'offense' || f.side === 'both');
+  const defenseTemplates = formations.filter(f => f.side === 'defense' || f.side === 'both');
+  const isOffenseLinked = Boolean(resolveFormation(formations, 'offense', currentPlay.formationOffenseId, currentPlay.formationOffense));
+  const isDefenseLinked = Boolean(resolveFormation(formations, 'defense', currentPlay.frontDefenseId, currentPlay.frontDefense));
+  const linkNote = (linked: boolean) => (
+    <span className={`block mt-0.5 text-[10px] ${
+      linked ? (isLight ? 'text-emerald-800' : 'text-emerald-300') : (isLight ? 'text-slate-600' : 'text-slate-400')
+    }`}>
+      {linked ? 'Linked to a saved template' : 'Custom label, not linked to a template'}
+    </span>
+  );
 
   // Handler for adding tags
   const handleAddTag = () => {
@@ -309,19 +323,29 @@ export const InspectorPanel: React.FC<InspectorPanelProps> = ({
                 <label className={`text-[11px] ${isLight ? 'text-slate-600' : 'text-slate-400'} block mb-0.5 font-semibold`}>Offensive Formation</label>
                 <input
                   type="text"
+                  list="offense-template-names"
                   value={currentPlay.formationOffense}
                   onChange={(e) => onUpdatePlayFormations(e.target.value, currentPlay.frontDefense)}
                   className={`w-full ${isLight ? 'bg-white text-sky-700 border-slate-300' : 'bg-[#161b22] text-sky-300 border-slate-700'} text-xs font-semibold px-2.5 py-1.5 rounded border focus:border-sky-500 outline-none`}
                 />
+                <datalist id="offense-template-names">
+                  {offenseTemplates.map(f => <option key={f.id} value={f.name} />)}
+                </datalist>
+                {linkNote(isOffenseLinked)}
               </div>
               <div>
                 <label className={`text-[11px] ${isLight ? 'text-slate-600' : 'text-slate-400'} block mb-0.5 font-semibold`}>Target Defensive Front</label>
                 <input
                   type="text"
+                  list="defense-template-names"
                   value={currentPlay.frontDefense}
                   onChange={(e) => onUpdatePlayFormations(currentPlay.formationOffense, e.target.value)}
                   className={`w-full ${isLight ? 'bg-white text-rose-700 border-slate-300' : 'bg-[#161b22] text-rose-300 border-slate-700'} text-xs font-semibold px-2.5 py-1.5 rounded border focus:border-rose-500 outline-none`}
                 />
+                <datalist id="defense-template-names">
+                  {defenseTemplates.map(f => <option key={f.id} value={f.name} />)}
+                </datalist>
+                {linkNote(isDefenseLinked)}
               </div>
             </div>
 
@@ -369,22 +393,6 @@ export const InspectorPanel: React.FC<InspectorPanelProps> = ({
                 </select>
               </div>
 
-              {/* 3. Target Defensive Front (Rose #f43f5e) */}
-              <div>
-                <label className="text-[11px] text-rose-500 font-semibold flex items-center gap-1 mb-1">
-                  <span className="w-2 h-2 rounded-full bg-rose-500"></span>
-                  Target Defensive Front
-                </label>
-                <select
-                  value={currentPlay.targetFront || '3-5 Odd (0-Tech)'}
-                  onChange={(e) => onUpdateStrategyMatrix({ targetFront: e.target.value })}
-                  className={`w-full ${isLight ? 'bg-white text-rose-700 border-rose-300' : 'bg-[#161b22] text-rose-300 border-rose-500/40'} text-xs font-semibold px-2.5 py-1.5 rounded border focus:border-rose-400 outline-none`}
-                >
-                  {defenseFronts.map((f) => (
-                    <option key={f} value={f}>{f}</option>
-                  ))}
-                </select>
-              </div>
             </div>
 
             {/* SCHEMATIC PHILOSOPHY RATIONALE */}
@@ -561,6 +569,27 @@ export const InspectorPanel: React.FC<InspectorPanelProps> = ({
                     }
                     className={`w-full ${isLight ? 'bg-white text-slate-900 border-slate-300' : 'bg-[#161b22] text-white border-slate-700'} text-xs font-bold px-2.5 py-1.5 rounded border focus:border-sky-500 outline-none`}
                   />
+                </div>
+
+                {/* Role: what the player is, independent of the label (X, Y, H, F, S mean different things per scheme) */}
+                <div>
+                  <label htmlFor="player-position-select" className={`text-[11px] ${isLight ? 'text-slate-600' : 'text-slate-400'} block mb-1 font-semibold`}>Role</label>
+                  <select
+                    id="player-position-select"
+                    value={selectedPlayer.position ?? ''}
+                    onChange={(e) =>
+                      onUpdatePlayer({ ...selectedPlayer, position: (e.target.value || undefined) as PlayerPosition | undefined })
+                    }
+                    className={`w-full ${isLight ? 'bg-white text-slate-900 border-slate-500' : 'bg-[#161b22] text-white border-slate-500'} text-xs font-semibold px-2.5 py-1.5 rounded border focus:border-sky-500 outline-none`}
+                  >
+                    <option value="">Auto (from label and alignment)</option>
+                    {(selectedPlayer.side === 'offense'
+                      ? (['QB', 'RB', 'WR', 'TE', 'OL'] as const)
+                      : (['DL', 'LB', 'DB'] as const)
+                    ).map(role => (
+                      <option key={role} value={role}>{role}</option>
+                    ))}
+                  </select>
                 </div>
 
                 {/* DEFENSIVE PRE-ALIGNMENT & GAP ENGINE (when side === 'defense') */}

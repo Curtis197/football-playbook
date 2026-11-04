@@ -1,5 +1,6 @@
 import type { Player, PathAction, Point, RouteAdaptationMode } from '../types/playbook';
 import { clampFieldCoordinates } from './geometry';
+import { getOffenseReference, resolveOffensePosition } from './playMigrations';
 
 /**
  * Categorize offensive skill receivers by side and distance from sideline:
@@ -16,48 +17,20 @@ export interface ReceiverDistribution {
 
 export function categorizeOffensivePlayers(players: Player[]): ReceiverDistribution {
   const offense = players.filter(p => p.side === 'offense');
+  // Each player's role is the stored position, or inferred from label + alignment when it is missing.
+  const reference = getOffenseReference(offense);
+  const centerX = reference.centerX;
+  const positionOf = (p: Player) => resolveOffensePosition(p, reference);
 
-  // Identify Center or midline reference
-  let center = offense.find(p => p.label.trim().toUpperCase() === 'C');
-  if (!center) {
-    const onLine = offense.filter(p => p.y >= 350 && p.y <= 420);
-    if (onLine.length > 0) {
-      center = onLine.reduce((prev, curr) => 
-        Math.abs(curr.x - 480) < Math.abs(prev.x - 480) ? curr : prev
-      );
-    } else {
-      center = offense[0];
-    }
-  }
-  const centerX = center ? center.x : 480;
-  const losY = center ? center.y : 380;
+  const linemen = offense.filter(p => positionOf(p) === 'OL');
+  const qb = offense.find(p => positionOf(p) === 'QB') || null;
+  const backfield = offense.filter(p => positionOf(p) === 'RB');
 
-  // Linemen: within 35 units of LOS and near center
-  const linemenLabels = new Set(['C', 'OC', 'LG', 'RG', 'LT', 'RT']);
-  const linemen = offense.filter(p => 
-    linemenLabels.has(p.label.trim().toUpperCase()) ||
-    (Math.abs(p.y - losY) <= 30 && Math.abs(p.x - centerX) <= 180)
-  );
-  const linemenIds = new Set(linemen.map(l => l.id));
-
-  // QB
-  const qb = offense.find(p => p.label.trim().toUpperCase() === 'QB') || null;
-
-  // Backfield (RB, FB, HB, TB) - behind LOS not including QB
-  const backfieldLabels = new Set(['RB', 'FB', 'HB', 'TB', 'B']);
-  const backfield = offense.filter(p => 
-    !linemenIds.has(p.id) &&
-    p.id !== qb?.id &&
-    (backfieldLabels.has(p.label.trim().toUpperCase()) || (p.y > losY + 40 && Math.abs(p.x - centerX) <= 120))
-  );
-  const backfieldIds = new Set(backfield.map(b => b.id));
-
-  // Eligible receivers (WR, TE, Slot, Flanker, Wing)
-  const receivers = offense.filter(p => 
-    !linemenIds.has(p.id) &&
-    p.id !== qb?.id &&
-    !backfieldIds.has(p.id)
-  );
+  // Eligible receivers: WR and TE (slot, flanker, wing, attached tight end)
+  const receivers = offense.filter(p => {
+    const position = positionOf(p);
+    return position === 'WR' || position === 'TE';
+  });
 
   // Left receivers: sorted by X ascending (smallest X = furthest left / #1 Outside)
   const leftReceivers = receivers

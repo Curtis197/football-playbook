@@ -1,9 +1,20 @@
 import type { Play, PlaybookFile } from '../types/playbook';
-import { INITIAL_PLAYBOOK, DEFAULT_WISHBONE_PLAY } from '../data/presets';
+import { INITIAL_PLAYBOOK } from '../data/presets';
 import { normalizePlay, normalizePlaybook } from './playValidation';
 
 const STORAGE_KEY = 'antigravity_football_playbook_v1';
 const UNREADABLE_BACKUP_KEY = `${STORAGE_KEY}_unreadable_backup`;
+const PRE_UPGRADE_BACKUP_KEY = `${STORAGE_KEY}_schema_1_0_0_backup`;
+const WISHBONE_PLAY_ID = 'play-wishbone-zone-glance';
+
+// Schema upgrades rewrite stored data on the next autosave, so keep the old file once.
+function keepPreUpgradeCopy(raw: string): void {
+  try {
+    if (localStorage.getItem(PRE_UPGRADE_BACKUP_KEY) === null) localStorage.setItem(PRE_UPGRADE_BACKUP_KEY, raw);
+  } catch (err) {
+    console.warn('Could not keep a pre-upgrade copy of the playbook:', err);
+  }
+}
 
 let loadNotice: string | null = null;
 
@@ -31,7 +42,11 @@ export function loadPlaybookFromStorage(): PlaybookFile {
   try {
     raw = localStorage.getItem(STORAGE_KEY);
     if (!raw) return INITIAL_PLAYBOOK;
-    const result = normalizePlaybook(JSON.parse(raw), 'lenient');
+    const data: unknown = JSON.parse(raw);
+    if (typeof data === 'object' && data !== null && (data as { version?: unknown }).version === '1.0.0') {
+      keepPreUpgradeCopy(raw);
+    }
+    const result = normalizePlaybook(data, 'lenient');
     if (!result.ok) {
       console.warn('Stored playbook is unusable, using presets:', result.error);
       setAsideOriginal(raw, UNREADABLE_NOTICE);
@@ -46,12 +61,13 @@ export function loadPlaybookFromStorage(): PlaybookFile {
 
     // Auto-migrate legacy cramped defensive coordinates if present in default wishbone play
     let migrated = false;
+    const currentWishbone = INITIAL_PLAYBOOK.plays.find(play => play.id === WISHBONE_PLAY_ID);
     parsed.plays = parsed.plays.map(play => {
-      if (play.id === DEFAULT_WISHBONE_PLAY.id) {
+      if (currentWishbone && play.id === WISHBONE_PLAY_ID) {
         const nt = play.players.find(p => p.id === 'def_nt' && p.side === 'defense');
         if (nt && nt.y >= 345) {
           migrated = true;
-          return DEFAULT_WISHBONE_PLAY;
+          return currentWishbone;
         }
       }
       return play;
