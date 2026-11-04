@@ -449,10 +449,10 @@ export const MATRIX_OFFENSIVE_FORMATIONS: Formation[] = [
     side: 'offense',
     personnel: '21',
     qbPosition: 'down_center',
-    receiverAlignment: '3x1',
+    receiverAlignment: '3x0',
     style: 'pro_style',
     isBunch: true,
-    tags: ['21', 'down_center', '3x1', 'pro_style', 'bunch', 'condensed'],
+    tags: ['21', 'down_center', '3x0', 'pro_style', 'bunch', 'condensed'],
     labels: ['21 Pers', 'Under Center', 'Pro Style', 'Bunch'],
     description: 'Under-center 21 personnel with TE and two WRs condensed into a tight 3-man bunch to create natural rub routes and heavy perimeter run blocking.',
     players: [
@@ -462,8 +462,7 @@ export const MATRIX_OFFENSIVE_FORMATIONS: Formation[] = [
       makeSkillPlayer('pib21_w', 'W', 675, 420, 'Bunch Sniffer (W)', 'Condensed slot off LOS; flat arrow route or crack block.'),
       makeSkillPlayer('pib21_qb', 'QB', 480, 415, 'Under Center QB', 'Play-action turn; fire quick bunch concept or handoff power.'),
       makeSkillPlayer('pib21_fb', 'FB', 480, 465, 'Lead Fullback', 'Kick out edge or lead through C-gap.'),
-      makeSkillPlayer('pib21_tb', 'TB', 480, 525, 'Tailback', 'Downhill run track or check-release.'),
-      makeSkillPlayer('pib21_x', 'X', 120, 380, 'Solo Backside WR', 'Isolated boundary post.')
+      makeSkillPlayer('pib21_tb', 'TB', 480, 525, 'Tailback', 'Downhill run track or check-release.')
     ]
   },
   {
@@ -520,10 +519,10 @@ export const MATRIX_OFFENSIVE_FORMATIONS: Formation[] = [
     side: 'offense',
     personnel: '20',
     qbPosition: 'shotgun',
-    receiverAlignment: '3x1',
+    receiverAlignment: '3x0',
     style: 'spread',
     isBunch: false,
-    tags: ['20', 'shotgun', '3x1', 'spread', 'trips'],
+    tags: ['20', 'shotgun', '3x0', 'spread', 'trips'],
     labels: ['20 Pers', 'Shotgun', 'Spread', 'Trips'],
     description: '3 wide receivers overloaded to the field with dual running backs in the backfield for max slide pass protection and misdirection counter runs.',
     players: [
@@ -531,7 +530,6 @@ export const MATRIX_OFFENSIVE_FORMATIONS: Formation[] = [
       makeSkillPlayer('g20t_qb', 'QB', 480, 465, 'Shotgun QB', 'Scan trips route tree; dual backs pick up exotic blitzes.'),
       makeSkillPlayer('g20t_rb1', 'RB1', 415, 465, 'Sidecar Back', 'Inside zone track or check-release.'),
       makeSkillPlayer('g20t_rb2', 'RB2', 415, 520, 'Stacked Back', 'Lead block on counter or pass block edge rusher.'),
-      makeSkillPlayer('g20t_w', 'W', 120, 380, 'Isolated Backside X', 'Backside choice / fade.'),
       makeSkillPlayer('g20t_x', 'X', 670, 395, 'Inside Trips Slot', 'Bender seam route.'),
       makeSkillPlayer('g20t_h', 'H', 750, 395, 'Middle Trips Slot', 'Out / pivot route.'),
       makeSkillPlayer('g20t_z', 'Z', 860, 380, 'Outside Trips Flanker', 'Vertical post / clearout.')
@@ -863,17 +861,16 @@ export const MATRIX_OFFENSIVE_FORMATIONS: Formation[] = [
     side: 'offense',
     personnel: '10',
     qbPosition: 'shotgun',
-    receiverAlignment: '4x1',
+    receiverAlignment: '4x0',
     style: 'spread',
     isBunch: true,
-    tags: ['10', 'shotgun', '4x1', 'spread', 'quads', 'bunch'],
+    tags: ['10', 'shotgun', '4x0', 'spread', 'quads', 'bunch'],
     labels: ['10 Pers', 'Shotgun', 'Spread', 'Quads Bunch'],
     description: 'Extreme perimeter overload with 3 receivers in a bunch and a 4th receiver split wide outside the pod, completely overwhelming zone coverage rules.',
     players: [
       ...createStandardOL('g10qb'),
-      makeSkillPlayer('g10qb_x', 'X', 120, 380, 'Backside Solo WR', '1-on-1 backside choice / fade.'),
       makeSkillPlayer('g10qb_h', 'H', 670, 380, 'Bunch Point WR', 'Point on LOS; vertical clearout.'),
-      makeSkillPlayer('g10qb_y', 'Y', 650, 410, 'Bunch Inside Wing', 'Arrow screen underneath.'),
+      { ...makeSkillPlayer('g10qb_y', 'Y', 650, 410, 'Bunch Inside Wing', 'Arrow screen underneath.'), position: 'WR' },
       makeSkillPlayer('g10qb_z', 'Z', 705, 410, 'Bunch Outside Wing', 'Wheel route.'),
       makeSkillPlayer('g10qb_w', 'W', 860, 380, 'Quads Boundary WR', 'Clearout streak / comeback.'),
       makeSkillPlayer('g10qb_qb', 'QB', 480, 465, 'Shotgun QB', 'Overload pass read against tilted secondary.'),
