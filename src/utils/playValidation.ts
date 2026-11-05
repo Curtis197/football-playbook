@@ -117,6 +117,7 @@ function normalizeAction(raw: unknown, where: string): PathAction {
   if (action.isCurved !== undefined && typeof action.isCurved !== 'boolean') delete action.isCurved;
   dropUnlessText(action, ['label', 'color', 'parentActionId', 'assignmentId']);
   if (action.branchType !== undefined && !BRANCH_TYPES.includes(action.branchType as string)) delete action.branchType;
+  if (action.blockType !== undefined && !BLOCK_KINDS.includes(action.blockType as BlockKind)) delete action.blockType;
   return action as unknown as PathAction;
 }
 

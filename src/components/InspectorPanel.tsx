@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
-import type { Player, PathAction, Play, ActionType, AppMode, Point, Theme, AlignmentLeverage, Formation, PlayerPosition } from '../types/playbook';
+import type { Player, PathAction, Play, ActionType, BlockKind, AppMode, Point, Theme, AlignmentLeverage, Formation, PlayerPosition } from '../types/playbook';
 import type { AssignmentChange } from '../utils/blockPlanApply';
+import { BLOCK_KIND_OPTIONS } from '../data/blockKinds';
 import { firstLevelDefenders } from '../utils/blockSlots';
 import { gapIdOf, gapLabel } from '../utils/runHoles';
 import { resolveFormation } from '../utils/playMigrations';
@@ -1256,6 +1257,34 @@ export const InspectorPanel: React.FC<InspectorPanelProps> = ({
                     <option value="motion">Motion Track</option>
                   </select>
                 </div>
+
+                {/* Block type: which block rule this line follows. Lines made by a run template carry theirs. */}
+                {(selectedAction.type === 'run_block' || selectedAction.type === 'pull_block') && (() => {
+                  const fromTemplate = Boolean(selectedAction.assignmentId);
+                  const chosen = BLOCK_KIND_OPTIONS.find(option => option.value === selectedAction.blockType);
+                  return (
+                    <div>
+                      <label htmlFor="block-type" className={`text-[11px] ${isLight ? 'text-slate-600' : 'text-slate-400'} block mb-1 font-semibold`}>Block type</label>
+                      <select
+                        id="block-type"
+                        aria-label="Block type"
+                        disabled={fromTemplate}
+                        value={selectedAction.blockType ?? ''}
+                        onChange={(e) => {
+                          const { blockType: _previous, ...rest } = selectedAction;
+                          onUpdateAction(e.target.value ? { ...rest, blockType: e.target.value as BlockKind } : rest);
+                        }}
+                        className={`w-full ${isLight ? 'bg-white text-sky-700 border-slate-300' : 'bg-[#161b22] text-sky-400 border-slate-700'} text-xs font-semibold px-2.5 py-1.5 rounded border focus:border-sky-500 outline-none disabled:opacity-60`}
+                      >
+                        <option value="">Not set</option>
+                        {BLOCK_KIND_OPTIONS.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
+                      </select>
+                      <p className={`text-[11px] mt-1 leading-snug ${isLight ? 'text-slate-600' : 'text-slate-400'}`}>
+                        {fromTemplate && 'Set by the run template. '}{chosen ? chosen.rule : 'Pick the rule this block follows.'}
+                      </p>
+                    </div>
+                  );
+                })()}
 
                 {/* Vector Line Color Picker */}
                 <div className={`p-2.5 rounded-lg border ${isLight ? 'bg-slate-50 border-slate-200' : 'bg-slate-900/60 border-slate-800'}`}>
