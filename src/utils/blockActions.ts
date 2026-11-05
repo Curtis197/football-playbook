@@ -71,6 +71,7 @@ export function buildBlockActions(plan: BlockPlan, players: Player[], previous: 
       type: assignment.pulls ? 'pull_block' : 'run_block',
       endMarker: 'tbar',
       assignmentId: assignment.id,
+      blockType: assignment.kind,
       isCurved: assignment.pulls ? true : undefined,
       points
     };
@@ -85,6 +86,7 @@ export function buildBlockActions(plan: BlockPlan, players: Player[], previous: 
         type: 'run_block',
         endMarker: 'tbar',
         assignmentId: assignment.id,
+        blockType: assignment.kind,
         parentActionId: first.id,
         branchType: 'combo',
         points: [end, climb]

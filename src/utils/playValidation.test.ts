@@ -292,3 +292,27 @@ describe('block plan calls', () => {
     expect(result.ok && result.value.blockPlan?.hole).toBeUndefined();
   });
 });
+
+describe('block type on a line', () => {
+  const line = (extra: object) => ({
+    id: 'a1', playerId: 'RT', type: 'run_block', endMarker: 'tbar', points: [{ x: 600, y: 380 }, { x: 570, y: 340 }], ...extra
+  });
+
+  it('keeps a valid block type', () => {
+    const result = normalizePlay({ ...makePlay(), actions: [line({ blockType: 'zone' })] });
+    expect(result.ok && result.value.actions[0].blockType).toBe('zone');
+  });
+
+  it('drops a block type it does not know and keeps the line', () => {
+    const result = normalizePlay({ ...makePlay(), actions: [line({ blockType: 'reach' })] });
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.value.actions).toHaveLength(1);
+    expect(result.value.actions[0].blockType).toBeUndefined();
+  });
+
+  it('leaves a line without one unchanged', () => {
+    const result = normalizePlay({ ...makePlay(), actions: [line({})] });
+    expect(result.ok && 'blockType' in result.value.actions[0]).toBe(false);
+  });
+});

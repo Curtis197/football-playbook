@@ -137,6 +137,40 @@ describe('View mode is read-only', () => {
       expect(html.indexOf('Terminal Marker')).toBeGreaterThan(fieldset);
     });
 
+    const vector = (type: 'run_block' | 'pull_block' | 'pass_route' | 'motion', appMode: AppMode, extra: object = {}) => renderToStaticMarkup(
+      <InspectorPanel
+        currentPlay={play} selectedPlayer={null} appMode={appMode} theme="dark"
+        selectedAction={{ id: 'sel', playerId: qb.id, type, endMarker: 'tbar', points: [{ x: 1, y: 1 }, { x: 2, y: 2 }], ...extra }}
+        onSelectPlayer={noop} onUpdatePlayer={noop} onUpdateAction={noop} onUpdatePlayNotes={noop} onUpdateStrategyMatrix={noop}
+        onUpdatePlayFormations={noop} formations={DEFAULT_FORMATIONS}
+      />
+    );
+
+    it.each(['run_block', 'pull_block'] as const)('a %s offers the seven block types under the action type', type => {
+      const html = vector(type, 'build');
+      expect(html).toContain('Block type');
+      expect(html.indexOf('Block type')).toBeGreaterThan(html.indexOf('Vector Action Type'));
+      expect(html.indexOf('Block type')).toBeLessThan(html.indexOf('Line Color'));
+      for (const label of ['Zone', 'Down', 'Seal', 'Kickout', 'Trap', 'Wrap', 'Lead']) expect(html).toContain('>' + label + '<');
+    });
+
+    it.each(['pass_route', 'motion'] as const)('a %s has no block type field', type => {
+      expect(vector(type, 'build')).not.toContain('Block type');
+    });
+
+    it('shows the rule of the chosen block type and keeps the field read-only in View mode', () => {
+      const html = vector('run_block', 'view', { blockType: 'zone' });
+      expect(html).toContain('<option value="zone" selected');
+      expect(html).toContain('first on-the-line defender toward the play side');
+      expect(html.indexOf('Block type')).toBeGreaterThan(html.indexOf('<fieldset disabled'));
+    });
+
+    it('a line made by a run template shows its block type but cannot be changed here', () => {
+      const html = vector('run_block', 'build', { blockType: 'down', assignmentId: 'RT-block' });
+      expect(html).toMatch(/aria-label="Block type"[^>]*disabled|disabled[^>]*aria-label="Block type"/);
+      expect(html).toContain('Set by the run template');
+    });
+
     it('with nothing selected the player roster is not inside any disabled fieldset', () => {
       const html = renderToStaticMarkup(
         <InspectorPanel

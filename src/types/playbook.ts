@@ -51,6 +51,7 @@ export interface PathAction {
   parentActionId?: string; // Optional ID of parent block this action restarted from (double team or option block)
   branchType?: 'combo' | 'option'; // Optional classification for restarted block
   assignmentId?: string;   // Set on lines generated from a BlockPlan assignment; hand-drawn lines have none
+  blockType?: BlockKind;   // Which block rule a blocking line follows (zone, down, ...); optional on hand-drawn lines
 }
 
 // 4. Complete Play Definition

@@ -65,4 +65,14 @@ describe('buildBlockActions', () => {
     expect(action).toMatchObject({ color: '#6b7280', label: 'target gone' });
     expect(action.points[1].x).toBeGreaterThan(540);
   });
+
+  it('tags generated lines, including the combo leg, with the block type of their assignment', () => {
+    const actions = buildBlockActions(planOf(zone({ comboWith: 'RT', climbTo: { type: 'defender', playerId: 'M' } })), players);
+    expect(actions.map(a => a.blockType)).toEqual(['zone', 'zone']);
+    const [pull] = buildBlockActions(
+      planOf({ id: 'LG-block', playerId: 'LG', slot: 'og_bs', kind: 'kickout', pulls: true, target: { type: 'defender', playerId: 'DE_R' } }),
+      players
+    );
+    expect(pull.blockType).toBe('kickout');
+  });
 });
