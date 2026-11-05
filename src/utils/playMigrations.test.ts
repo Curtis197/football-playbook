@@ -54,6 +54,30 @@ describe('inferDefensePosition', () => {
   it('leaves "S" blank: it is Sam (linebacker) in some schemes and a safety in others', () => {
     expect(inferDefensePosition(player({ id: 's', label: 'S', side: 'defense' }))).toBeUndefined();
   });
+
+  it.each([
+    ['S', 'Apex Strong', 'LB'], ['S', '30 Stack Strong', 'LB'], ['S', '10 Stack Strong', 'LB'],
+    ['BD', 'Apex Weak', 'LB'], ['ST', 'Apex Strong', 'LB'],
+    ['S', '9-Tech Strong', 'DL'], ['JK', '9-Tech Weak', 'DL'],
+    ['S', 'Single-High FS', 'DB'], ['S', '2-High Safety Right', 'DB'], ['S', 'Robber Strong', 'DB']
+  ])('an ambiguous label %s lined up as %s is %s', (label, technique, expected) => {
+    expect(inferDefensePosition(player({ id: label, label, side: 'defense', technique }))).toBe(expected);
+  });
+
+  it('lets the label win over the technique, and leaves an unreadable technique blank', () => {
+    expect(inferDefensePosition(player({ id: 'de', label: 'DE', side: 'defense', technique: 'Apex Strong' }))).toBe('DL');
+    expect(inferDefensePosition(player({ id: 'x', label: 'JK', side: 'defense', technique: 'Zone Track' }))).toBeUndefined();
+    expect(inferDefensePosition(player({ id: 'x2', label: 'JK', side: 'defense' }))).toBeUndefined();
+  });
+
+  it('upgrades a stored roster so the Sam linebacker, Bandit, Jack and Stud get a position', () => {
+    const roster = [
+      player({ id: 'sam', label: 'S', side: 'defense', technique: 'Apex Strong' }),
+      player({ id: 'bd', label: 'BD', side: 'defense', technique: 'Apex Weak' }),
+      player({ id: 'jk', label: 'JK', side: 'defense', technique: '9-Tech Weak' })
+    ];
+    expect(upgradePlayers(roster).map(p => p.position)).toEqual(['LB', 'LB', 'DL']);
+  });
 });
 
 describe('positions on a whole roster', () => {
