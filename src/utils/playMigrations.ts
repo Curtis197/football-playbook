@@ -60,6 +60,17 @@ export function inferDefensePosition(player: Player): PlayerPosition | undefined
   if (DEFENSE_LINE_LABELS.has(label)) return 'DL';
   if (LINEBACKER_LABELS.has(label)) return 'LB';
   if (DEFENSIVE_BACK_LABELS.has(label)) return 'DB';
+  // Labels such as S (Sam or safety), BD (Bandit), JK (Jack) and ST (Stud) mean different things per scheme,
+  // so where he lines up decides: the technique names the level.
+  return positionFromTechnique(player.technique);
+}
+
+/** DB techniques first (a "Single-High FS" is never a stack), then stand-up linebacker techniques, then lineman techniques. */
+function positionFromTechnique(technique: string | undefined): PlayerPosition | undefined {
+  if (!technique) return undefined;
+  if (/(CB|Safety|Single-High|Robber|Nickel|Slot)/i.test(technique)) return 'DB';
+  if (/(Stack|Apex)/i.test(technique)) return 'LB';
+  if (/^\d+i?-Tech/i.test(technique)) return 'DL';
   return undefined;
 }
 

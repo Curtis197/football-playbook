@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { assignBlockSlots, hasClearStrength, firstLevelDefenders, secondLevelDefenders, resolveStrongSide } from './blockSlots';
-import { OFFENSE_TE_RIGHT, FOUR_THREE_OVER } from '../test/fixtures';
+import { OFFENSE_TE_RIGHT, FOUR_THREE_OVER, defensePlayer } from '../test/fixtures';
 
 const idsOf = (slots: ReturnType<typeof assignBlockSlots>) =>
   Object.fromEntries(Object.entries(slots).map(([slot, p]) => [slot, p?.id]));
@@ -42,5 +42,15 @@ describe('strength and levels', () => {
     const players = [...OFFENSE_TE_RIGHT, ...FOUR_THREE_OVER];
     expect(firstLevelDefenders(players).map(p => p.id)).toEqual(['DE_L', 'DT_L', 'DT_R', 'DE_R']);
     expect(secondLevelDefenders(players).map(p => p.id)).toEqual(['W', 'M', 'S']);
+  });
+});
+
+describe('stand-up edge defenders', () => {
+  it('counts a 9-tech outside backer 55 off the line as first level, and an inside backer 80 off as second level', () => {
+    const edge = defensePlayer('OLB', 'OLB', 'LB', 688, 325, '9-Tech Strong');
+    const inside = defensePlayer('ILB', 'ILB', 'LB', 540, 300);
+    const players = [...OFFENSE_TE_RIGHT, edge, inside];
+    expect(firstLevelDefenders(players).map(p => p.id)).toEqual(['OLB']);
+    expect(secondLevelDefenders(players).map(p => p.id)).toEqual(['ILB']);
   });
 });
