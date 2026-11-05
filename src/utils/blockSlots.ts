@@ -3,7 +3,7 @@ import { analyzeOffense } from './defensiveAlignment';
 import { getOffenseReference, resolveOffensePosition } from './playMigrations';
 
 /** A defender this close to the line of scrimmage (in field units) is on the first level. */
-const FIRST_LEVEL_DEPTH = 45;
+const FIRST_LEVEL_DEPTH = 60;
 /** A tight end farther than this from the end of the line is split out, not part of it. */
 const ATTACHED_MAX = 90;
 
