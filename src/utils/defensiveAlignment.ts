@@ -898,6 +898,88 @@ export const DEFENSIVE_PACKAGES: DefensivePackage[] = [
   }
 ];
 
+export type CoverageId = 'cover-1' | 'cover-2' | 'cover-3' | 'two-man';
+
+export interface CoverageOption {
+  id: CoverageId;
+  name: string;
+  description: string;
+  /** Deep safeties the shell needs (Cover 2 / 2-Man split the field in halves). */
+  deepSafeties: 1 | 2;
+}
+
+export const COVERAGES: CoverageOption[] = [
+  { id: 'cover-1', name: 'Cover 1', description: 'Man free: press corners, one deep middle safety, down safety robs.', deepSafeties: 1 },
+  { id: 'cover-2', name: 'Cover 2', description: 'Zone: corners squat the flats, two safeties split the deep halves.', deepSafeties: 2 },
+  { id: 'cover-3', name: 'Cover 3', description: 'Zone: corners and a middle safety each take a deep third.', deepSafeties: 1 },
+  { id: 'two-man', name: '2-Man', description: 'Two deep halves over man coverage with press corners.', deepSafeties: 2 }
+];
+
+const SECONDARY_LABELS = new Set(['CB', 'FS', 'SS']);
+
+/** How many safeties (FS/SS) a front carries, which limits the two-high coverages. */
+export function countSafeties(pkg: DefensivePackage): number {
+  return pkg.defenders.filter(d => d.label === 'FS' || d.label === 'SS').length;
+}
+
+export function coverageFitsPackage(coverage: CoverageOption, pkg: DefensivePackage): boolean {
+  return countSafeties(pkg) >= coverage.deepSafeties;
+}
+
+/**
+ * Returns a copy of the front with its corners and safeties re-set to the chosen coverage.
+ * Linemen and linebackers are untouched; only CB / FS / SS change.
+ */
+export function applyCoverage(pkg: DefensivePackage, coverageId: CoverageId): DefensivePackage {
+  const coverage = COVERAGES.find(c => c.id === coverageId);
+  if (!coverage) return pkg;
+  let cbSeen = 0;
+  let safetySeen = 0;
+  const defenders = pkg.defenders.map(def => {
+    if (!SECONDARY_LABELS.has(def.label)) return def;
+    if (def.label === 'CB') {
+      const side = def.technique.includes('Right') ? 'Right' : def.technique.includes('Left') ? 'Left' : (cbSeen++ === 0 ? 'Left' : 'Right');
+      switch (coverage.id) {
+        case 'cover-3':
+          return { ...def, technique: `Off CB ${side}`, assignmentNotes: 'Cover 3: bail to the deep outside third.' };
+        case 'cover-2':
+          return { ...def, technique: `Press CB ${side}`, assignmentNotes: 'Cover 2: jam the receiver, then squat the flat under the deep half.' };
+        case 'cover-1':
+          return { ...def, technique: `Press CB ${side}`, assignmentNotes: 'Cover 1: press man on the #1 receiver, safety help inside.' };
+        case 'two-man':
+          return { ...def, technique: `Press CB ${side}`, assignmentNotes: '2-Man: press man on the #1 receiver, deep half over the top.' };
+      }
+    }
+    // Safeties: the first one is the deep player, the second is the robber (one-high) or the other half (two-high).
+    const idx = safetySeen++;
+    const half = idx === 0 ? 'Left' : 'Right';
+    if (coverage.deepSafeties === 2) {
+      if (idx > 1) return def;
+      return {
+        ...def,
+        technique: `2-High Safety ${half}`,
+        assignmentTitle: `${half} Deep Half`,
+        assignmentNotes: coverage.id === 'two-man' ? '2-Man: deep half, help over the top of both corners.' : 'Cover 2: deep half, read the #2 receiver.'
+      };
+    }
+    if (idx === 0) {
+      return {
+        ...def,
+        technique: 'Single-High FS',
+        assignmentTitle: coverage.id === 'cover-1' ? 'Middle Free Safety' : 'Deep Middle Third',
+        assignmentNotes: coverage.id === 'cover-1' ? 'Cover 1: deep middle, no man to cover, rob the post.' : 'Cover 3: deep middle third.'
+      };
+    }
+    return {
+      ...def,
+      technique: 'Robber Strong',
+      assignmentTitle: coverage.id === 'cover-1' ? 'Man on Tight End / Robber' : 'Curl-Flat Defender',
+      assignmentNotes: coverage.id === 'cover-1' ? 'Cover 1: take the tight end or running back man-to-man.' : 'Cover 3: curl-flat defender and run fit in the strong alley.'
+    };
+  });
+  return { ...pkg, defenders };
+}
+
 /**
  * Loads a complete defensive package onto the field and automatically aligns every defender
  * according to the active offensive formation.
@@ -983,6 +1065,57 @@ export function realignAllDefenders(
     return {
       ...player,
       technique: tech,
+      x: pos.x,
+      y: pos.y
+    };
+  });
+}
+
+/**
+ * Sets a coverage on the defense already on the field: corners and safeties get the coverage's
+ * techniques and are re-aligned, everyone else is left where they are. Returns the defenders
+ * unchanged when the field has too few safeties for a two-high coverage.
+ */
+export function setCoverageOnPlayers(
+  players: Player[],
+  coverageId: CoverageId,
+  structure: OffensiveStructure
+): Player[] {
+  const coverage = COVERAGES.find(c => c.id === coverageId);
+  const defenders = players.filter(p => p.side === 'defense');
+  if (!coverage) return defenders;
+  const isSafety = (p: Player) => p.label === 'FS' || p.label === 'SS';
+  const safeties = defenders.filter(isSafety);
+  if (safeties.length < coverage.deepSafeties) return defenders;
+
+  // Two-high: left safety plays the left half. One-high: the free safety plays the middle.
+  const ordered = coverage.deepSafeties === 2
+    ? [...safeties].sort((a, b) => a.x - b.x)
+    : [...safeties].sort((a, b) => Number(b.label === 'FS') - Number(a.label === 'FS'));
+  const slots = defenders.map(p => (isSafety(p) ? ordered.shift()! : p));
+  const pkg: DefensivePackage = {
+    id: 'on-field',
+    name: 'On field',
+    scheme: '',
+    description: '',
+    defenders: slots.map(p => ({
+      id: p.id,
+      label: p.label,
+      technique: p.label === 'CB' ? (p.x < structure.center.x ? 'Off CB Left' : 'Off CB Right') : (p.technique || ''),
+      assignmentTitle: p.assignmentTitle || '',
+      assignmentNotes: p.assignmentNotes || ''
+    }))
+  };
+  const byId = new Map(applyCoverage(pkg, coverageId).defenders.map(d => [d.id, d]));
+  return defenders.map(p => {
+    const d = byId.get(p.id);
+    if (!d || !(p.label === 'CB' || isSafety(p))) return p;
+    const pos = calculateDefensiveAlignmentPosition(d.technique, structure, p);
+    return {
+      ...p,
+      technique: d.technique,
+      assignmentTitle: d.assignmentTitle,
+      assignmentNotes: d.assignmentNotes,
       x: pos.x,
       y: pos.y
     };

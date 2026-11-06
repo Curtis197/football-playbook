@@ -6,7 +6,12 @@ import {
   DEFENSIVE_PACKAGES, 
   shiftDefensiveFront, 
   realignAllDefenders,
-  type DefensivePackage 
+  COVERAGES,
+  applyCoverage,
+  setCoverageOnPlayers,
+  coverageFitsPackage,
+  type CoverageId,
+  type DefensivePackage
 } from '../utils/defensiveAlignment';
 import { 
   Shield, 
@@ -44,15 +49,22 @@ export const DefenseFrontModal: React.FC<DefenseFrontModalProps> = ({
   const currentDefenders = currentPlayers.filter(p => p.side === 'defense');
 
   const [selectedPkgId, setSelectedPkgId] = useState<string>(DEFENSIVE_PACKAGES[0].id);
-  const selectedPkg = DEFENSIVE_PACKAGES.find(p => p.id === selectedPkgId) || DEFENSIVE_PACKAGES[0];
+  const basePkg = DEFENSIVE_PACKAGES.find(p => p.id === selectedPkgId) || DEFENSIVE_PACKAGES[0];
+  // null = keep the front's own secondary
+  const [coverageId, setCoverageId] = useState<CoverageId | null>(null);
+  const activeCoverage = COVERAGES.find(c => c.id === coverageId);
+  // A two-high coverage needs two safeties; fall back to the front's own secondary if this front has one.
+  const coverageUsable = activeCoverage ? coverageFitsPackage(activeCoverage, basePkg) : false;
+  const selectedPkg = activeCoverage && coverageUsable ? applyCoverage(basePkg, activeCoverage.id) : basePkg;
 
   if (!isOpen) return null;
 
   // Handle Loading the selected package
   const handleLoadPackage = (pkg: DefensivePackage) => {
     const updated = loadDefensivePackage(pkg, currentDefenders, offenseStructure);
-    onApplyDefenders(updated, pkg.name);
-    showNotification(`Loaded and pre-aligned "${pkg.name}" to offense!`, 'success');
+    const label = activeCoverage && coverageUsable ? `${pkg.name} – ${activeCoverage.name}` : pkg.name;
+    onApplyDefenders(updated, label);
+    showNotification(`Loaded and pre-aligned "${label}" to offense!`, 'success');
     onClose();
   };
 
@@ -70,6 +82,18 @@ export const DefenseFrontModal: React.FC<DefenseFrontModalProps> = ({
       fan: 'Fanned Front (Stemmed Outside)'
     };
     showNotification(labelMap[direction] || 'Shifted defense', 'info');
+  };
+
+  // Handle setting a coverage on the defense already on the field
+  const handleFieldCoverage = (id: CoverageId) => {
+    const cov = COVERAGES.find(c => c.id === id)!;
+    const safeties = currentDefenders.filter(p => p.label === 'FS' || p.label === 'SS').length;
+    if (safeties < cov.deepSafeties) {
+      showNotification(`${cov.name} needs two safeties on the field.`, 'error');
+      return;
+    }
+    onApplyDefenders(setCoverageOnPlayers(currentPlayers, id, offenseStructure));
+    showNotification(`Coverage set to ${cov.name}`, 'info');
   };
 
   // Handle Re-aligning all defenders
@@ -183,6 +207,19 @@ export const DefenseFrontModal: React.FC<DefenseFrontModalProps> = ({
             >
               <Maximize2 className="w-3 h-3" /> Fan
             </button>
+            <span className={`text-[10px] font-bold uppercase ml-2 mr-1 ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>
+              Coverage:
+            </span>
+            {COVERAGES.map(c => (
+              <button
+                key={c.id}
+                onClick={() => handleFieldCoverage(c.id)}
+                className="px-2 py-1 text-[11px] font-bold rounded border bg-indigo-500/10 hover:bg-indigo-500/20 border-indigo-500/40 text-indigo-400 transition-all"
+                title={`${c.description} Applies to the defense on the field.`}
+              >
+                {c.name}
+              </button>
+            ))}
             <button
               onClick={handleRealign}
               className={`px-2 py-1 text-[11px] font-bold rounded border ${isLight ? 'bg-amber-100 hover:bg-amber-200 border-amber-300 text-amber-900' : 'bg-amber-900/30 hover:bg-amber-900/50 border-amber-600/40 text-amber-300'} transition-all flex items-center gap-1`}
@@ -254,6 +291,36 @@ export const DefenseFrontModal: React.FC<DefenseFrontModalProps> = ({
                   <Zap className="w-4 h-4" /> Load & Align Front
                 </button>
               </div>
+
+              {/* COVERAGE PICKER */}
+              <div className="mt-3 flex flex-wrap items-center gap-1.5" role="group" aria-label="Coverage">
+                <span className={`text-[10px] font-bold uppercase mr-1 ${isLight ? 'text-slate-600' : 'text-slate-400'}`}>Coverage:</span>
+                {[{ id: null, name: 'Front default', description: "Keep this front's own secondary.", ok: true }, ...COVERAGES.map(c => ({ ...c, ok: coverageFitsPackage(c, basePkg) }))].map(c => {
+                  const active = c.id === coverageId;
+                  return (
+                    <button
+                      key={c.id ?? 'default'}
+                      type="button"
+                      disabled={!c.ok}
+                      aria-pressed={active}
+                      onClick={() => setCoverageId(c.id)}
+                      title={c.ok ? c.description : `${basePkg.name} only has one safety, so it can't play ${c.name}.`}
+                      className={`px-2.5 py-1 text-[11px] font-bold rounded border transition-all disabled:opacity-40 disabled:cursor-not-allowed ${
+                        active
+                          ? 'bg-rose-600 border-rose-500 text-white'
+                          : isLight
+                            ? 'bg-white hover:bg-slate-100 border-slate-300 text-slate-700'
+                            : 'bg-slate-800 hover:bg-slate-700 border-slate-700 text-slate-200'
+                      }`}
+                    >
+                      {c.name}
+                    </button>
+                  );
+                })}
+              </div>
+              {activeCoverage && !coverageUsable && (
+                <p className="mt-1 text-[11px] text-amber-500">{basePkg.name} only has one safety, so it keeps its own coverage.</p>
+              )}
 
               {/* DEFENDER ALIGNMENT TABLE */}
               <div className="overflow-x-auto mt-3">
