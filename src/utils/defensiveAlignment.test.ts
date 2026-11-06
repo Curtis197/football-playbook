@@ -1,10 +1,14 @@
 import { describe, expect, it } from 'vitest';
 import {
+  COVERAGES,
   DEFENSIVE_PACKAGES,
+  applyCoverage,
+  coverageFitsPackage,
   analyzeOffense,
   inferDefenderTechnique,
   loadDefensivePackage,
   realignAllDefenders,
+  setCoverageOnPlayers,
   shiftDefensiveFront
 } from './defensiveAlignment';
 import { DEFAULT_FORMATIONS } from '../data/presets';
@@ -188,6 +192,93 @@ describe('defensive packages', () => {
       expect(p.id).toBe(defense[i].id);
       expect(p.shape).toBe(defense[i].shape ?? 'none');
     });
+  });
+});
+
+describe('coverage on a front', () => {
+  const structure = analyzeOffense(wishbone.players);
+  const fourThree = DEFENSIVE_PACKAGES.find(p => p.id === 'pkg-4-3-over')!;
+  const secondary = (pkg: typeof fourThree) => pkg.defenders.filter(d => ['CB', 'FS', 'SS'].includes(d.label));
+  const front = (pkg: typeof fourThree) => pkg.defenders.filter(d => !['CB', 'FS', 'SS'].includes(d.label));
+
+  it('only the corners and safeties change', () => {
+    for (const c of COVERAGES) {
+      expect(front(applyCoverage(fourThree, c.id)), c.id).toEqual(front(fourThree));
+    }
+  });
+
+  it('Cover 3 is three deep: off corners and one middle safety, with the other safety down', () => {
+    const sec = secondary(applyCoverage(fourThree, 'cover-3')).map(d => d.technique);
+    expect(sec.filter(t => t.startsWith('Off CB'))).toHaveLength(2);
+    expect(sec.filter(t => t === 'Single-High FS')).toHaveLength(1);
+    expect(sec).toContain('Robber Strong');
+  });
+
+  it('Cover 1 presses the corners with one deep safety', () => {
+    const sec = secondary(applyCoverage(fourThree, 'cover-1')).map(d => d.technique);
+    expect(sec.filter(t => t.startsWith('Press CB'))).toHaveLength(2);
+    expect(sec.filter(t => t === 'Single-High FS')).toHaveLength(1);
+  });
+
+  it.each(['cover-2', 'two-man'] as const)('%s splits the field with two deep halves, left and right', id => {
+    const sec = secondary(applyCoverage(fourThree, id)).map(d => d.technique);
+    expect(sec).toContain('2-High Safety Left');
+    expect(sec).toContain('2-High Safety Right');
+    expect(sec.filter(t => t === 'Single-High FS' || t.startsWith('Robber'))).toHaveLength(0);
+  });
+
+  it('2-Man presses the corners, Cover 2 presses and squats', () => {
+    expect(secondary(applyCoverage(fourThree, 'two-man')).filter(d => d.technique.startsWith('Press CB'))).toHaveLength(2);
+    expect(secondary(applyCoverage(fourThree, 'cover-2')).filter(d => d.technique.startsWith('Press CB'))).toHaveLength(2);
+  });
+
+  it('keeps each corner on his own side', () => {
+    const cbs = secondary(applyCoverage(fourThree, 'cover-3')).filter(d => d.label === 'CB').map(d => d.technique);
+    expect(cbs).toEqual(['Off CB Left', 'Off CB Right']);
+  });
+
+  it('a one-safety front cannot play a two-high coverage', () => {
+    const bear = DEFENSIVE_PACKAGES.find(p => p.id === 'pkg-bear-46')!;
+    expect(coverageFitsPackage(COVERAGES.find(c => c.id === 'cover-2')!, bear)).toBe(false);
+    expect(coverageFitsPackage(COVERAGES.find(c => c.id === 'cover-3')!, bear)).toBe(true);
+  });
+
+  it.each(DEFENSIVE_PACKAGES.flatMap(p => COVERAGES.filter(c => coverageFitsPackage(c, p)).map(c => [p.name, c.id, p, c] as const)))(
+    '%s in %s loads on the field',
+    (_n, _id, pkg, c) => {
+      const loaded = loadDefensivePackage(applyCoverage(pkg, c.id), defense, structure);
+      expect(loaded).toHaveLength(pkg.defenders.length);
+      expect(loaded.every(onField)).toBe(true);
+    }
+  );
+});
+
+describe('coverage on the defense already on the field', () => {
+  const structure = analyzeOffense(wishbone.players);
+  const loaded = loadDefensivePackage(DEFENSIVE_PACKAGES.find(p => p.id === 'pkg-4-3-over')!, defense, structure);
+  const field = [...wishbone.players.filter(p => p.side === 'offense'), ...loaded];
+
+  it.each(COVERAGES.map(c => [c.id] as const))('%s keeps everyone, on the field, and leaves the front alone', id => {
+    const out = setCoverageOnPlayers(field, id, structure);
+    expect(out.map(p => p.id)).toEqual(loaded.map(p => p.id));
+    expect(out.every(onField)).toBe(true);
+    out.filter(p => !['CB', 'FS', 'SS'].includes(p.label)).forEach(p => {
+      const before = loaded.find(l => l.id === p.id)!;
+      expect([p.x, p.y, p.technique]).toEqual([before.x, before.y, before.technique]);
+    });
+  });
+
+  it('Cover 2 puts the left-most safety on the left half', () => {
+    const out = setCoverageOnPlayers(field, 'cover-2', structure).filter(p => p.label === 'FS' || p.label === 'SS');
+    const left = out.find(p => p.technique === '2-High Safety Left')!;
+    const right = out.find(p => p.technique === '2-High Safety Right')!;
+    expect(left.x).toBeLessThan(right.x);
+  });
+
+  it('does nothing to a defense without two safeties when asked for two-high', () => {
+    const oneSafety = field.filter(p => p.id !== loaded.find(l => l.label === 'SS')!.id);
+    const out = setCoverageOnPlayers(oneSafety, 'cover-2', structure);
+    expect(out.map(p => p.technique)).toEqual(oneSafety.filter(p => p.side === 'defense').map(p => p.technique));
   });
 });
 
